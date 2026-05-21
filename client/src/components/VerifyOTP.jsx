@@ -18,7 +18,7 @@ import {
 } from "antd";
 import { useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { fetchWithAuth, API_ENDPOINTS } from "../utils/api";
+import getBaseURL from "../utils/config";
 import {
   getSessionOtpState,
   saveOtpState,
@@ -35,6 +35,7 @@ import "../Login.css";
 const { Title, Text } = Typography;
 
 const VerifyOTP = () => {
+  const baseURL = getBaseURL();
   const [otpForm] = Form.useForm();
   const navigate = useNavigate();
   const location = useLocation();
@@ -93,8 +94,9 @@ const VerifyOTP = () => {
   const sendOtp = async () => {
     setIsResending(true);
     try {
-      const response = await fetchWithAuth(API_ENDPOINTS.SEND_OTP, {
+      const response = await fetch(`${baseURL}/auth/send-otp`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
 
@@ -136,8 +138,9 @@ const VerifyOTP = () => {
     try {
       const otp = values.otp;
 
-      const verifyResponse = await fetchWithAuth(API_ENDPOINTS.VERIFY_OTP, {
+      const verifyResponse = await fetch(`${baseURL}/auth/verify-otp`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, otp }),
       });
 
@@ -177,8 +180,9 @@ const VerifyOTP = () => {
         password: encryptedPassword,
       };
 
-      const registerResponse = await fetchWithAuth(API_ENDPOINTS.REGISTER, {
+      const registerResponse = await fetch(`${baseURL}/auth/register`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(registrationData),
       });
 
@@ -195,8 +199,9 @@ const VerifyOTP = () => {
       if (referral_code) {
         try {
           // Validate the code again to get referrer_id
-          const referralValidation = await fetchWithAuth(API_ENDPOINTS.REGISTER_WITH_CODE, {
+          const referralValidation = await fetch(`${baseURL}/referrals/register-with-code`, {
             method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ referral_code }),
           });
 
@@ -204,8 +209,9 @@ const VerifyOTP = () => {
 
           if (referralValidation.ok && validationData.valid) {
             // Create the referral record
-            await fetchWithAuth(API_ENDPOINTS.CREATE_REFERRAL, {
+            await fetch(`${baseURL}/referrals/create`, {
               method: "POST",
+              headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 referrer_id: validationData.referrer_id,
                 referee_id: newUserId,

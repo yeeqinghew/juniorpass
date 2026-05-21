@@ -13,7 +13,6 @@
     "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.3",
     "body-parser": "^2.2.0",
-    "cloudinary": "^2.9.0",
     "cors": "^2.8.5",
     "crypto-random-string": "^5.0.0",
     "dotenv": "^16.4.5",
@@ -24,7 +23,7 @@
     "jsonwebtoken": "^9.0.2",
     "jwt-decode": "^4.0.0",
     "node-fetch": "^2.7.0",
-    "pg": "^8.11.3",
-    "resend": "^6.12.3"
+    "nodemailer": "^6.9.16",
+    "pg": "^8.11.3"
   }
 }

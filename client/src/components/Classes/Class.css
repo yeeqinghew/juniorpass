@@ -37,24 +37,6 @@
   width: 100%;
   height: 400px;
   object-fit: cover;
-  display: block;
-}
-
-/* Fix Ant Design Image wrapper whitespace */
-.class-hero-card .ant-carousel .slick-slide > div {
-  display: block;
-}
-
-.class-hero-card .ant-carousel .slick-slide .ant-image {
-  display: block;
-  line-height: 0;
-}
-
-.class-hero-card .ant-carousel .slick-slide .ant-image-img {
-  width: 100%;
-  height: 400px;
-  object-fit: cover;
-  display: block;
 }
 
 .class-carousel-overlay {
@@ -323,10 +305,6 @@
     height: 250px;
   }
 
-  .class-hero-card .ant-carousel .slick-slide .ant-image-img {
-    height: 250px;
-  }
-
   .class-carousel-title {
     font-size: var(--font-size-xl) !important;
   }
@@ -339,6 +317,11 @@
   .class-partner-card {
     margin-top: var(--spacing-lg);
   }
+
+  /* Disable Affix on mobile */
+  .class-page .ant-affix {
+    position: relative !important;
+  }
 }
 
 @media screen and (min-width: 768px) and (max-width: 1023.9px) {
@@ -350,8 +333,9 @@
     height: 350px;
   }
 
-  .class-hero-card .ant-carousel .slick-slide .ant-image-img {
-    height: 350px;
+  /* Disable Affix on tablet */
+  .class-page .ant-affix {
+    position: relative !important;
   }
 }
 

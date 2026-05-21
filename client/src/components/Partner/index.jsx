@@ -26,12 +26,13 @@ import {
   UserOutlined,
   ShopOutlined,
 } from "@ant-design/icons";
-import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
+import getBaseURL from "../../utils/config";
 import "./index.css";
 
 const { Title, Text, Paragraph } = Typography;
 
 const Partner = () => {
+  const baseURL = getBaseURL();
   const [partner, setPartner] = useState({});
   const [listings, setListings] = useState([]);
   const [reviews, setReviews] = useState([]);
@@ -42,7 +43,7 @@ const Partner = () => {
   const getPartnerDetails = async () => {
     setLoading(true);
     try {
-      const response = await fetchWithAuth(API_ENDPOINTS.GET_PARTNER(partnerId));
+      const response = await fetch(`${baseURL}/partners/${partnerId}`);
       const { success, data } = await response.json();
 
       if (success) {

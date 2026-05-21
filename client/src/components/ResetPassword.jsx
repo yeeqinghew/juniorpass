@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Form, Input, Button, Typography } from "antd";
 import { useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { fetchWithAuth, API_ENDPOINTS } from "../utils/api";
+import getBaseURL from "../utils/config";
 import CryptoJS from "crypto-js";
 
 const { Title, Text } = Typography;
@@ -14,6 +14,7 @@ const ResetPassword = () => {
 
   const urlParams = new URLSearchParams(location.search);
   const token = urlParams.get("token");
+  const baseURL = getBaseURL();
 
   const onFinish = async (values) => {
     setLoading(true);
@@ -22,8 +23,11 @@ const ResetPassword = () => {
       const encryptedPassword = CryptoJS.SHA256(password).toString(
         CryptoJS.enc.Hex
       );
-      const response = await fetchWithAuth(API_ENDPOINTS.RESET_PASSWORD, {
+      const response = await fetch(`${baseURL}/auth/reset-password`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           token,
           newPassword: encryptedPassword,

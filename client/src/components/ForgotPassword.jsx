@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Form, Input, Button, Typography, Image } from "antd";
-import { fetchWithAuth, API_ENDPOINTS } from "../utils/api";
+import getBaseURL from "../utils/config";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 
@@ -10,13 +10,17 @@ const ForgotPassword = () => {
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false); // Track if the email is sent
   const [submittedEmail, setSubmittedEmail] = useState(""); // Store the submitted email
+  const baseURL = getBaseURL();
 
   const onFinish = async (values) => {
     setLoading(true);
     try {
       setSubmittedEmail(values.email); // Store email before sending request
-      const response = await fetchWithAuth(API_ENDPOINTS.FORGOT_PASSWORD, {
+      const response = await fetch(`${baseURL}/auth/forgot-password`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ email: values.email }),
       });
 

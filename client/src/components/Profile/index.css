@@ -5,6 +5,7 @@
 .profile-container {
   display: flex;
   width: 100%;
+  height: auto;
   min-height: auto;
   padding: 0 80px !important;
 }
@@ -15,7 +16,8 @@
   margin: var(--spacing-lg);
   padding: var(--spacing-lg);
   box-shadow: var(--shadow-sm);
-  overflow: hidden;
+  height: auto;
+  overflow: visible;
 }
 
 .profile-avatar-container {
@@ -78,6 +80,8 @@
   padding: 0;
   background: transparent;
   border-radius: 0;
+  height: auto;
+  overflow: visible;
 }
 
 /* Mobile: 360px x 480px */
@@ -85,6 +89,7 @@
   .profile-container {
     display: block;
     padding: 0 !important;
+    height: auto;
     min-height: 100vh;
   }
 
@@ -93,12 +98,24 @@
     padding: 0;
     border-radius: 0;
     box-shadow: none;
+    height: auto;
     position: relative;
     background: transparent;
   }
 
+  .profile-tabs .ant-tabs {
+    height: auto;
+  }
+
   .profile-tabs .ant-tabs-content-holder {
+    height: auto;
+    overflow: visible;
     background: transparent;
+  }
+
+  .profile-tabs .ant-tabs-tabpane {
+    height: auto;
+    overflow: visible;
   }
 
   .profile-tabs .ant-tabs-nav {
@@ -133,7 +150,7 @@
     background: var(--bg-white);
     box-shadow: var(--shadow-sm);
     position: sticky;
-    top: 0;
+    top: 90px;
     z-index: var(--z-sticky);
   }
 
@@ -174,8 +191,8 @@
     padding: var(--spacing-md);
     border-radius: 0;
     height: auto;
+    overflow: visible;
     background: transparent;
-    width: 100%;
   }
 
   /* Fix for all child components on mobile */
@@ -183,25 +200,6 @@
     border-radius: var(--radius-md);
     margin-bottom: var(--spacing-sm);
     box-shadow: var(--shadow-sm);
-    max-width: 100%;
-  }
-
-  /* Fix row overflow */
-  .profile-tab-content .ant-row {
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    width: 100%;
-  }
-
-  .profile-tab-content .ant-col {
-    padding-left: 8px !important;
-    padding-right: 8px !important;
-    max-width: 100%;
-  }
-
-  .profile-tab-content>div {
-    max-width: 100%;
-    overflow-x: hidden;
   }
 
   /* Exclude stat cards from display block override */
@@ -233,6 +231,7 @@
 
   .profile-tab-content .ant-form-item-label>label {
     font-size: 13px;
+    height: auto;
   }
 
   .profile-tab-content .ant-input,
@@ -240,6 +239,7 @@
   .profile-tab-content .ant-picker {
     font-size: 14px;
     padding: 8px 12px;
+    height: auto;
     min-height: 44px;
   }
 
@@ -351,7 +351,7 @@
     background: var(--bg-white);
     box-shadow: var(--shadow-sm);
     position: sticky;
-    top: 0;
+    top: 100px;
     z-index: var(--z-sticky);
   }
 

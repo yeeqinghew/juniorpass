@@ -15,12 +15,13 @@ import { Button, Form, Input, Typography, Divider, Card, Alert } from "antd";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
 import { GoogleLogin } from "@react-oauth/google";
-import { fetchWithAuth, API_ENDPOINTS } from "../utils/api";
+import getBaseURL from "../utils/config";
 import "../Login.css";
 
 const { Title, Text } = Typography;
 
 const Register = () => {
+  const baseURL = getBaseURL();
   const [registerForm] = Form.useForm();
   const navigate = useNavigate();
   const location = useLocation();
@@ -47,8 +48,9 @@ const Register = () => {
   // Validate referral code with backend
   const validateReferralCode = async (code) => {
     try {
-      const response = await fetchWithAuth(API_ENDPOINTS.REGISTER_WITH_CODE, {
+      const response = await fetch(`${baseURL}/referrals/register-with-code`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ referral_code: code }),
       });
 
@@ -79,8 +81,9 @@ const Register = () => {
       const email = values.email;
 
       // API: Check if email is already registered
-      const checkEmailResponse = await fetchWithAuth(API_ENDPOINTS.CHECK_EMAIL, {
+      const checkEmailResponse = await fetch(`${baseURL}/auth/check-email`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
 

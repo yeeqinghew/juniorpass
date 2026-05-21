@@ -12,7 +12,7 @@ import {
   HeartFilled,
   SafetyCertificateOutlined,
 } from "@ant-design/icons";
-import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
+import getBaseURL from "../../utils/config";
 import toast from "react-hot-toast";
 import "./index.css";
 
@@ -21,11 +21,15 @@ const { TextArea } = Input;
 
 const ContactUs = () => {
   const [contactUsForm] = Form.useForm();
+  const baseURL = getBaseURL();
 
   const handleContactUs = async (values) => {
     try {
-      const response = await fetchWithAuth(API_ENDPOINTS.PARTNER_FORM, {
+      const response = await fetch(`${baseURL}/partners/partnerForm`, {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(values),
       });
       const parseRes = await response.json();

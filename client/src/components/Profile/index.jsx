@@ -71,14 +71,13 @@ const Profile = () => {
       {isMobileOrTabletPortrait && avatarSection}
       <div className="profile-tabs">
         <Tabs
-          defaultActiveKey={state || "account"}
+          defaultActiveKey={state || "child"}
           tabPosition={isMobileOrTabletPortrait ? "top" : "left"}
           tabBarExtraContent={
             isMobileOrTabletPortrait ? null : { top: avatarSection }
           }
           items={items}
           tabBarGutter={isMobileOrTabletPortrait ? 0 : 12}
-          size={isMobileOrTabletPortrait ? "small" : "middle"}
         />
       </div>
     </div>
