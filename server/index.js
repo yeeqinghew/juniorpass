@@ -1,7 +1,7 @@
 const express = require("express");
 const path = require("path"); // Import path module
 const cors = require("cors");
-const client = require("./utils/redisClient"); // Import the Redis client
+const client = require("./utils/redisClient");
 const app = express();
 
 // middleware
@@ -56,11 +56,13 @@ app.use((req, res, next) => {
     req.path.startsWith("/partners") ||
     req.path.startsWith("/listings") ||
     req.path.startsWith("/misc") ||
+    req.path.startsWith("/media") ||
     req.path.startsWith("/children") ||
     req.path.startsWith("/payment") ||
     req.path.startsWith("/referrals") ||
     req.path.startsWith("/bookings") ||
     req.path.startsWith("/transactions") ||
+    req.path.startsWith("/outlets") ||
     req.path.startsWith("/notifications");
 
   if (isApiRoute) {
@@ -84,11 +86,13 @@ app.use("/admins", require("./routes/admins"));
 app.use("/partners", require("./routes/partners"));
 app.use("/listings", require("./routes/listings"));
 app.use("/misc", require("./routes/misc"));
+app.use("/media", require("./routes/media"));
 app.use("/children", require("./routes/children"));
 app.use("/payment", require("./routes/payment"));
 app.use("/bookings", require("./routes/bookings"));
 app.use("/transactions", require("./routes/transactions"));
 app.use("/notifications", require("./routes/notifications"));
+app.use("/outlets", require("./routes/outlets"));
 app.use("/referrals", require("./routes/referrals"));
 
 // health check endpoint

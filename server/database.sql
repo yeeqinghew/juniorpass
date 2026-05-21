@@ -1,5 +1,7 @@
 CREATE DATABASE juniorPASS;
 
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS children CASCADE;
 DROP TABLE IF EXISTS parents CASCADE;
@@ -44,7 +46,7 @@ CREATE TYPE user_types AS ENUM ('parent', 'child');
 CREATE TYPE methods AS ENUM('email', 'gmail');
 CREATE TYPE genders AS ENUM('M', 'F');
 CREATE TYPE categories AS ENUM('Sports', 'Music');
-CREATE TYPE package_types AS ENUM('pay-as-you-go', 'short-term', 'long-term');
+CREATE TYPE package_types AS ENUM('trial', 'pay-as-you-go', 'short-term', 'full-term');
 CREATE TYPE transaction_types AS ENUM('CREDIT', 'DEBIT');
 CREATE TYPE age_groups AS ENUM ('infant', 'toddler', 'preschooler', 'above-7');
 CREATE TYPE payment_status AS ENUM ('PENDING', 'COMPLETED', 'FAILED');
@@ -77,10 +79,29 @@ CREATE TABLE children (
     child_id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     parent_id uuid REFERENCES parents(parent_id) ON DELETE CASCADE,
     name VARCHAR(100),
-    age BIGINT,
+    date_of_birth DATE NOT NULL,
     gender genders NOT NULL,
     special_notes TEXT
 );
+
+-- a helper function to caclulate age from dob
+CREATE OR REPLACE FUNCTION calculate_age(dob DATE)
+RETURNS INTEGER AS $$
+BEGIN
+    RETURN EXTRACT(YEAR FROM AGE(CURRENT_DATE, dob));
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+CREATE OR REPLACE VIEW children_with_age AS
+SELECT
+    child_id,
+    parent_id,
+    name,
+    date_of_birth,
+    calculate_age(date_of_birth) AS age,
+    gender,
+    special_notes
+FROM children;
 
 CREATE TABLE referral_codes (
     id SERIAL PRIMARY KEY,
@@ -111,21 +132,28 @@ CREATE TRIGGER set_timestamp_referrals
 -- PARTNER PORTAL
 CREATE TABLE partners (
     partner_id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-    partner_name VARCHAR(50) NOT NULL,
+    partner_name VARCHAR(100) DEFAULT 'New Partner',
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(244) NOT NULL,
-    description VARCHAR(1000),
+    description VARCHAR(1000) DEFAULT 'Profile setup in progress',
     website VARCHAR(1000),
     rating BIGINT DEFAULT 0,
     credit INTEGER DEFAULT 0,  -- Partner's credit balance from bookings
     picture VARCHAR(1000),
-    address VARCHAR(1000) NOT NULL,
-    region VARCHAR(50) NOT NULL,
+    address VARCHAR(1000),
+    region VARCHAR(50),
     contact_number VARCHAR(8),
-    categories categories[] NOT NULL,
+    categories categories[],
+    is_profile_complete BOOLEAN DEFAULT true,
+    requires_password_change BOOLEAN DEFAULT false,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- For newly invited partners, these will be set to false and true respectively
+-- Existing partners are marked as complete with no password change required
+CREATE INDEX IF NOT EXISTS idx_partners_profile_complete ON partners(is_profile_complete);
+CREATE INDEX IF NOT EXISTS idx_partners_password_change ON partners(requires_password_change);
 
 CREATE TRIGGER set_timestamp_partners
     BEFORE UPDATE ON partners
@@ -156,15 +184,12 @@ CREATE TABLE listings (
     listing_title VARCHAR(1000) NOT NULL,
     price INTEGER,
     credit INTEGER,
-    package_types package_types[] NOT NULL,
     description VARCHAR(5000),
     rating BIGINT NOT NULL DEFAULT 0,
     -- rating ON UPDATE CASCADE
     age_groups age_groups[] NOT NULL,
     images JSONB,
     registered_parents VARCHAR(500),
-    short_term_start_date TIMESTAMP,
-    long_term_start_date TIMESTAMP,
     active BOOLEAN,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
@@ -199,19 +224,236 @@ CREATE TABLE listingOutlets (
 CREATE TABLE schedules (
     schedule_id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     listing_outlet_id uuid REFERENCES listingOutlets(listing_outlet_id) ON DELETE CASCADE,
+    schedule_group_id UUID REFERENCES schedule_groups(schedule_group_id) ON DELETE CASCADE,
     day TEXT CHECK (day IN ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')),
-    timeslot TEXT[],
-    frequency TEXT CHECK (frequency IN ('Biweekly', 'Weekly', 'Monthly', 'Yearly')),
-    slots INTEGER DEFAULT 10 CHECK (slots >= 1 AND slots <= 100),
-    credit INTEGER CHECK (credit >= 1 AND credit <= 10),
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE INDEX idx_schedules_schedule_group ON schedules(schedule_group_id);
 
 CREATE TRIGGER set_timestamp_schedules
     BEFORE UPDATE ON schedules
     FOR EACH ROW
     EXECUTE FUNCTION trigger_set_timestamp();
+
+
+CREATE TABLE schedule_groups (
+  schedule_group_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  listing_outlet_id UUID REFERENCES listingOutlets(listing_outlet_id) ON DELETE CASCADE NOT NULL,
+
+  -- Package configuration (moved from schedules)
+  package_types package_types[] NOT NULL DEFAULT ARRAY['pay-as-you-go']::package_types[],
+  is_progressive BOOLEAN DEFAULT false,
+
+  -- Full-term package config
+  full_term_start_date TIMESTAMP,
+  full_term_class_count INTEGER CHECK (full_term_class_count > 0),
+  short_term_class_count INTEGER CHECK (short_term_class_count > 0),
+
+  -- Pricing (in dollars)
+  price_payg DECIMAL(10, 2) CHECK (price_payg >= 0),
+  price_fullterm DECIMAL(10, 2) CHECK (price_fullterm >= 0),
+  price_shortterm DECIMAL(10, 2) CHECK (price_shortterm >= 0),
+
+  -- Frequency and slots (shared across all time slots in group)
+  frequency TEXT CHECK (frequency IN ('Biweekly', 'Weekly', 'Monthly', 'Yearly')),
+  slots INTEGER DEFAULT 10 CHECK (slots >= 1 AND slots <= 100),
+
+  -- Timestamps
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Add trigger for updated_at
+CREATE TRIGGER set_timestamp_schedule_groups
+  BEFORE UPDATE ON schedule_groups
+  FOR EACH ROW
+  EXECUTE FUNCTION trigger_set_timestamp();
+
+-- Add indexes
+CREATE INDEX idx_schedule_groups_listing_outlet ON schedule_groups(listing_outlet_id);
+CREATE INDEX idx_schedule_groups_package_types ON schedule_groups USING GIN (package_types);
+CREATE INDEX idx_schedule_groups_is_progressive ON schedule_groups(is_progressive);
+CREATE INDEX idx_schedule_groups_full_term_start ON schedule_groups(full_term_start_date);
+
+-- Add constraints
+ALTER TABLE schedule_groups
+ADD CONSTRAINT check_schedule_groups_package_types_not_empty
+  CHECK (array_length(package_types, 1) > 0);
+
+CREATE TABLE scheduleExceptions (
+    exception_id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    schedule_id uuid REFERENCES schedules(schedule_id) ON DELETE CASCADE,
+    exception_date DATE NOT NULL,
+    exception_type VARCHAR(20) CHECK (exception_type IN ('cancelled', 'rescheduled')) NOT NULL,
+    reason VARCHAR(255),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE (schedule_id, exception_date)
+);
+
+CREATE INDEX idx_schedule_exceptions_schedule_date ON scheduleExceptions(schedule_id, exception_date);
+
+CREATE OR REPLACE FUNCTION calculate_short_term_classes(full_term_class_count INTEGER)
+RETURNS INTEGER AS $$
+BEGIN
+    RETURN CEIL(full_term_class_count * 0.25);
+END;
+$$ LANGUAGE plpgsql STABLE;
+COMMENT ON FUNCTION calculate_short_term_classes IS 'Calculate short-term package classes as 25% of full-term package classes, rounded up.';
+
+CREATE OR REPLACE FUNCTION is_valid_package_combination(types package_types[])
+RETURNS BOOLEAN AS $$
+BEGIN
+    -- Valid combinations:
+    -- 1) ['pay-as-you-go']
+    -- 2) ['full-term']
+    -- 3} ['full-term', 'short-term']
+    -- 4) ['trial']
+    iF array_length(types, 1) = 1 THEN
+        RETURN types[1] IN ('full-term', 'pay-as-you-go', 'trial');
+    END IF;
+
+    IF array_length(types, 1) = 2 THEN
+        RETURN 'full-term' = ANY(types) AND 'short-term' = ANY(types);
+    END IF;
+
+    -- Invalid if more than 2 types
+    RETURN false;
+END;
+$$ LANGUAGE plpgsql STABLE;
+COMMENT ON FUNCTION is_valid_package_combination IS 'Validate that package type combination is one of the three allowed configurations."]';
+
+
+CREATE OR REPLACE FUNCTION trigger_calculate_short_term_classes()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- only calculate if full-term is in package_types and full_term_class_count is set
+    IF 'full-term' = ANY(NEW.package_types) AND NEW.full_term_class_count IS NOT NULL THEN
+        NEW.short_term_class_count := calculate_short_term_classes(NEW.full_term_class_count);
+    ELSE
+        NEW.short_term_class_count := NULL; -- No short-term classes if no full-term package
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER set_short_term_class_count
+    BEFORE INSERT OR UPDATE OF full_term_class_count ON schedules
+    FOR EACH ROW
+    EXECUTE FUNCTION trigger_calculate_short_term_classes();
+
+CREATE OR REPLACE FUNCTION trigger_update_classes_remaining()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.classes_remaining := NEW.classes_total - NEW.classes_attended;
+
+    -- update extension eligibility for short-term bookings
+    IF NEW.enrolled_package_type = 'short-term' THEN
+        -- can extend if: not already extended AND has classes remaining
+        NEW.can_extend_to_full_term := (
+            NEW.upgraded_from_booking_id IS NULL AND 
+            NEW.classes_remaining > 0
+        );
+
+        IF NEW.classes_remaining = 1 AND NEW.can_extend_to_full_term THEN
+            -- would need to be set based on the actual class start time
+            -- for now, we will set to NULL and handle it in application layer
+            NEW.extension_deadline := NULL;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_booking_classes
+    BEFORE INSERT OR UPDATE OF classes_attended, classes_total ON bookings
+    FOR EACH ROW
+    EXECUTE FUNCTION trigger_update_classes_remaining();
+
+CREATE OR REPLACE FUNCTION can_book_package_type(
+    p_schedule_id UUID,
+    p_package_type package_types,
+    p_user_id UUID,
+    p_current_time TIMESTAMP DEFAULT NOW()
+)
+RETURNS TABLE(
+    can_book BOOLEAN,
+    reason TEXT
+) AS $$
+DECLARE
+    v_schedule RECORD;
+    v_has_shortterm BOOLEAN;
+BEGIN
+    -- Get schedule details
+    SELECT * FROM schedules
+    WHERE schedule_id = p_schedule_id;
+
+    -- Check if package type is available
+    IF NOT (p_package_type = ANY(v_schedule.package_types)) THEN
+        RETURN QUERY SELECT true, 'Package type not available for this schedule';
+        RETURN;
+    END IF;
+    
+    -- Pay-as-you-go always available
+    IF p_package_type = 'pay-as-you-go' THEN
+        RETURN QUERY SELECT true, 'Pay-as-you-go is always available';
+        RETURN;
+    END IF;
+
+    -- short-term validation
+    IF p_package_type = 'short-term' THEN
+        -- check if user has already used short-term
+        SELECT EXISTS (
+            SELECT 1 FROM bookings b
+            JOIN schedules s ON b.schedule_id = s.schedule_id
+            WHERE b.child_id IN (
+                SELECT child_id FROM children WHERE parent_id = p_user_id
+            )
+            AND s.schedule_id = p_schedule_id
+            AND b.has_used_short_term = true
+        ) INTO v_has_shortterm;
+
+        IF v_has_shortterm THEN
+            RETURN QUERY SELECT false, 'Short-term already used for this schedule';
+            RETURN;
+        END IF;
+
+        -- check if past full-term start date (for progressive schedules)
+        IF v_schedule.is_progressive AND v_schedule.full_term_start_date IS NOT NULL THEN
+            IF p_current_time >= v_schedule.full_term_start_date THEN
+                RETURN QUERY SELECT false, 'Short-term booking window has closed for this schedule';
+                RETURN;
+            END IF;
+        END IF;
+
+        RETURN QUERY SELECT true, 'Short-term booking is available';
+        RETURN;
+    END IF;
+
+    -- full-term validation
+    IF p_package_type = 'full-term' THEN
+        -- check if progressive and past start date
+        IF v_schedule.is_progressive AND v_schedule.full_term_start_date IS NOT NULL THEN
+            IF p_current_time > v_schedule.full_term_start_date THEN 
+               RETURN QUERY SELECT false, 'Cannot join progressive class mid-cycle';
+                RETURN;
+            END IF;
+        END IF;
+
+        RETURN QUERY SELECT true, 'Full-term booking is available';
+        RETURN;
+    END IF;
+
+    RETURN QUERY SELECT false, 'Unknown package type';
+END;
+$$ LANGUAGE plpgsql STABLE;
+COMMENT ON FUNCTION can_book_package_type IS 'Validate if a user can book a specific package type at current time, considering progressive classes and short term usage.';
 
 CREATE TABLE payment_requests (
     request_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -275,9 +517,10 @@ CREATE TABLE packageTypes (
 
 INSERT INTO packageTypes (name, package_type) 
     VALUES
+    ('Trial', 'trial'),
     ('Pay-as-you-go', 'pay-as-you-go'),
     ('Short term package', 'short-term'),
-    ('Long term package', 'long-term');
+    ('Full term package', 'full-term');
 
 CREATE TABLE ageGroups (
     id SERIAL PRIMARY KEY,
@@ -342,8 +585,17 @@ CREATE TABLE bookings (
     listing_id uuid REFERENCES listings(listing_id) ON DELETE CASCADE,
     schedule_id uuid REFERENCES schedules(schedule_id) ON DELETE CASCADE,
     user_id uuid REFERENCES users(user_id) ON DELETE CASCADE,
+    schedule_group_id UUID REFERENCES schedule_groups(schedule_group_id) ON DELETE CASCADE,
     start_date TIMESTAMP NOT NULL,
     end_date TIMESTAMP NOT NULL,
+    enrolled_package_type package_types,
+    classes_total INTEGER,
+    classes_attended INTEGER DEFAULT 0,
+    classes_remaining INTEGER,
+    has_used_short_term BOOLEAN DEFAULT false,
+    can_extend_to_full_term BOOLEAN DEFAULT false,
+    extension_deadline TIMESTAMP,
+    upgraded_from_booking_id UUID REFERENCES bookings(booking_id),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -355,9 +607,11 @@ CREATE TRIGGER set_timestamp_bookings
 
 -- Helpful index for overlap checks by user and date range
 CREATE INDEX idx_bookings_user_date ON bookings (user_id, start_date, end_date);
-
 -- Index for checking schedule capacity
 CREATE INDEX idx_bookings_schedule_date ON bookings (schedule_id, start_date, end_date);
+-- Keep schedule_id for tracking which specific time slots were attended
+CREATE INDEX idx_bookings_schedule_group ON bookings(schedule_group_id);
+
 
 -- NOTIFICATIONS: generic notification system for users, partners, and admins
 CREATE TABLE notifications (

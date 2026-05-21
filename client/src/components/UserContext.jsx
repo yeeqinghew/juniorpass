@@ -6,7 +6,7 @@ import {
   useCallback,
 } from "react";
 import { jwtDecode } from "jwt-decode";
-import getBaseURL from "../utils/config";
+import { fetchWithAuth, API_ENDPOINTS } from "../utils/api";
 import toast from "react-hot-toast";
 
 const UserContext = createContext();
@@ -15,7 +15,6 @@ export const UserProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const baseURL = getBaseURL();
 
   const setAuth = useCallback((status, userData = null) => {
     setIsAuthenticated(status);
@@ -26,12 +25,8 @@ export const UserProvider = ({ children }) => {
     async (token) => {
       try {
         setLoading(true);
-        const profileResponse = await fetch(`${baseURL}/auth/`, {
+        const profileResponse = await fetchWithAuth(API_ENDPOINTS.VERIFY_TOKEN, {
           method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
         });
 
         if (profileResponse.ok) {
@@ -58,7 +53,7 @@ export const UserProvider = ({ children }) => {
         setLoading(false);
       }
     },
-    [baseURL, setAuth]
+    [setAuth]
   );
 
   // NEW: Function to explicitly re-evaluate authentication status

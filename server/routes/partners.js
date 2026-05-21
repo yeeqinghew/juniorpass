@@ -31,7 +31,8 @@ router.post("/login", async (req, res) => {
 
   try {
     const partner = await pool.query(
-      "SELECT * FROM partners WHERE email = $1",
+      `SELECT partner_id, email, password, requires_password_change, is_profile_complete
+       FROM partners WHERE email = $1`,
       [email],
     );
 
@@ -50,7 +51,13 @@ router.post("/login", async (req, res) => {
     }
 
     const token = jwtGenerator(partner.rows[0].partner_id);
-    return res.status(200).json({ token });
+
+    return res.status(200).json({
+      token,
+      requires_password_change:
+        partner.rows[0].requires_password_change || false,
+      is_profile_complete: partner.rows[0].is_profile_complete !== false, // Default true for existing partners
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message });
@@ -96,66 +103,100 @@ router.get("/:id", cacheMiddleware, async (req, res) => {
   }
 });
 
-router.put("/:id", async (req, res) => {
+router.patch("/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const {
       partner_name,
       description,
+      picture,
       address,
       contact_number,
       website,
-      outlets,
+      outlets = [],
     } = req.body;
 
+    // -------------------------
+    // 1. UPDATE PARTNER
+    // -------------------------
     const updatedPartner = await pool.query(
       `UPDATE partners 
-      SET
-        partner_name = $1,
-        description = $2,
-        address = $3,
-        contact_number = $4,
-        website = $5
-      WHERE partner_id = $6 RETURNING *`,
-      [partner_name, description, address, contact_number, website, id],
+       SET
+        partner_name = COALESCE($1, partner_name),
+        description = COALESCE($2, description),
+        picture = COALESCE($3, picture),
+        address = COALESCE($4, address),
+        contact_number = COALESCE($5, contact_number),
+        website = COALESCE($6, website)
+       WHERE partner_id = $7
+       RETURNING *`,
+      [
+        partner_name,
+        description,
+        picture,
+        address,
+        contact_number,
+        website,
+        id,
+      ],
     );
+
     await client.del(`/partners/${id}`);
 
-    // Get existing outlets tied to this partner
-    const existingOutlets = await pool.query(
+    // -------------------------
+    // 2. GET EXISTING OUTLETS
+    // -------------------------
+    const existing = await pool.query(
       `SELECT * FROM outlets WHERE partner_id = $1`,
       [id],
     );
-    const existingOutletMap = new Map(
-      existingOutlets.rows.map((o) => [o.address, o.outlet_id]),
+
+    const existingMap = new Map(existing.rows.map((o) => [o.outlet_id, o]));
+
+    const incomingIds = new Set(
+      outlets.filter((o) => o.outlet_id).map((o) => o.outlet_id),
     );
 
-    // Update existing outlets
+    // -------------------------
+    // 3. DELETE REMOVED OUTLETS
+    // -------------------------
+    const deleteQueries = existing.rows
+      .filter((o) => !incomingIds.has(o.outlet_id))
+      .map((o) =>
+        pool.query(`DELETE FROM outlets WHERE outlet_id = $1`, [o.outlet_id]),
+      );
+
+    // -------------------------
+    // 4. UPDATE EXISTING
+    // -------------------------
     const updateQueries = outlets
-      .filter((outlet) => existingOutletMap.has(outlet.outlet_id))
-      .map(({ outlet_id, address, nearest_mrt }) =>
+      .filter((o) => o.outlet_id && existingMap.has(o.outlet_id))
+      .map((o) =>
         pool.query(
-          `UPDATE outlets SET address = $1, nearest_mrt = $2 WHERE outlet_id = $3`,
-          [address, nearest_mrt, outlet_id],
+          `UPDATE outlets 
+           SET address = $1, nearest_mrt = $2
+           WHERE outlet_id = $3`,
+          [o.address, o.nearest_mrt, o.outlet_id],
         ),
       );
 
-    // Insert new outlets only if they don't exist
-    const insertOutletQueries = outlets
-      .filter((outlet) => !existingOutletMap.has(outlet.address)) // new outlets
-      .map(async ({ address, nearest_mrt }) => {
-        const result = await pool.query(
-          `INSERT INTO outlets (partner_id, address, nearest_mrt) 
-          VALUES ($1, $2, $3) RETURNING outlet_id`,
-          [id, address, nearest_mrt],
-        );
-        return result.rows[0].outlet_id; // Get newly inserted outlet_id
-      });
+    // -------------------------
+    // 5. INSERT NEW
+    // -------------------------
+    const insertQueries = outlets
+      .filter((o) => !o.outlet_id)
+      .map((o) =>
+        pool.query(
+          `INSERT INTO outlets (partner_id, address, nearest_mrt)
+           VALUES ($1, $2, $3)`,
+          [id, o.address, o.nearest_mrt],
+        ),
+      );
 
-    await Promise.all([...updateQueries, ...insertOutletQueries]);
+    await Promise.all([...deleteQueries, ...updateQueries, ...insertQueries]);
 
     return res.status(200).json({
-      message: "Information has been updated successfully!",
+      message: "Information updated successfully!",
       partner: updatedPartner.rows[0],
     });
   } catch (error) {
@@ -164,10 +205,10 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-router.post("/partnerForm", validInfo, async (req, res) => {
+router.post("/partner-form", validInfo, async (req, res) => {
   try {
     const { companyName, companyPersonName, email, message } = req.body;
-    const request = await pool.query(
+    await pool.query(
       `INSERT INTO partnerForms (
         company_name,
         contact_person_name,
@@ -198,6 +239,74 @@ router.post("/partnerForm", validInfo, async (req, res) => {
     });
   } catch (error) {
     console.error("ERROR in /misc/contactUs", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Change password for partners (especially for first-time login with temp password)
+router.post("/change-password", authorization, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const partner_id = req.user;
+
+  try {
+    // Get current partner data
+    const partner = await pool.query(
+      "SELECT password FROM partners WHERE partner_id = $1",
+      [partner_id],
+    );
+
+    if (partner.rows.length === 0) {
+      return res.status(404).json({ message: "Partner not found" });
+    }
+
+    // Verify current password
+    const validPassword = bcrypt.compareSync(
+      currentPassword,
+      partner.rows[0].password,
+    );
+    if (!validPassword) {
+      return res.status(401).json({ message: "Current password is incorrect" });
+    }
+
+    // Hash new password
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password and clear password change requirement
+    await pool.query(
+      `UPDATE partners
+       SET password = $1, requires_password_change = false, updated_at = NOW()
+       WHERE partner_id = $2`,
+      [hashedNewPassword, partner_id],
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Password changed successfully",
+    });
+  } catch (error) {
+    console.error("ERROR in /partners/change-password", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Mark profile as complete (called after partner completes their profile setup)
+router.post("/complete-profile", authorization, async (req, res) => {
+  const partner_id = req.user;
+
+  try {
+    await pool.query(
+      `UPDATE partners
+       SET is_profile_complete = true, updated_at = NOW()
+       WHERE partner_id = $1`,
+      [partner_id],
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Profile marked as complete",
+    });
+  } catch (error) {
+    console.error("ERROR in /partners/complete-profile", error.message);
     res.status(500).json({ error: error.message });
   }
 });

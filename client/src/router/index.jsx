@@ -19,7 +19,7 @@ import ContactUs from "../components/ContactUs";
 import AboutUs from "../components/AboutUs";
 import Partner from "../components/Partner";
 import PackageTypes from "../components/PackageTypes";
-import getBaseURL from "../utils/config";
+import { fetchWithAuth, API_ENDPOINTS } from "../utils/api";
 
 import "mapbox-gl/dist/mapbox-gl.css";
 import "./index.css";
@@ -31,19 +31,14 @@ const { Title, Text } = Typography;
 const Routers = () => {
   const navigate = useNavigate();
   const { isAuthenticated, setLoading, setAuth } = useUserContext();
-  const baseURL = getBaseURL();
   const [isTimeoutModalOpen, setIsTimeoutModalOpen] = useState(false);
 
   const handleLogout = useCallback(async () => {
     try {
       const token = localStorage.getItem("token");
       if (token) {
-        await fetch(`${baseURL}/auth/logout`, {
+        await fetchWithAuth(API_ENDPOINTS.LOGOUT, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
         });
       }
     } catch (e) {
@@ -56,7 +51,7 @@ const Routers = () => {
     setIsTimeoutModalOpen(false);
     toast.success("You have been logged out due to inactivity");
     navigate("/login");
-  }, [baseURL, navigate, setAuth, setLoading]);
+  }, [navigate, setAuth, setLoading]);
 
   const handleOnIdle = useCallback(() => {
     if (isAuthenticated) {

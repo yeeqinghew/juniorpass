@@ -5,7 +5,9 @@ const authorization = require("../middleware/authorization");
 const etagMiddleware = require("../middleware/etagMiddleware");
 const cacheMiddleware = require("../middleware/cacheMiddleware");
 const client = require("../utils/redisClient");
-const { deleteS3Objects } = require("../utils/s3");
+const {
+  deleteCloudinaryImage,
+} = require("../services/storage/storage.service");
 
 require("dotenv").config();
 router.use(etagMiddleware);
@@ -16,108 +18,166 @@ router.post("", authorization, async (req, res) => {
     const {
       partner_id,
       title,
-      package_types,
+      // lesson_type,
       description,
       age_groups,
       images,
-      short_term_start_date,
-      long_term_start_date,
       outlets,
     } = req.body;
 
     const partnerIdFromToken = req.user;
 
+    // Validation: Check for required fields
+    if (
+      !title ||
+      // !lesson_type ||
+      !description ||
+      !age_groups ||
+      !outlets ||
+      outlets.length === 0
+    ) {
+      return res.status(400).json({
+        error: "Missing required fields",
+        details: {
+          title: !title ? "Title is required" : null,
+          // lesson_type: !lesson_type ? "Lesson type is required" : null,
+          description: !description ? "Description is required" : null,
+          age_groups: !age_groups ? "Age groups are required" : null,
+          outlets:
+            !outlets || outlets.length === 0
+              ? "At least one outlet is required"
+              : null,
+        },
+      });
+    }
+
+    // Note: We allow empty images array here because images are uploaded after listing creation
+    // The constraint will be enforced when the listing is finalized (PATCH with images)
+
     // insert listing
     const listing = await pool.query(
       `INSERT INTO listings (
-        partner_id, 
-        listing_title, 
-        package_types,      
+        partner_id,
+        listing_title,
         description,
         age_groups,
-        rating, 
+        rating,
         images,
-        short_term_start_date,
-        long_term_start_date,
         active
-      ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      ) VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
       [
         partnerIdFromToken,
         title,
-        package_types,
+        // lesson_type,
         description,
         age_groups,
         0,
         images,
-        short_term_start_date,
-        long_term_start_date,
         true,
       ],
     );
 
     const listing_id = listing.rows[0].listing_id;
 
-    // Insert into listingOutlets
-    const schedulePromises = [];
-
+    // Insert outlets and schedule groups
     for (let outlet of outlets) {
       const { outlet_id, schedules } = outlet;
 
       // Insert into listingOutlets
       const listingOutlet = await pool.query(
-        `
-        INSERT INTO listingOutlets (listing_id, outlet_id) VALUES($1, $2) RETURNING *`,
+        `INSERT INTO listingOutlets (listing_id, outlet_id) VALUES($1, $2) RETURNING *`,
         [listing_id, outlet_id],
       );
       const listing_outlet_id = listingOutlet.rows[0].listing_outlet_id;
 
-      for (let schedule of schedules) {
+      // Each schedule represents one enrollable program
+      for (let schedule of schedules || []) {
         const {
-          day,
-          timeslot,
+          time_slots,
           frequency,
           slots,
-          credit: scheduleCredit,
+          package_types,
+          is_progressive,
+          full_term_start_date,
+          full_term_class_count,
+          short_term_class_count,
+          price_payg,
+          price_fullterm,
+          price_shortterm,
         } = schedule;
 
-        schedulePromises.push(
-          pool.query(
-            `INSERT INTO schedules (listing_outlet_id, day, timeslot, frequency, slots, credit)
-             VALUES($1, $2, $3, $4, $5, $6)`,
-            [
+        // 1. Insert schedule_group (the enrollable program)
+        const scheduleGroupResult = await pool.query(
+          `INSERT INTO schedule_groups (
+            listing_outlet_id,
+            package_types,
+            is_progressive,
+            full_term_start_date,
+            full_term_class_count,
+            short_term_class_count,
+            price_payg,
+            price_fullterm,
+            price_shortterm,
+            frequency,
+            slots
+          ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING schedule_group_id`,
+          [
+            listing_outlet_id,
+            package_types || ["pay-as-you-go"],
+            is_progressive || false,
+            full_term_start_date || null,
+            full_term_class_count || null,
+            short_term_class_count || null,
+            price_payg || null,
+            price_fullterm || null,
+            price_shortterm || null,
+            frequency,
+            slots || 10,
+          ],
+        );
+
+        const schedule_group_id = scheduleGroupResult.rows[0].schedule_group_id;
+
+        // 2. Insert time slots for this schedule group
+        for (let slot of time_slots || []) {
+          const { day, timeslot } = slot;
+
+          // Parse timeslot array: [start, end]
+          const start_time = timeslot && timeslot[0] ? timeslot[0] : null;
+          const end_time = timeslot && timeslot[1] ? timeslot[1] : null;
+
+          await pool.query(
+            `INSERT INTO schedules (
+              schedule_group_id,
               listing_outlet_id,
               day,
-              timeslot,
-              frequency,
-              slots || 10,
-              scheduleCredit || 1,
-            ],
-          ),
-        );
+              start_time,
+              end_time
+            ) VALUES($1, $2, $3, $4, $5)`,
+            [schedule_group_id, listing_outlet_id, day, start_time, end_time],
+          );
+        }
       }
     }
-
-    // Execute all schedule insert queries in parallel
-    await Promise.all(schedulePromises);
 
     // Invalidate cache
     await client.del("/listings");
 
     // Admin notifications: new listing created
-    try {
-      await pool.query(
-        `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
-         SELECT 'admin', admin_id, 'new_listing', 'New listing created', 'A new listing has been created.',
-                jsonb_build_object('listing_id', $1, 'partner_id', $2, 'title', $3)
-         FROM admins`,
-        [listing_id, partnerIdFromToken, title],
-      );
-    } catch (notifyErr) {
-      console.error(
-        "Failed to insert admin notification (new listing):",
-        notifyErr.message,
-      );
-    }
+    // try {
+    //   await pool.query(
+    //     `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
+    //      SELECT 'admin', admin_id, 'new_listing', 'New listing created', 'A new listing has been created.',
+    //             jsonb_build_object('listing_id', $1, 'partner_id', $2, 'title', $3)
+    //      FROM admins`,
+    //     [listing_id, partnerIdFromToken, title],
+    //   );
+    // } catch (notifyErr) {
+    //   console.error(
+    //     "Failed to insert admin notification (new listing):",
+    //     notifyErr.message,
+    //   );
+    // }
 
     res.status(201).json({
       message: "Listing has been created!",
@@ -133,7 +193,7 @@ router.post("", authorization, async (req, res) => {
 router.get("", cacheMiddleware, async (req, res) => {
   try {
     const listings = await pool.query(
-      ` SELECT 
+      ` SELECT
         l.*,
         json_build_object(
           'partner_id', p.partner_id,
@@ -145,26 +205,64 @@ router.get("", cacheMiddleware, async (req, res) => {
           'picture', p.picture,
           'website', p.website
         ) AS partner_info,
-         jsonb_agg(
-          jsonb_build_object(
-            'schedule_id', s.schedule_id,
-            'day', s.day,
-            'timeslot', s.timeslot,
-            'frequency', s.frequency,
-            'slots', s.slots,
-            'credit', s.credit,
-            'outlet_id', o.outlet_id,
-            'outlet_address', o.address,
-            'nearest_mrt', o.nearest_mrt
+        (
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'outlet_id', o.outlet_id,
+              'outlet_address', o.address,
+              'nearest_mrt', o.nearest_mrt,
+              'schedule_groups', (
+                SELECT jsonb_agg(
+                  jsonb_build_object(
+                    'schedule_group_id', sg.schedule_group_id,
+                    'package_types', sg.package_types,
+                    'is_progressive', COALESCE(sg.is_progressive, false),
+                    'full_term_start_date', sg.full_term_start_date,
+                    'full_term_class_count', sg.full_term_class_count,
+                    'short_term_class_count', sg.short_term_class_count,
+                    'price_payg', sg.price_payg,
+                    'price_fullterm', sg.price_fullterm,
+                    'price_shortterm', sg.price_shortterm,
+                    'frequency', sg.frequency,
+                    'slots', sg.slots,
+                    'time_slots', (
+                      SELECT jsonb_agg(
+                        jsonb_build_object(
+                          'schedule_id', s.schedule_id,
+                          'day', s.day,
+                          'start_time', s.start_time,
+                          'end_time', s.end_time
+                        )
+                        ORDER BY
+                          CASE s.day
+                            WHEN 'Monday' THEN 1
+                            WHEN 'Tuesday' THEN 2
+                            WHEN 'Wednesday' THEN 3
+                            WHEN 'Thursday' THEN 4
+                            WHEN 'Friday' THEN 5
+                            WHEN 'Saturday' THEN 6
+                            WHEN 'Sunday' THEN 7
+                          END,
+                          s.start_time
+                      )
+                      FROM schedules s
+                      WHERE s.schedule_group_id = sg.schedule_group_id
+                    )
+                  )
+                )
+                FROM schedule_groups sg
+                WHERE sg.listing_outlet_id = lo.listing_outlet_id
+              )
+            )
           )
-        ) AS schedule_info
+          FROM listingOutlets lo
+          LEFT JOIN outlets o ON o.outlet_id = lo.outlet_id
+          WHERE lo.listing_id = l.listing_id
+        ) AS outlets_info
       FROM listings l
       JOIN partners p ON p.partner_id = l.partner_id
-      LEFT JOIN listingOutlets lo ON lo.listing_id = l.listing_id
-      LEFT JOIN outlets o ON o.outlet_id = lo.outlet_id
-      LEFT JOIN schedules s ON s.listing_outlet_id = lo.listing_outlet_id
       WHERE l.active = true
-      GROUP BY l.listing_id, p.partner_id
+        AND jsonb_array_length(l.images) > 0
       ORDER BY l.created_at DESC;
       `,
     );
@@ -182,7 +280,7 @@ router.get("/:id", cacheMiddleware, async (req, res) => {
   try {
     const listing = await pool.query(
       `
-      SELECT 
+      SELECT
         l.*,
         json_build_object(
           'partner_id', p.partner_id,
@@ -194,26 +292,64 @@ router.get("/:id", cacheMiddleware, async (req, res) => {
           'picture', p.picture,
           'website', p.website
         ) AS partner_info,
-         jsonb_agg(
-          jsonb_build_object(
-            'schedule_id', s.schedule_id,
-            'day', s.day,
-            'timeslot', s.timeslot,
-            'frequency', s.frequency,
-            'slots', s.slots,
-            'credit', s.credit,
-            'outlet_id', o.outlet_id,
-            'outlet_address', o.address,
-            'nearest_mrt', o.nearest_mrt
+        (
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'outlet_id', o.outlet_id,
+              'outlet_address', o.address,
+              'nearest_mrt', o.nearest_mrt,
+              'schedule_groups', (
+                SELECT jsonb_agg(
+                  jsonb_build_object(
+                    'schedule_group_id', sg.schedule_group_id,
+                    'package_types', sg.package_types,
+                    'is_progressive', COALESCE(sg.is_progressive, false),
+                    'full_term_start_date', sg.full_term_start_date,
+                    'full_term_class_count', sg.full_term_class_count,
+                    'short_term_class_count', sg.short_term_class_count,
+                    'price_payg', sg.price_payg,
+                    'price_fullterm', sg.price_fullterm,
+                    'price_shortterm', sg.price_shortterm,
+                    'frequency', sg.frequency,
+                    'slots', sg.slots,
+                    'time_slots', (
+                      SELECT jsonb_agg(
+                        jsonb_build_object(
+                          'schedule_id', s.schedule_id,
+                          'day', s.day,
+                          'start_time', s.start_time,
+                          'end_time', s.end_time
+                        )
+                        ORDER BY
+                          CASE s.day
+                            WHEN 'Monday' THEN 1
+                            WHEN 'Tuesday' THEN 2
+                            WHEN 'Wednesday' THEN 3
+                            WHEN 'Thursday' THEN 4
+                            WHEN 'Friday' THEN 5
+                            WHEN 'Saturday' THEN 6
+                            WHEN 'Sunday' THEN 7
+                          END,
+                          s.start_time
+                      )
+                      FROM schedules s
+                      WHERE s.schedule_group_id = sg.schedule_group_id
+                    )
+                  )
+                )
+                FROM schedule_groups sg
+                WHERE sg.listing_outlet_id = lo.listing_outlet_id
+              )
+            )
           )
-        ) AS schedule_info
+          FROM listingOutlets lo
+          LEFT JOIN outlets o ON o.outlet_id = lo.outlet_id
+          WHERE lo.listing_id = l.listing_id
+        ) AS outlets_info
       FROM listings l
       JOIN partners p ON p.partner_id = l.partner_id
-      LEFT JOIN listingOutlets lo ON lo.listing_id = l.listing_id
-      LEFT JOIN outlets o ON o.outlet_id = lo.outlet_id
-      LEFT JOIN schedules s ON s.listing_outlet_id = lo.listing_outlet_id
       WHERE l.listing_id = $1
-      GROUP BY l.listing_id, p.partner_id
+        AND jsonb_array_length(l.images) > 0
       ORDER BY l.created_at DESC;`,
       [id],
     );
@@ -232,10 +368,65 @@ router.get("/partner/:partnerId", async (req, res) => {
   try {
     const listings = await pool.query(
       `
-      SELECT * FROM listings l
+      SELECT
+        l.*,
+        (
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'outlet_id', o.outlet_id,
+              'outlet_address', o.address,
+              'nearest_mrt', o.nearest_mrt,
+              'schedule_groups', (
+                SELECT jsonb_agg(
+                  jsonb_build_object(
+                    'schedule_group_id', sg.schedule_group_id,
+                    'package_types', sg.package_types,
+                    'is_progressive', COALESCE(sg.is_progressive, false),
+                    'full_term_start_date', sg.full_term_start_date,
+                    'full_term_class_count', sg.full_term_class_count,
+                    'short_term_class_count', sg.short_term_class_count,
+                    'price_payg', sg.price_payg,
+                    'price_fullterm', sg.price_fullterm,
+                    'price_shortterm', sg.price_shortterm,
+                    'frequency', sg.frequency,
+                    'slots', sg.slots,
+                    'time_slots', (
+                      SELECT jsonb_agg(
+                        jsonb_build_object(
+                          'schedule_id', s.schedule_id,
+                          'day', s.day,
+                          'start_time', s.start_time,
+                          'end_time', s.end_time
+                        )
+                        ORDER BY
+                          CASE s.day
+                            WHEN 'Monday' THEN 1
+                            WHEN 'Tuesday' THEN 2
+                            WHEN 'Wednesday' THEN 3
+                            WHEN 'Thursday' THEN 4
+                            WHEN 'Friday' THEN 5
+                            WHEN 'Saturday' THEN 6
+                            WHEN 'Sunday' THEN 7
+                          END,
+                          s.start_time
+                      )
+                      FROM schedules s
+                      WHERE s.schedule_group_id = sg.schedule_group_id
+                    )
+                  )
+                )
+                FROM schedule_groups sg
+                WHERE sg.listing_outlet_id = lo.listing_outlet_id
+              )
+            )
+          )
+          FROM listingOutlets lo
+          LEFT JOIN outlets o ON o.outlet_id = lo.outlet_id
+          WHERE lo.listing_id = l.listing_id
+        ) AS outlets_info
+      FROM listings l
       WHERE l.partner_id = $1
-      ORDER BY 
-          l.created_at DESC;`,
+      ORDER BY l.created_at DESC;`,
       [partnerId],
     );
 
@@ -260,8 +451,10 @@ router.patch("/:id", authorization, async (req, res) => {
       return res.status(404).json({ error: "Listing not found" });
     }
 
+    const listing = existingListing.rows[0];
+
     // Authorize partner ownership
-    if (existingListing.rows[0].partner_id !== req.user) {
+    if (listing.partner_id !== req.user) {
       return res
         .status(403)
         .json({ error: "Not authorized to modify this listing" });
@@ -269,54 +462,54 @@ router.patch("/:id", authorization, async (req, res) => {
 
     // Merge existing data with new data (partial update)
     const updatedData = {
-      title_name: req.body.title_name || existingListing.rows[0].listing_title,
-      package_types:
-        req.body.package_types ?? existingListing.rows[0].package_types,
-      description: req.body.description ?? existingListing.rows[0].description,
-      age_groups: req.body.age_groups ?? existingListing.rows[0].age_groups,
-      images: req.body.images ?? existingListing.rows[0].images,
-      short_term_start_date:
-        req.body.short_term_start_date !== undefined
-          ? req.body.short_term_start_date
-          : existingListing.rows[0].short_term_start_date,
-      long_term_start_date:
-        req.body.long_term_start_date !== undefined
-          ? req.body.long_term_start_date
-          : existingListing.rows[0].long_term_start_date,
+      listing_title: req.body.listing_title ?? listing.listing_title,
+      // lesson_type: req.body.lesson_type ?? listing.lesson_type,
+      description: req.body.description ?? listing.description,
+      age_groups: req.body.age_groups ?? listing.age_groups,
+      images: req.body.images ?? listing.images,
     };
+
+    // Validate images: must have at least one image
+    if (
+      !updatedData.images ||
+      !Array.isArray(updatedData.images) ||
+      updatedData.images.length === 0
+    ) {
+      return res.status(400).json({
+        error: "Images validation failed",
+        message: "Listing must have at least one image",
+      });
+    }
 
     // Update listing (credit/price removed - credit is per-schedule)
     const updatedListing = await pool.query(
       `UPDATE listings SET
         listing_title = $1,
-        package_types = $2,
-        description = $3,
-        age_groups = $4,
-        images = $5,
-        short_term_start_date = $6,
-        long_term_start_date = $7
-      WHERE listing_id = $8 RETURNING *`,
+        description = $2,
+        age_groups = $3,
+        images = $4
+      WHERE listing_id = $5 RETURNING *`,
       [
-        updatedData.title_name,
-        updatedData.package_types,
+        updatedData.listing_title,
         updatedData.description,
         updatedData.age_groups,
-        updatedData.images,
-        updatedData.short_term_start_date,
-        updatedData.long_term_start_date,
+        JSON.stringify(updatedData.images),
         id,
       ],
     );
 
     // Invalidate cache
-    await client.del(`/listings/${id}`);
+    await Promise.all([client.del(`/listings/${id}`), client.del(`/listings`)]);
+
+    // Invalidate cache
+    await Promise.all([client.del(`/listings/${id}`), client.del(`/listings`)]);
 
     res.status(200).json({
       message: "Listing has been updated!",
       data: updatedListing.rows[0],
     });
   } catch (error) {
-    console.error(`ERROR in /listings/${id} PATCH`, error.message);
+    console.error(`ERROR in PATCH /listings/${id}:`, error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -333,8 +526,8 @@ router.delete("/:id", async (req, res) => {
     // Extract image URLs from the database result
     const imageURLs = rows[0].images;
     if (Array.isArray(imageURLs) && imageURLs.length > 0) {
-      // Delete images from S3
-      await deleteS3Objects(imageURLs);
+      // Delete images from Cloudinary
+      await deleteCloudinaryImage(imageURLs);
     }
 
     // delete listing from DB
@@ -378,16 +571,26 @@ router.patch("/:listing_id/status", async (req, res) => {
 });
 
 /**
- * Partner: Edit schedules (timeslots) for a listing
- * Replaces schedules for provided outlets atomically. Validates partner ownership.
+ * Partner: Edit schedules for a listing
+ * Replaces schedule groups for provided outlets atomically. Validates partner ownership.
  * Payload:
  * {
  *   "outlets": [
  *     {
  *       "outlet_id": "uuid",
  *       "schedules": [
- *         { "day": "Monday", "timeslot": ["12:00", "13:00"], "frequency": "Weekly" },
- *         ...
+ *         {
+ *           "time_slots": [
+ *             { "day": "Saturday", "timeslot": ["09:00", "10:00"] },
+ *             { "day": "Sunday", "timeslot": ["09:00", "10:00"] }
+ *           ],
+ *           "frequency": "Weekly",
+ *           "slots": 10,
+ *           "package_types": ["full-term"],
+ *           "is_progressive": true,
+ *           "full_term_class_count": 20,
+ *           "price_fullterm": 1000
+ *         }
  *       ]
  *     }
  *   ]
@@ -444,42 +647,87 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
           listing_outlet_id = loResult.rows[0].listing_outlet_id;
         }
 
-        // Replace schedules for this listing_outlet
-        await tx.query(`DELETE FROM schedules WHERE listing_outlet_id = $1`, [
-          listing_outlet_id,
-        ]);
+        // Delete existing schedule_groups (cascades to schedules)
+        await tx.query(
+          `DELETE FROM schedule_groups WHERE listing_outlet_id = $1`,
+          [listing_outlet_id],
+        );
 
-        // Insert new schedules
-        for (const sch of schedules) {
+        // Insert new schedule groups and their time slots
+        for (const schedule of schedules) {
           const {
-            day,
-            timeslot,
+            time_slots,
             frequency,
             slots,
-            credit: scheduleCredit,
-          } = sch;
-          if (
-            !day ||
-            !Array.isArray(timeslot) ||
-            timeslot.length === 0 ||
-            !frequency
-          ) {
+            package_types,
+            is_progressive,
+            full_term_start_date,
+            full_term_class_count,
+            short_term_class_count,
+            price_payg,
+            price_fullterm,
+            price_shortterm,
+          } = schedule;
+
+          if (!frequency || !Array.isArray(time_slots) || time_slots.length === 0) {
             await tx.query("ROLLBACK");
             return res.status(400).json({ error: "Invalid schedule payload" });
           }
 
-          await tx.query(
-            `INSERT INTO schedules (listing_outlet_id, day, timeslot, frequency, slots, credit)
-             VALUES ($1, $2, $3, $4, $5, $6)`,
+          // Insert schedule_group
+          const groupResult = await tx.query(
+            `INSERT INTO schedule_groups (
+              listing_outlet_id,
+              package_types,
+              is_progressive,
+              full_term_start_date,
+              full_term_class_count,
+              short_term_class_count,
+              price_payg,
+              price_fullterm,
+              price_shortterm,
+              frequency,
+              slots
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING schedule_group_id`,
             [
               listing_outlet_id,
-              day,
-              timeslot,
+              package_types || ["pay-as-you-go"],
+              is_progressive || false,
+              full_term_start_date || null,
+              full_term_class_count || null,
+              short_term_class_count || null,
+              price_payg || null,
+              price_fullterm || null,
+              price_shortterm || null,
               frequency,
               slots || 10,
-              scheduleCredit || 1,
             ],
           );
+
+          const schedule_group_id = groupResult.rows[0].schedule_group_id;
+
+          // Insert time slots for this schedule group
+          for (const slot of time_slots) {
+            const { day, timeslot } = slot;
+            if (!day || !Array.isArray(timeslot) || timeslot.length < 2) {
+              await tx.query("ROLLBACK");
+              return res.status(400).json({ error: "Invalid time slot payload" });
+            }
+
+            const start_time = timeslot[0];
+            const end_time = timeslot[1];
+
+            await tx.query(
+              `INSERT INTO schedules (
+                schedule_group_id,
+                listing_outlet_id,
+                day,
+                start_time,
+                end_time
+              ) VALUES ($1, $2, $3, $4, $5)`,
+              [schedule_group_id, listing_outlet_id, day, start_time, end_time],
+            );
+          }
         }
       }
 
@@ -499,21 +747,21 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
           [listing_id],
         );
 
-        const notifications = bookedUsers.rows.map((row) =>
-          pool.query(
-            `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [
-              "user",
-              row.user_id,
-              "schedule_update",
-              "Class schedule updated",
-              "A class you booked has updated its schedule.",
-              JSON.stringify({ listing_id }),
-            ],
-          ),
-        );
-        await Promise.all(notifications);
+        // const notifications = bookedUsers.rows.map((row) =>
+        //   pool.query(
+        //     `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
+        //      VALUES ($1, $2, $3, $4, $5, $6)`,
+        //     [
+        //       "user",
+        //       row.user_id,
+        //       "schedule_update",
+        //       "Class schedule updated",
+        //       "A class you booked has updated its schedule.",
+        //       JSON.stringify({ listing_id }),
+        //     ],
+        //   ),
+        // );
+        // await Promise.all(notifications);
       } catch (notifyErr) {
         console.error(
           "Failed to insert user notifications (schedule update):",
@@ -583,7 +831,7 @@ router.get("/search", async (req, res) => {
 
     const listings = await pool.query(
       `
-      SELECT 
+      SELECT
         l.*,
         json_build_object(
           'partner_id', p.partner_id,
@@ -594,7 +842,61 @@ router.get("/search", async (req, res) => {
           'rating', p.rating,
           'picture', p.picture,
           'website', p.website
-        ) AS partner_info
+        ) AS partner_info,
+        (
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'outlet_id', o.outlet_id,
+              'outlet_address', o.address,
+              'nearest_mrt', o.nearest_mrt,
+              'schedule_groups', (
+                SELECT jsonb_agg(
+                  jsonb_build_object(
+                    'schedule_group_id', sg.schedule_group_id,
+                    'package_types', sg.package_types,
+                    'is_progressive', COALESCE(sg.is_progressive, false),
+                    'full_term_start_date', sg.full_term_start_date,
+                    'full_term_class_count', sg.full_term_class_count,
+                    'short_term_class_count', sg.short_term_class_count,
+                    'price_payg', sg.price_payg,
+                    'price_fullterm', sg.price_fullterm,
+                    'price_shortterm', sg.price_shortterm,
+                    'frequency', sg.frequency,
+                    'slots', sg.slots,
+                    'time_slots', (
+                      SELECT jsonb_agg(
+                        jsonb_build_object(
+                          'schedule_id', s.schedule_id,
+                          'day', s.day,
+                          'start_time', s.start_time,
+                          'end_time', s.end_time
+                        )
+                        ORDER BY
+                          CASE s.day
+                            WHEN 'Monday' THEN 1
+                            WHEN 'Tuesday' THEN 2
+                            WHEN 'Wednesday' THEN 3
+                            WHEN 'Thursday' THEN 4
+                            WHEN 'Friday' THEN 5
+                            WHEN 'Saturday' THEN 6
+                            WHEN 'Sunday' THEN 7
+                          END,
+                          s.start_time
+                      )
+                      FROM schedules s
+                      WHERE s.schedule_group_id = sg.schedule_group_id
+                    )
+                  )
+                )
+                FROM schedule_groups sg
+                WHERE sg.listing_outlet_id = lo.listing_outlet_id
+              )
+            )
+          )
+          FROM listingOutlets lo
+          LEFT JOIN outlets o ON o.outlet_id = lo.outlet_id
+          WHERE lo.listing_id = l.listing_id
+        ) AS outlets_info
       FROM listings l
       JOIN partners p ON p.partner_id = l.partner_id
       ${whereSQL}

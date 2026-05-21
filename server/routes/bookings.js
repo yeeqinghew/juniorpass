@@ -544,7 +544,7 @@ router.get("/listing/:listing_id", authorization, async (req, res) => {
         u.email,
         u.phone_number as phone,
         c.name as child_name,
-        c.age as child_age,
+        c.date_of_birth as child_dob,
         c.gender as child_gender,
         s.day as schedule_day,
         s.timeslot as schedule_time,

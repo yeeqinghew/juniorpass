@@ -101,7 +101,7 @@ const resetPasswordHtmlTemplate = (resetURL) => `
             <td align="center">
                 <div class="email-container">
                     <div>
-                        <img src="https://juniorpass.s3.ap-southeast-1.amazonaws.com/private/logopngResize.png" alt="Junior Pass Icon" style="width: 100px;" />
+                        <img src="https://res.cloudinary.com/dapnjtaoz/image/upload/v1775914077/logopngResize_gotewt.png" alt="Junior Pass Icon" style="width: 100px;" />
                     </div>
                     <div>
                         <img src="https://d1oco4z2z1fhwp.cloudfront.net/templates/default/3996/Forgot_Password.gif" alt="Forgot Password Animation" />

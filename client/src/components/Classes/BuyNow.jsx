@@ -9,7 +9,7 @@ import {
 import toast from "react-hot-toast";
 import "./BuyNow.css";
 import Map, { Marker } from "react-map-gl";
-import getBaseURL from "../../utils/config";
+import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
 
 const { Text } = Typography;
 
@@ -24,7 +24,6 @@ const BuyNow = ({
 }) => {
   const [selectedChildId, setSelectedChildId] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const baseURL = getBaseURL();
 
   const handleCancel = () => {
     setIsBuyNowModalOpen(false);
@@ -47,25 +46,19 @@ const BuyNow = ({
     setIsLoading(true);
 
     try {
-      const token = localStorage.getItem("token");
-
       // Construct proper timestamp from selected date and time
       const selectedDateStr = selected?.selectedDate || new Date().toISOString().split('T')[0];
       const startTime = selected?.location?.timeslot?.[0];
       const endTime = selected?.location?.timeslot?.[1];
-      
+
       const start_date = `${selectedDateStr}T${startTime}:00`;
       const end_date = `${selectedDateStr}T${endTime}:00`;
 
-      const response = await fetch(`${baseURL}/bookings`, {
+      const response = await fetchWithAuth(API_ENDPOINTS.CREATE_BOOKING, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
           listing_id: listing?.listing_id,
-          schedule_id: selected?.location?.schedule_id, // Added for capacity tracking
+          schedule_id: selected?.location?.schedule_id,
           start_date: start_date,
           end_date: end_date,
           child_id: selectedChildId,

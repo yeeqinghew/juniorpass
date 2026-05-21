@@ -28,9 +28,10 @@ import dayjs from "dayjs";
 import duration from "dayjs/plugin/duration";
 import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
 import { useUserContext } from "../UserContext";
-import getBaseURL from "../../utils/config";
+import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
 import Spinner from "../../utils/Spinner";
 import toast from "react-hot-toast";
+import useWindowDimensions from "../../hooks/useWindowDimensions";
 import "./Class.css";
 import BuyNow from "./BuyNow";
 
@@ -54,10 +55,10 @@ const Class = () => {
   const { state } = useLocation();
   const { classId } = useParams();
   const { user, reauthenticate } = useUserContext();
+  const { isDesktop, isTabletLandscape } = useWindowDimensions();
   const isToday = dayjs(selectedDate).isSame(dayjs(), "day");
   const dateFormat = "ddd, D MMM YYYY";
   const navigate = useNavigate();
-  const baseURL = getBaseURL();
 
   const formatTimeslot = (timeslot) => {
     const startTime = dayjs(timeslot[0], "HH:mm");
@@ -75,10 +76,10 @@ const Class = () => {
 
     const selectedDay = dayjs(selectedDate).format("dddd");
 
-    // Properly determine the start date - use long_term or short_term if they exist
+    // Properly determine the start date - use full_term or short_term if they exist
     let startDate;
-    if (listing?.long_term_start_date) {
-      startDate = dayjs(listing.long_term_start_date);
+    if (listing?.full_term_start_date) {
+      startDate = dayjs(listing.full_term_start_date);
     } else if (listing?.short_term_start_date) {
       startDate = dayjs(listing.short_term_start_date);
     } else {
@@ -138,12 +139,7 @@ const Class = () => {
       if (!user) return;
 
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`${baseURL}/bookings/user`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await fetchWithAuth(API_ENDPOINTS.GET_BOOKINGS);
 
         if (response.ok) {
           const data = await response.json();
@@ -158,13 +154,9 @@ const Class = () => {
       if (!user) return;
 
       try {
-        const token = localStorage.getItem("token");
-        const response = await fetch(`${baseURL}/children/${user.user_id}`, {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: token ? `Bearer ${token}` : "",
-          },
-        });
+        const response = await fetchWithAuth(
+          API_ENDPOINTS.GET_CHILDREN(user.user_id),
+        );
 
         if (response.ok) {
           const childrenData = await response.json();
@@ -177,7 +169,7 @@ const Class = () => {
 
     fetchUserBookings();
     fetchAllChildren();
-  }, [user, baseURL]);
+  }, [user]);
 
   useEffect(() => {
     async function fetchSlotAvailability() {
@@ -200,8 +192,8 @@ const Class = () => {
           .format("YYYY-MM-DDTHH:mm:ss");
 
         try {
-          const response = await fetch(
-            `${baseURL}/bookings/availability/${slot.location.schedule_id}?start_date=${startDate}&end_date=${endDate}`,
+          const response = await fetchWithAuth(
+            `/bookings/availability/${slot.location.schedule_id}?start_date=${startDate}&end_date=${endDate}`,
           );
 
           if (response.ok) {
@@ -222,14 +214,14 @@ const Class = () => {
     }
 
     fetchSlotAvailability();
-  }, [listing, selectedDate, baseURL]);
+  }, [listing, selectedDate]);
 
   useEffect(() => {
     async function fetchListing() {
       try {
-        const response = await fetch(`${baseURL}/listings/${classId}`, {
-          method: "GET",
-        });
+        const response = await fetchWithAuth(
+          API_ENDPOINTS.GET_LISTING(classId),
+        );
         if (!response.ok) {
           throw new Error("Network response was not okay");
         }
@@ -286,13 +278,7 @@ const Class = () => {
     }
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${baseURL}/children/${user.user_id}`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: token ? `Bearer ${token}` : "",
-        },
-      });
+      const response = await fetchWithAuth(API_ENDPOINTS.GET_CHILDREN);
       if (response.status === 401 || response.status === 403) {
         toast.error("Please login again to access your children profiles.");
         navigate(`/login`, { state: { from: `/class/${classId}` } });
@@ -345,8 +331,8 @@ const Class = () => {
         .format("YYYY-MM-DDTHH:mm:ss");
 
       try {
-        const response = await fetch(
-          `${baseURL}/bookings/availability/${slot.location.schedule_id}?start_date=${slotStartDate}&end_date=${slotEndDate}`,
+        const response = await fetchWithAuth(
+          `/bookings/availability/${slot.location.schedule_id}?start_date=${slotStartDate}&end_date=${slotEndDate}`,
         );
 
         if (response.ok) {
@@ -370,12 +356,7 @@ const Class = () => {
     await reauthenticate();
 
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${baseURL}/bookings/user`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await fetchWithAuth(API_ENDPOINTS.GET_BOOKINGS);
 
       if (response.ok) {
         const data = await response.json();
@@ -420,11 +401,6 @@ const Class = () => {
                         preview={false}
                         className="class-carousel-image"
                       />
-                      <div className="class-carousel-overlay">
-                        <Title level={2} className="class-carousel-title">
-                          {listing?.listing_title}
-                        </Title>
-                      </div>
                     </div>
                   ))}
               </Carousel>
@@ -437,6 +413,7 @@ const Class = () => {
                 size="middle"
                 style={{ width: "100%" }}
               >
+                <Title level={2}>{listing?.listing_title}</Title>
                 {/* Tags */}
                 <Space wrap>
                   {listing?.package_types &&
@@ -671,7 +648,89 @@ const Class = () => {
           </Col>
 
           <Col xs={24} sm={24} md={24} lg={8} xl={8}>
-            <Affix offsetTop={120}>
+            {isDesktop || isTabletLandscape ? (
+              <Affix offsetTop={120}>
+                <Card
+                  bordered={false}
+                  className="class-partner-card"
+                  hoverable
+                  onClick={() => {
+                    navigate(
+                      `/partner/${listing?.partner_info?.partner_id}`,
+                      {},
+                    );
+                  }}
+                >
+                  {/* Partner Header */}
+                  <div className="partner-card-header">
+                    <Avatar
+                      size={64}
+                      src={listing?.partner_info?.picture}
+                      className="partner-card-avatar"
+                    />
+                    <div>
+                      <Title level={4} className="partner-card-name">
+                        {listing?.partner_name}
+                      </Title>
+                      <Text className="partner-card-badge">
+                        Verified Partner
+                      </Text>
+                    </div>
+                  </div>
+
+                  <Divider className="partner-card-divider" />
+
+                  {/* Contact Information */}
+                  <Space
+                    direction="vertical"
+                    size="middle"
+                    style={{ width: "100%" }}
+                  >
+                    <div className="partner-contact-item">
+                      <ShopOutlined className="partner-contact-icon" />
+                      <div>
+                        <Text className="partner-contact-label">Website</Text>
+                        <Text className="partner-contact-value">
+                          {listing?.partner_info?.website || "N/A"}
+                        </Text>
+                      </div>
+                    </div>
+
+                    <div className="partner-contact-item">
+                      <MailOutlined className="partner-contact-icon" />
+                      <div>
+                        <Text className="partner-contact-label">Email</Text>
+                        <Text className="partner-contact-value">
+                          {listing?.partner_info?.email}
+                        </Text>
+                      </div>
+                    </div>
+
+                    <div className="partner-contact-item">
+                      <PhoneOutlined className="partner-contact-icon" />
+                      <div>
+                        <Text className="partner-contact-label">Phone</Text>
+                        <Text className="partner-contact-value">
+                          {listing?.partner_info?.contact_number}
+                        </Text>
+                      </div>
+                    </div>
+                  </Space>
+
+                  <Divider className="partner-card-divider" />
+
+                  {/* View Profile Button */}
+                  <Button
+                    type="primary"
+                    block
+                    size="large"
+                    className="view-partner-btn"
+                  >
+                    View Partner Profile
+                  </Button>
+                </Card>
+              </Affix>
+            ) : (
               <Card
                 bordered={false}
                 className="class-partner-card"
@@ -746,7 +805,7 @@ const Class = () => {
                   View Partner Profile
                 </Button>
               </Card>
-            </Affix>
+            )}
           </Col>
         </Row>
       </div>

@@ -28,7 +28,7 @@ import Map, {
 } from "react-map-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useNavigate } from "react-router-dom";
-import getBaseURL from "../../utils/config.jsx";
+import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
 import toast from "react-hot-toast";
 import "./index.css";
 import useWindowDimensions from "../../hooks/useWindowDimensions.jsx";
@@ -39,7 +39,6 @@ import { applyTimeToDate } from "../../utils/timeHelpers.jsx";
 dayjs.extend(isBetween);
 
 const Classes = () => {
-  const baseURL = getBaseURL();
   const [popupInfo, setPopupInfo] = useState(null);
   const [listings, setListings] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -62,9 +61,7 @@ const Classes = () => {
 
   const getListings = async () => {
     try {
-      const response = await fetch(`${baseURL}/listings`, {
-        method: "GET",
-      });
+      const response = await fetchWithAuth(API_ENDPOINTS.GET_ALL_LISTINGS);
       const jsonData = await response.json();
       setListings(jsonData);
     } catch (error) {
@@ -75,7 +72,7 @@ const Classes = () => {
 
   const getCategories = async () => {
     try {
-      const response = await fetch(`${baseURL}/misc/getAllCategories`);
+      const response = await fetchWithAuth(API_ENDPOINTS.GET_ALL_CATEGORIES);
       const jsonData = await response.json();
       setCategories(jsonData);
     } catch (error) {
@@ -85,7 +82,7 @@ const Classes = () => {
 
   const getAgeGroups = async () => {
     try {
-      const response = await fetch(`${baseURL}/misc/getAllAgeGroups`);
+      const response = await fetchWithAuth(API_ENDPOINTS.GET_ALL_AGE_GROUPS);
       const jsonData = await response.json();
       setAgeGroups(jsonData);
     } catch (error) {
@@ -102,7 +99,7 @@ const Classes = () => {
 
   const getPackageTypes = async () => {
     try {
-      const response = await fetch(`${baseURL}/misc/getAllPackages`);
+      const response = await fetchWithAuth(API_ENDPOINTS.GET_ALL_PACKAGES);
       const jsonData = await response.json();
       setPackageTypes(jsonData);
     } catch (error) {
@@ -121,6 +118,7 @@ const Classes = () => {
           parsedAddress = JSON.parse(outlet?.outlet_address || "{}");
         } catch (e) {
           parsedAddress = {};
+          console.error("Error parsing outlet address:", e);
         }
         if (!parsedAddress.LONGITUDE || !parsedAddress.LATITUDE) {
           return null;
@@ -170,7 +168,7 @@ const Classes = () => {
     setSelectedCategories((prevCategories) =>
       prevCategories.includes(category.name)
         ? prevCategories.filter((item) => item !== category.name)
-        : [...prevCategories, category.name]
+        : [...prevCategories, category.name],
     );
   };
 
@@ -178,7 +176,7 @@ const Classes = () => {
     setSelectedAgeGroups((prevAgeGroups) =>
       prevAgeGroups.includes(ageGroup)
         ? prevAgeGroups.filter((item) => item !== ageGroup)
-        : [...prevAgeGroups, ageGroup]
+        : [...prevAgeGroups, ageGroup],
     );
   };
 
@@ -198,7 +196,7 @@ const Classes = () => {
       const matchesCategory =
         selectedCategories.length === 0 ||
         listing?.partner_info?.categories.some((category) =>
-          selectedCategories.includes(category)
+          selectedCategories.includes(category),
         );
 
       // Age groups
@@ -207,13 +205,7 @@ const Classes = () => {
         selectedAgeGroups.length === 0 ||
         ageGroups.some((ageGroup) => selectedAgeGroups.includes(ageGroup));
 
-      // Package types
-      const packageTypes = listing.package_types
-        .replace(/[{}]/g, "")
-        .split(",");
-      const matchesPackageType =
-        selectedPackageTypes.length === 0 ||
-        packageTypes.some((type) => selectedPackageTypes.includes(type));
+      // TODO: filter by package types
 
       // Selected day
       const matchesSelectedDay =
@@ -221,7 +213,7 @@ const Classes = () => {
         (Array.isArray(listing.schedule_info) &&
           listing.schedule_info.some(
             (schedule) =>
-              schedule?.day?.toLowerCase() === selectedDay?.toLowerCase()
+              schedule?.day?.toLowerCase() === selectedDay?.toLowerCase(),
           ));
 
       // Specific date
@@ -240,21 +232,15 @@ const Classes = () => {
               const { start, end } = applyTimeToDate(
                 selectedDate,
                 startStr,
-                endStr
+                endStr,
               );
 
               return selectedDate.isBetween(start, end, "minute", "[)");
             });
 
       const isMatch = useSpecificDate
-        ? matchesCategory &&
-          matchesAgeGroup &&
-          matchesPackageType &&
-          matchesSpecificDateAndTime
-        : matchesCategory &&
-          matchesAgeGroup &&
-          matchesPackageType &&
-          matchesSelectedDay;
+        ? matchesCategory && matchesAgeGroup && matchesSpecificDateAndTime
+        : matchesCategory && matchesAgeGroup && matchesSelectedDay;
       return isMatch;
     });
   };
@@ -302,7 +288,7 @@ const Classes = () => {
   const handleListHover = (listingId) => {
     // Find the listing with the matching listingId
     const listing = listings.find(
-      (listing) => listing?.listing_id === listingId
+      (listing) => listing?.listing_id === listingId,
     );
     if (listing) {
       // Set popupInfo to the details of the listing
@@ -394,7 +380,7 @@ const Classes = () => {
           </Space>
           <Space direction="horizontal">
             {/* Package Types Filter */}
-            <Dropdown
+            {/* <Dropdown
               overlay={
                 <Menu>
                   {packageTypes.map((packageType) => (
@@ -404,7 +390,7 @@ const Classes = () => {
                     >
                       <Checkbox
                         checked={selectedPackageTypes.includes(
-                          packageType.package_type
+                          packageType.package_type,
                         )}
                       >
                         {packageType.name}
@@ -417,7 +403,7 @@ const Classes = () => {
               <Button>
                 Package types <DownOutlined />
               </Button>
-            </Dropdown>
+            </Dropdown> */}
 
             {/* Toggle Between "Day of the Week" & "Specific Date" */}
             <Space direction="horizontal">
@@ -474,7 +460,7 @@ const Classes = () => {
                         dayjs(date)
                           .hour(tempTime.hour())
                           .minute(tempTime.minute())
-                          .second(0)
+                          .second(0),
                       );
                     }
                   }}
@@ -493,7 +479,7 @@ const Classes = () => {
                         dayjs(tempDate)
                           .hour(time.hour())
                           .minute(time.minute())
-                          .second(0)
+                          .second(0),
                       );
                     }
                   }}
@@ -510,7 +496,7 @@ const Classes = () => {
             onClick={() => {
               setSelectedCategories([]);
               setSelectedAgeGroups([]);
-              setSelectedPackageTypes([]);
+              // setSelectedPackageTypes([]);
               setSelectedDay(null);
               setSelectedDateTime(null);
               setUseSpecificDate(false);
@@ -570,7 +556,7 @@ const Classes = () => {
                             {listing?.partner_info?.categories.map(
                               (category, index) => {
                                 return <Tag key={index}>{category}</Tag>;
-                              }
+                              },
                             )}
                           </Space>
                           <a href={listing?.partner_info?.website}>

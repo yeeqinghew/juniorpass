@@ -7,22 +7,44 @@ const authorization = require("../middleware/authorization");
 const client = require("../utils/redisClient");
 router.use(etagMiddleware);
 
+function isValidDOB(dob) {
+  const birthDate = new Date(dob);
+  const today = new Date();
+
+  // check if date is valid
+  if (isNaN(birthDate.getTime())) return false;
+
+  // check if date is not in the future
+  if (birthDate > today) return false;
+
+  return true;
+}
+
 // router.post("/add-child", authorization, async (req, res) => {
 router.post("", authorization, async (req, res) => {
-  const { name, age, gender, special_notes } = req.body;
+  const { name, date_of_birth, gender, special_notes } = req.body;
   const parent_id = req.user;
 
   // Basic validation
-  if (!name || typeof age === "undefined" || !gender) {
+  if (!name || !date_of_birth || !gender) {
     return res.status(400).json({ error: "Missing required fields" });
   }
+
   if (!["M", "F"].includes(gender)) {
     return res.status(400).json({ error: "Invalid gender" });
   }
+
+  // Validate DOB
+  if (!isValidDOB(date_of_birth)) {
+    return res.status(400).json({
+      error: "Invalid DOB. DOB cannot be in the future.",
+    });
+  }
+
   try {
     const newChild = await pool.query(
-      `INSERT INTO children (name, age, gender, special_notes, parent_id) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [name, age, gender, special_notes, parent_id],
+      `INSERT INTO children (name, date_of_birth, gender, special_notes, parent_id) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [name, date_of_birth, gender, special_notes, parent_id],
     );
 
     // Optionally, invalidate or update related cache entries, like the list of all listings
@@ -59,12 +81,12 @@ router.get("/:parent_id", authorization, async (req, res) => {
 });
 
 /**
- * Update a child (name/age/gender/special_notes). Only the owning parent can update.
+ * Update a child (name/date_of_birth/gender/special_notes). Only the owning parent can update.
  */
 router.patch("/:child_id", authorization, async (req, res) => {
   const { child_id } = req.params;
   const parent_id = req.user;
-  const { name, age, gender, special_notes } = req.body;
+  const { name, date_of_birth, gender, special_notes } = req.body;
 
   try {
     // Verify child exists and is owned by requester
@@ -82,13 +104,13 @@ router.patch("/:child_id", authorization, async (req, res) => {
     // Basic validation
     const updates = {
       name,
-      age,
+      date_of_birth,
       gender,
       special_notes,
     };
     if (
       typeof updates.name === "undefined" &&
-      typeof updates.age === "undefined" &&
+      typeof updates.date_of_birth === "undefined" &&
       typeof updates.gender === "undefined" &&
       typeof updates.special_notes === "undefined"
     ) {
@@ -101,18 +123,28 @@ router.patch("/:child_id", authorization, async (req, res) => {
       return res.status(400).json({ error: "Invalid gender" });
     }
 
+    // Validate DOB if provided
+    if (
+      typeof updates.date_of_birth !== "undefined" &&
+      !isValidDOB(updates.date_of_birth)
+    ) {
+      return res.status(400).json({
+        error: "Invalid DOB. DOB cannot be in the future.",
+      });
+    }
+
     const updated = await pool.query(
       `UPDATE children
        SET
          name = COALESCE($1, name),
-         age = COALESCE($2, age),
+         date_of_birth = COALESCE($2, date_of_birth),
          gender = COALESCE($3, gender),
          special_notes = COALESCE($4, special_notes)
        WHERE child_id = $5
        RETURNING *`,
       [
         updates.name ?? null,
-        updates.age ?? null,
+        updates.date_of_birth ?? null,
         updates.gender ?? null,
         updates.special_notes ?? null,
         child_id,
