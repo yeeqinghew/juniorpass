@@ -76,10 +76,10 @@ const Class = () => {
 
     const selectedDay = dayjs(selectedDate).format("dddd");
 
-    // Properly determine the start date - use long_term or short_term if they exist
+    // Properly determine the start date - use full_term or short_term if they exist
     let startDate;
-    if (listing?.long_term_start_date) {
-      startDate = dayjs(listing.long_term_start_date);
+    if (listing?.full_term_start_date) {
+      startDate = dayjs(listing.full_term_start_date);
     } else if (listing?.short_term_start_date) {
       startDate = dayjs(listing.short_term_start_date);
     } else {
@@ -154,7 +154,9 @@ const Class = () => {
       if (!user) return;
 
       try {
-        const response = await fetchWithAuth(API_ENDPOINTS.GET_CHILDREN(user.user_id));
+        const response = await fetchWithAuth(
+          API_ENDPOINTS.GET_CHILDREN(user.user_id),
+        );
 
         if (response.ok) {
           const childrenData = await response.json();
@@ -217,7 +219,9 @@ const Class = () => {
   useEffect(() => {
     async function fetchListing() {
       try {
-        const response = await fetchWithAuth(API_ENDPOINTS.GET_LISTING(classId));
+        const response = await fetchWithAuth(
+          API_ENDPOINTS.GET_LISTING(classId),
+        );
         if (!response.ok) {
           throw new Error("Network response was not okay");
         }
@@ -409,9 +413,7 @@ const Class = () => {
                 size="middle"
                 style={{ width: "100%" }}
               >
-                <Title level={2}>
-                  {listing?.listing_title}
-                </Title>
+                <Title level={2}>{listing?.listing_title}</Title>
                 {/* Tags */}
                 <Space wrap>
                   {listing?.package_types &&
@@ -653,7 +655,10 @@ const Class = () => {
                   className="class-partner-card"
                   hoverable
                   onClick={() => {
-                    navigate(`/partner/${listing?.partner_info?.partner_id}`, {});
+                    navigate(
+                      `/partner/${listing?.partner_info?.partner_id}`,
+                      {},
+                    );
                   }}
                 >
                   {/* Partner Header */}
@@ -667,7 +672,9 @@ const Class = () => {
                       <Title level={4} className="partner-card-name">
                         {listing?.partner_name}
                       </Title>
-                      <Text className="partner-card-badge">Verified Partner</Text>
+                      <Text className="partner-card-badge">
+                        Verified Partner
+                      </Text>
                     </div>
                   </div>
 
