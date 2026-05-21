@@ -224,28 +224,65 @@ CREATE TABLE listingOutlets (
 CREATE TABLE schedules (
     schedule_id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     listing_outlet_id uuid REFERENCES listingOutlets(listing_outlet_id) ON DELETE CASCADE,
+    schedule_group_id UUID REFERENCES schedule_groups(schedule_group_id) ON DELETE CASCADE,
     day TEXT CHECK (day IN ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')),
-    frequency TEXT CHECK (frequency IN ('Biweekly', 'Weekly', 'Monthly', 'Yearly')),
-    slots INTEGER DEFAULT 10 CHECK (slots >= 1 AND slots <= 100),
-    price DECIMAL(10, 2) CHECK (price >= 0),
-    credit INTEGER CHECK (credit >= 1),
-    package_types package_types[] NOT NULL,
-    is_progressive BOOLEAN DEFAULT false,
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
-    full_term_start_date TIMESTAMP,
-    full_term_class_count INTEGER,
-    short_term_class_count INTEGER,
-    full_term_price DECIMAL(10, 2) CHECK (full_term_price >= 0),
-    short_term_price DECIMAL(10, 2) CHECK (short_term_price >= 0),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE INDEX idx_schedules_schedule_group ON schedules(schedule_group_id);
 
 CREATE TRIGGER set_timestamp_schedules
     BEFORE UPDATE ON schedules
     FOR EACH ROW
     EXECUTE FUNCTION trigger_set_timestamp();
+
+
+CREATE TABLE schedule_groups (
+  schedule_group_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  listing_outlet_id UUID REFERENCES listingOutlets(listing_outlet_id) ON DELETE CASCADE NOT NULL,
+
+  -- Package configuration (moved from schedules)
+  package_types package_types[] NOT NULL DEFAULT ARRAY['pay-as-you-go']::package_types[],
+  is_progressive BOOLEAN DEFAULT false,
+
+  -- Full-term package config
+  full_term_start_date TIMESTAMP,
+  full_term_class_count INTEGER CHECK (full_term_class_count > 0),
+  short_term_class_count INTEGER CHECK (short_term_class_count > 0),
+
+  -- Pricing (in dollars)
+  price_payg DECIMAL(10, 2) CHECK (price_payg >= 0),
+  price_fullterm DECIMAL(10, 2) CHECK (price_fullterm >= 0),
+  price_shortterm DECIMAL(10, 2) CHECK (price_shortterm >= 0),
+
+  -- Frequency and slots (shared across all time slots in group)
+  frequency TEXT CHECK (frequency IN ('Biweekly', 'Weekly', 'Monthly', 'Yearly')),
+  slots INTEGER DEFAULT 10 CHECK (slots >= 1 AND slots <= 100),
+
+  -- Timestamps
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Add trigger for updated_at
+CREATE TRIGGER set_timestamp_schedule_groups
+  BEFORE UPDATE ON schedule_groups
+  FOR EACH ROW
+  EXECUTE FUNCTION trigger_set_timestamp();
+
+-- Add indexes
+CREATE INDEX idx_schedule_groups_listing_outlet ON schedule_groups(listing_outlet_id);
+CREATE INDEX idx_schedule_groups_package_types ON schedule_groups USING GIN (package_types);
+CREATE INDEX idx_schedule_groups_is_progressive ON schedule_groups(is_progressive);
+CREATE INDEX idx_schedule_groups_full_term_start ON schedule_groups(full_term_start_date);
+
+-- Add constraints
+ALTER TABLE schedule_groups
+ADD CONSTRAINT check_schedule_groups_package_types_not_empty
+  CHECK (array_length(package_types, 1) > 0);
 
 CREATE TABLE scheduleExceptions (
     exception_id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -548,6 +585,7 @@ CREATE TABLE bookings (
     listing_id uuid REFERENCES listings(listing_id) ON DELETE CASCADE,
     schedule_id uuid REFERENCES schedules(schedule_id) ON DELETE CASCADE,
     user_id uuid REFERENCES users(user_id) ON DELETE CASCADE,
+    schedule_group_id UUID REFERENCES schedule_groups(schedule_group_id) ON DELETE CASCADE,
     start_date TIMESTAMP NOT NULL,
     end_date TIMESTAMP NOT NULL,
     enrolled_package_type package_types,
@@ -569,9 +607,11 @@ CREATE TRIGGER set_timestamp_bookings
 
 -- Helpful index for overlap checks by user and date range
 CREATE INDEX idx_bookings_user_date ON bookings (user_id, start_date, end_date);
-
 -- Index for checking schedule capacity
 CREATE INDEX idx_bookings_schedule_date ON bookings (schedule_id, start_date, end_date);
+-- Keep schedule_id for tracking which specific time slots were attended
+CREATE INDEX idx_bookings_schedule_group ON bookings(schedule_group_id);
+
 
 -- NOTIFICATIONS: generic notification system for users, partners, and admins
 CREATE TABLE notifications (
