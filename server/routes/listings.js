@@ -79,9 +79,9 @@ router.post("", authorization, async (req, res) => {
 
     const listing_id = listing.rows[0].listing_id;
 
-    // Insert outlets, schedule groups, and schedules
+    // Insert outlets and schedule groups
     for (let outlet of outlets) {
-      const { outlet_id, schedule_groups } = outlet;
+      const { outlet_id, schedules } = outlet;
 
       // Insert into listingOutlets
       const listingOutlet = await pool.query(
@@ -90,8 +90,8 @@ router.post("", authorization, async (req, res) => {
       );
       const listing_outlet_id = listingOutlet.rows[0].listing_outlet_id;
 
-      // Each schedule_groups item represents one enrollable program
-      for (let group of schedule_groups || []) {
+      // Each schedule represents one enrollable program
+      for (let schedule of schedules || []) {
         const {
           time_slots,
           frequency,
@@ -104,7 +104,7 @@ router.post("", authorization, async (req, res) => {
           price_payg,
           price_fullterm,
           price_shortterm,
-        } = group;
+        } = schedule;
 
         // 1. Insert schedule_group (the enrollable program)
         const scheduleGroupResult = await pool.query(
@@ -138,7 +138,7 @@ router.post("", authorization, async (req, res) => {
 
         const schedule_group_id = scheduleGroupResult.rows[0].schedule_group_id;
 
-        // 2. Insert time slots (schedules) for this group
+        // 2. Insert time slots for this schedule group
         for (let slot of time_slots || []) {
           const { day, timeslot } = slot;
 
@@ -216,7 +216,7 @@ router.get("", cacheMiddleware, async (req, res) => {
                   jsonb_build_object(
                     'schedule_group_id', sg.schedule_group_id,
                     'package_types', sg.package_types,
-                    'is_progressive', sg.is_progressive,
+                    'is_progressive', COALESCE(sg.is_progressive, false),
                     'full_term_start_date', sg.full_term_start_date,
                     'full_term_class_count', sg.full_term_class_count,
                     'short_term_class_count', sg.short_term_class_count,
@@ -303,7 +303,7 @@ router.get("/:id", cacheMiddleware, async (req, res) => {
                   jsonb_build_object(
                     'schedule_group_id', sg.schedule_group_id,
                     'package_types', sg.package_types,
-                    'is_progressive', sg.is_progressive,
+                    'is_progressive', COALESCE(sg.is_progressive, false),
                     'full_term_start_date', sg.full_term_start_date,
                     'full_term_class_count', sg.full_term_class_count,
                     'short_term_class_count', sg.short_term_class_count,
@@ -381,7 +381,7 @@ router.get("/partner/:partnerId", async (req, res) => {
                   jsonb_build_object(
                     'schedule_group_id', sg.schedule_group_id,
                     'package_types', sg.package_types,
-                    'is_progressive', sg.is_progressive,
+                    'is_progressive', COALESCE(sg.is_progressive, false),
                     'full_term_start_date', sg.full_term_start_date,
                     'full_term_class_count', sg.full_term_class_count,
                     'short_term_class_count', sg.short_term_class_count,
@@ -571,14 +571,14 @@ router.patch("/:listing_id/status", async (req, res) => {
 });
 
 /**
- * Partner: Edit schedules (timeslots) for a listing
+ * Partner: Edit schedules for a listing
  * Replaces schedule groups for provided outlets atomically. Validates partner ownership.
  * Payload:
  * {
  *   "outlets": [
  *     {
  *       "outlet_id": "uuid",
- *       "schedule_groups": [
+ *       "schedules": [
  *         {
  *           "time_slots": [
  *             { "day": "Saturday", "timeslot": ["09:00", "10:00"] },
@@ -603,7 +603,7 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
   try {
     // Validate input
     if (!Array.isArray(outlets) || outlets.length === 0) {
-      return res.status(400).json({ error: "No outlets/schedule groups provided" });
+      return res.status(400).json({ error: "No outlets/schedules provided" });
     }
 
     // Validate partner owns the listing
@@ -625,8 +625,8 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
       await tx.query("BEGIN");
 
       for (const outlet of outlets) {
-        const { outlet_id, schedule_groups } = outlet;
-        if (!outlet_id || !Array.isArray(schedule_groups)) {
+        const { outlet_id, schedules } = outlet;
+        if (!outlet_id || !Array.isArray(schedules)) {
           await tx.query("ROLLBACK");
           return res.status(400).json({ error: "Invalid outlet payload" });
         }
@@ -654,7 +654,7 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
         );
 
         // Insert new schedule groups and their time slots
-        for (const group of schedule_groups) {
+        for (const schedule of schedules) {
           const {
             time_slots,
             frequency,
@@ -667,11 +667,11 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
             price_payg,
             price_fullterm,
             price_shortterm,
-          } = group;
+          } = schedule;
 
           if (!frequency || !Array.isArray(time_slots) || time_slots.length === 0) {
             await tx.query("ROLLBACK");
-            return res.status(400).json({ error: "Invalid schedule group payload" });
+            return res.status(400).json({ error: "Invalid schedule payload" });
           }
 
           // Insert schedule_group
@@ -706,7 +706,7 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
 
           const schedule_group_id = groupResult.rows[0].schedule_group_id;
 
-          // Insert time slots for this group
+          // Insert time slots for this schedule group
           for (const slot of time_slots) {
             const { day, timeslot } = slot;
             if (!day || !Array.isArray(timeslot) || timeslot.length < 2) {
@@ -854,7 +854,7 @@ router.get("/search", async (req, res) => {
                   jsonb_build_object(
                     'schedule_group_id', sg.schedule_group_id,
                     'package_types', sg.package_types,
-                    'is_progressive', sg.is_progressive,
+                    'is_progressive', COALESCE(sg.is_progressive, false),
                     'full_term_start_date', sg.full_term_start_date,
                     'full_term_class_count', sg.full_term_class_count,
                     'short_term_class_count', sg.short_term_class_count,
