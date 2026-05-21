@@ -262,7 +262,6 @@ router.get("", cacheMiddleware, async (req, res) => {
       FROM listings l
       JOIN partners p ON p.partner_id = l.partner_id
       WHERE l.active = true
-        AND jsonb_array_length(l.images) > 0
       ORDER BY l.created_at DESC;
       `,
     );
@@ -349,7 +348,6 @@ router.get("/:id", cacheMiddleware, async (req, res) => {
       FROM listings l
       JOIN partners p ON p.partner_id = l.partner_id
       WHERE l.listing_id = $1
-        AND jsonb_array_length(l.images) > 0
       ORDER BY l.created_at DESC;`,
       [id],
     );
@@ -669,7 +667,11 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
             price_shortterm,
           } = schedule;
 
-          if (!frequency || !Array.isArray(time_slots) || time_slots.length === 0) {
+          if (
+            !frequency ||
+            !Array.isArray(time_slots) ||
+            time_slots.length === 0
+          ) {
             await tx.query("ROLLBACK");
             return res.status(400).json({ error: "Invalid schedule payload" });
           }
@@ -711,7 +713,9 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
             const { day, timeslot } = slot;
             if (!day || !Array.isArray(timeslot) || timeslot.length < 2) {
               await tx.query("ROLLBACK");
-              return res.status(400).json({ error: "Invalid time slot payload" });
+              return res
+                .status(400)
+                .json({ error: "Invalid time slot payload" });
             }
 
             const start_time = timeslot[0];
