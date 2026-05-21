@@ -112,7 +112,12 @@ const Classes = () => {
       // Use a more visible color for map pins - bright coral/red stands out better on maps
       const color = "#ff4757"; // Bright coral red for maximum visibility
 
-      return listing?.schedule_info.map((outlet, index) => {
+      // Safety check for outlets_info
+      if (!listing?.outlets_info || !Array.isArray(listing.outlets_info)) {
+        return null;
+      }
+
+      return listing.outlets_info.map((outlet, index) => {
         let parsedAddress = {};
         try {
           parsedAddress = JSON.parse(outlet?.outlet_address || "{}");
@@ -207,36 +212,45 @@ const Classes = () => {
 
       // TODO: filter by package types
 
-      // Selected day
+      // Selected day - check all outlets and their schedule groups
       const matchesSelectedDay =
         !selectedDay ||
-        (Array.isArray(listing.schedule_info) &&
-          listing.schedule_info.some(
-            (schedule) =>
-              schedule?.day?.toLowerCase() === selectedDay?.toLowerCase(),
+        (Array.isArray(listing.outlets_info) &&
+          listing.outlets_info.some((outlet) =>
+            outlet.schedule_groups?.some((group) =>
+              group.time_slots?.some(
+                (slot) => slot?.day?.toLowerCase() === selectedDay?.toLowerCase()
+              )
+            )
           ));
 
-      // Specific date
+      // Specific date - check all outlets and their schedule groups
       const matchesSpecificDateAndTime =
         !useSpecificDate || !selectedDateTime
           ? true
-          : listing.schedule_info?.some((schedule) => {
-              const selectedDate = dayjs(selectedDateTime);
-              const selectedDayName = selectedDate.format("dddd");
-              if (schedule.day?.toLowerCase() !== selectedDayName.toLowerCase())
-                return false;
+          : Array.isArray(listing.outlets_info) &&
+            listing.outlets_info.some((outlet) =>
+              outlet.schedule_groups?.some((group) =>
+                group.time_slots?.some((slot) => {
+                  const selectedDate = dayjs(selectedDateTime);
+                  const selectedDayName = selectedDate.format("dddd");
+                  if (slot.day?.toLowerCase() !== selectedDayName.toLowerCase())
+                    return false;
 
-              const [startStr, endStr] = schedule.timeslot || [];
-              if (!startStr || !endStr) return false;
+                  const startStr = slot.start_time;
+                  const endStr = slot.end_time;
+                  if (!startStr || !endStr) return false;
 
-              const { start, end } = applyTimeToDate(
-                selectedDate,
-                startStr,
-                endStr,
-              );
+                  const { start, end } = applyTimeToDate(
+                    selectedDate,
+                    startStr,
+                    endStr,
+                  );
 
-              return selectedDate.isBetween(start, end, "minute", "[)");
-            });
+                  return selectedDate.isBetween(start, end, "minute", "[)");
+                })
+              )
+            );
 
       const isMatch = useSpecificDate
         ? matchesCategory && matchesAgeGroup && matchesSpecificDateAndTime
@@ -630,20 +644,32 @@ const Classes = () => {
 
               {/* Display popups for popupInfo */}
               {popupInfo &&
-                popupInfo?.schedule_info.map((schedule, index) => (
-                  <Popup
-                    key={`${popupInfo?.listing_id}-${index}`}
-                    longitude={JSON.parse(schedule?.outlet_address).LONGITUDE}
-                    latitude={JSON.parse(schedule?.outlet_address).LATITUDE}
-                    onClose={() => setPopupInfo(null)}
-                  >
-                    <Space direction="vertical">
-                      {popupInfo?.listing_title}
-                      {JSON.parse(schedule?.outlet_address).SEARCHVAL}
-                      <img width="100%" src={popupInfo.images[0]} />
-                    </Space>
-                  </Popup>
-                ))}
+                Array.isArray(popupInfo?.outlets_info) &&
+                popupInfo.outlets_info.map((outlet, index) => {
+                  let parsedAddress = {};
+                  try {
+                    parsedAddress = JSON.parse(outlet?.outlet_address || "{}");
+                  } catch (e) {
+                    return null;
+                  }
+                  if (!parsedAddress.LONGITUDE || !parsedAddress.LATITUDE) {
+                    return null;
+                  }
+                  return (
+                    <Popup
+                      key={`${popupInfo?.listing_id}-${index}`}
+                      longitude={parsedAddress.LONGITUDE}
+                      latitude={parsedAddress.LATITUDE}
+                      onClose={() => setPopupInfo(null)}
+                    >
+                      <Space direction="vertical">
+                        {popupInfo?.listing_title}
+                        {parsedAddress.SEARCHVAL}
+                        <img width="100%" src={popupInfo.images?.[0]} />
+                      </Space>
+                    </Popup>
+                  );
+                })}
             </Map>
           )}
         </Space>
