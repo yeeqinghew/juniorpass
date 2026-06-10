@@ -81,7 +81,7 @@ router.post("", authorization, async (req, res) => {
 
     // Insert outlets and schedule groups
     for (let outlet of outlets) {
-      const { outlet_id, schedules } = outlet;
+      const { outlet_id, schedule_groups: schedules } = outlet;
 
       // Insert into listingOutlets
       const listingOutlet = await pool.query(
