@@ -239,7 +239,7 @@ router.get("/availability/:scheduleId", async (req, res) => {
 
     // Get schedule with slots capacity
     const schedule = await pool.query(
-      `SELECT s.schedule_id, s.slots, s.day, s.timeslot, s.frequency,
+      `SELECT s.schedule_id, s.slots, s.day,
               l.listing_id, l.listing_title
        FROM schedules s
        JOIN listingOutlets lo ON s.listing_outlet_id = lo.listing_outlet_id
@@ -546,9 +546,7 @@ router.get("/listing/:listing_id", authorization, async (req, res) => {
         c.name as child_name,
         c.date_of_birth as child_dob,
         c.gender as child_gender,
-        s.day as schedule_day,
-        s.timeslot as schedule_time,
-        s.frequency
+        s.day as schedule_day
       FROM bookings b
       JOIN users u ON u.user_id = b.user_id
       LEFT JOIN children c ON c.child_id = (
