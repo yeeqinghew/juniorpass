@@ -81,7 +81,7 @@ router.post("", authorization, async (req, res) => {
 
     // Insert outlets and schedule groups
     for (let outlet of outlets) {
-      const { outlet_id, schedule_groups: schedules } = outlet;
+      const { outlet_id, schedule_groups } = outlet;
 
       // Insert into listingOutlets
       const listingOutlet = await pool.query(
@@ -91,7 +91,7 @@ router.post("", authorization, async (req, res) => {
       const listing_outlet_id = listingOutlet.rows[0].listing_outlet_id;
 
       // Each schedule represents one enrollable program
-      for (let schedule of schedules || []) {
+      for (let schedule of schedule_groups || []) {
         const {
           time_slots,
           frequency,
