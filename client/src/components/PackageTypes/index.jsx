@@ -21,75 +21,68 @@ function PackageTypes() {
 
   const packages = [
     {
-      title: "Pay-As-You-Go",
+      title: "Pay as you go",
       icon: <ThunderboltOutlined />,
       color: "#98BDD2",
       gradient: "linear-gradient(135deg, #98BDD2 0%, #6aa4c3 100%)",
       tagColor: "blue",
       description:
-        "Perfect for trying out activities without long-term commitment. Pay only for the classes you attend.",
+        "Discover new activities without committing to full-term packages. Book only the classes your child attends, whenever it fits your schedule.",
       features: [
-        "No commitment required",
-        "Book individual classes",
-        "Flexible scheduling",
-        "Try different activities easily",
-        "Pay per session attended",
+        "No long-term commitment",
+        "Flexible class booking",
+        "Explore different enrichment programs easily",
+        "Pay only for what you use session attended",
       ],
       bestFor: [
-        "Parents exploring new activities for their child",
-        "Trying out different classes before committing",
-        "Irregular schedules or busy families",
-        "One-off events or workshops",
+        "Trying new activities before committing",
+        "Explore your child's interests",
+        "Families with changing schedules",
       ],
-      creditUsage: "4-6 credits per class (varies by partner)",
       example:
-        "Book a single dance class this Saturday, a cooking workshop next week, and a swimming lesson whenever your schedule allows.",
+        "Try a dance class this weekend, book a coding workshop during holidays, or schedule a swimming lesson whenever convenient.",
     },
     {
-      title: "Short-Term Package",
+      title: "Short-Term",
       icon: <CalendarOutlined />,
       color: "#f3a5c7",
       gradient: "linear-gradient(135deg, #f3a5c7 0%, #e88bb1 100%)",
       tagColor: "magenta",
       description:
-        "Try a series of classes over 4-8 weeks. Love it? Upgrade to long-term within 24 hours after the last class and just pay the difference!",
+        "A flexible way for your child to experience a program over several weeks before deciding on a long-term commitment.",
       features: [
-        "Fixed duration (4-8 weeks typically)",
-        "Build consistency and routine",
-        "24-hour upgrade window after last class ⏰",
-        "Seamless upgrade - credits carry over",
+        "Shorter commitment with structured learning",
+        "25% of a full-term program",
+        "Ideal for exploring new interests with less pressure",
+        "Option to upgrade to a full-term package",
+        "No additional cost incurred when upgrading later",
       ],
       bestFor: [
-        "Parents wanting to try before committing long-term",
-        "Children exploring a new activity",
-        "Building habits and routines",
-        "Risk-free introduction to new skills",
+        "Parents who prefer flexibility before committing long-term",
+        "Building confidence and interest gradually",
+        "Families looking for lower-commitment options",
       ],
-      creditUsage: "Package deal - upgrade anytime",
       example:
         "Sign up for a 2-week basketball course. After 2 classes, get a 24-hour offer to upgrade to the 3-month package by just topping up the remaining credits.",
     },
     {
-      title: "Long-Term Package",
+      title: "Full-Term",
       icon: <CrownOutlined />,
       color: "#d4af37",
       gradient: "linear-gradient(135deg, #d4af37 0%, #b8941f 100%)",
       tagColor: "gold",
       description:
-        "Full commitment for a term or year. Maximum savings and priority access for serious learners building mastery. Upgrade from short-term anytime!",
+        "Designed for children who are ready to deepen their skills and build long-term confidence through consistent learning and practice.",
       features: [
-        "Extended duration (3+ months or full term)",
-        "Maximum savings (30-50% vs pay-as-you-go)",
-        "Deeper learning and mastery",
-        "Upgrade from short-term - just pay the difference",
+        "Lower per-class pricing with greater overall savings",
+        "Structured progression for deeper learning and mastery",
+        "Consistent routines that support long-term development",
       ],
       bestFor: [
-        "Serious skill development and mastery",
-        "Children passionate about an activity",
-        "Long-term commitment to a hobby or sport",
-        "Families wanting maximum value and savings",
+        "Children passionate about a specific activity",
+        "Families seeking the best valueper class",
+        "Building strong learning habits and consistency",
       ],
-      creditUsage: "Bulk credit package - up to 50% savings",
       example:
         "Enroll in a full-year piano program, a semester of competitive swimming, or a 6-month coding bootcamp. Or upgrade from your 2-week trial!",
     },
@@ -104,8 +97,8 @@ function PackageTypes() {
             Package Types
           </Title>
           <Paragraph className="package-hero-subtitle">
-            Select the package that fits your child's learning needs and your family's schedule.
-            Start flexible, upgrade anytime!
+            Select the package that fits your child's learning needs and your
+            family's schedule. Start flexible, upgrade anytime!
           </Paragraph>
         </div>
 
@@ -114,9 +107,7 @@ function PackageTypes() {
           <Row gutter={[32, 32]}>
             {packages.map((pkg, index) => (
               <Col xs={24} sm={24} md={24} lg={8} key={index}>
-                <Card
-                  className="package-card"
-                >
+                <Card className="package-card">
                   <div className="package-card-header">
                     <div
                       className="package-icon"
@@ -166,17 +157,6 @@ function PackageTypes() {
 
                   <Divider />
 
-                  <div className="package-credits">
-                    <Space direction="vertical" size={4}>
-                      <Text strong className="section-label">
-                        <DollarOutlined /> Credit Usage
-                      </Text>
-                      <Text className="credit-info">{pkg.creditUsage}</Text>
-                    </Space>
-                  </div>
-
-                  <Divider />
-
                   <div className="package-example">
                     <Text strong className="section-label">
                       Example
@@ -202,9 +182,10 @@ function PackageTypes() {
                 <Title level={4}>Can I upgrade my package?</Title>
                 <Paragraph>
                   Absolutely! Start with a short-term package to try it out.
-                  After attending any class, you'll get a 24-hour window to upgrade
-                  to the long-term package by simply topping up the remaining credits.
-                  Your existing credits carry over - no waste!
+                  After attending any class, you'll get a 24-hour window to
+                  upgrade to the full-term package by simply topping up the
+                  remaining credits. Your existing credits carry over - no
+                  waste!
                 </Paragraph>
               </Card>
             </Col>
@@ -221,10 +202,11 @@ function PackageTypes() {
               <Card className="faq-card">
                 <Title level={4}>Which package should I choose?</Title>
                 <Paragraph>
-                  Start with pay-as-you-go if you're exploring different activities.
-                  Choose short-term when you want to try an activity with minimal commitment
-                  (you can always upgrade within 24 hours!). Go long-term when you're
-                  committed to mastery and want maximum savings.
+                  Start with pay-as-you-go if you're exploring different
+                  activities. Choose short-term when you want to try an activity
+                  with minimal commitment (you can always upgrade within 24
+                  hours!). Go full-term when you're committed to mastery and
+                  want maximum savings.
                 </Paragraph>
               </Card>
             </Col>
