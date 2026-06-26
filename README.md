@@ -8,9 +8,9 @@
 
 # Run your project
 
-1. Clone this repository to your local computer by running this command on Terminal: `git clone https://github.com/yeeqinghew/juniorPASS.git`
+1. Clone this repository to your local computer
 
-2. Run this command to set up DB locally:
+1. Run this command to set up DB locally:
 
    ```
    psql -U postgres
@@ -18,64 +18,71 @@
    \i [file where u cloned your project/juniorPASS/server/database.sql]
    ```
 
-3. Once the repository got cloned into your computer, run these commands to run your FrontEnd on localhost:
+1. Open a terminal and run `python3 run_all.py` to get the apps running.
+
+1. OR run these commands to run your FE on localhost:
 
    ```
    cd client
    npm install --force
-   npm start
+   npm run dev
    ```
 
-4. Start Redis
+1. Start Redis
+
    **Windows**
-   4.1 Install WSL (skip if installed):
+
+   5.1 Install WSL (skip if installed):
 
    ```
    wsl --install
    ```
 
-   4.2 Install Redis on WSL (skip if installed):
+   5.2 Install Redis on WSL (skip if installed):
 
    ```
    sudo apt update
    sudo apt install redis-server
    ```
 
-   4.3 Start the Redis server on WSL:
+   5.3 Start the Redis server on WSL:
 
    ```
    wsl
    sudo service redis-server start
    ```
 
+   ***
+
    **Mac**
-   4.1 Install Redis
+
+   5.1 Install Redis
 
    ```
    brew install redis
    ```
 
-   4.2 Start the redis server:
+   5.2 Start the redis server:
 
    ```
    brew services start redis
    ```
 
-   4.3 Stop the redis server
+   5.3 Stop the redis server
 
    ```
    brew services stop redis
    ```
 
-5. Open another terminal to run your BackEnd on localhost:
+1. Open another terminal to run your BE on localhost:
+
    ```
    cd server
    npm install
    npx nodemon // for Mac
    nodemon // for Windows
    ```
-6. Or open a terminal to run `python3 run_all.py`
 
-7. App is up running on http://localhost:3000
+1. App is up running on http://localhost:5173
 
-8. Ensure that you have obtain the right `.env` files to get the database and other services up running
+1. Ensure that you have obtain the right `.env` files to get the database and other services up running
