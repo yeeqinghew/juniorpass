@@ -251,7 +251,7 @@ router.post("/change-password", authorization, async (req, res) => {
   try {
     // Get current partner data
     const partner = await pool.query(
-      "SELECT password FROM partners WHERE partner_id = $1",
+      "SELECT password, requires_password_change FROM partners WHERE partner_id = $1",
       [partner_id],
     );
 
@@ -259,13 +259,15 @@ router.post("/change-password", authorization, async (req, res) => {
       return res.status(404).json({ message: "Partner not found" });
     }
 
-    // Verify current password
-    const validPassword = bcrypt.compareSync(
-      currentPassword,
-      partner.rows[0].password,
-    );
-    if (!validPassword) {
-      return res.status(401).json({ message: "Current password is incorrect" });
+    // Only verify current password if NOT a first-time password change
+    if (!partner.rows[0].requires_password_change && currentPassword) {
+      const validPassword = bcrypt.compareSync(
+        currentPassword,
+        partner.rows[0].password,
+      );
+      if (!validPassword) {
+        return res.status(401).json({ message: "Current password is incorrect" });
+      }
     }
 
     // Hash new password
