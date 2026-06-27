@@ -60,76 +60,105 @@ const Class = () => {
   const dateFormat = "ddd, D MMM YYYY";
   const navigate = useNavigate();
 
-  const formatTimeslot = (timeslot) => {
-    const startTime = dayjs(timeslot[0], "HH:mm");
-    const endTime = dayjs(timeslot[1], "HH:mm");
-    const duration = dayjs.duration(endTime.diff(startTime)).asMinutes();
+  const formatTimeslot = (startTime, endTime) => {
+    const start = dayjs(startTime, "HH:mm:ss");
+    const end = dayjs(endTime, "HH:mm:ss");
+    const duration = dayjs.duration(end.diff(start)).asMinutes();
 
     return {
-      timeRange: `${timeslot[0]} - ${timeslot[1]}`,
+      timeRange: `${start.format("HH:mm")} - ${end.format("HH:mm")}`,
       duration: `${duration} mins`,
     };
   };
 
   const generateAvailableTimeSlots = () => {
-    if (!listing || !listing?.schedule_info) return [];
+    if (!listing || !listing?.outlets_info) return [];
 
     const selectedDay = dayjs(selectedDate).format("dddd");
+    const slots = [];
 
-    // Properly determine the start date - use full_term or short_term if they exist
-    let startDate;
-    if (listing?.full_term_start_date) {
-      startDate = dayjs(listing.full_term_start_date);
-    } else if (listing?.short_term_start_date) {
-      startDate = dayjs(listing.short_term_start_date);
-    } else {
-      // Fallback to created_at or today if no start date is set
-      startDate = listing?.created_at ? dayjs(listing.created_at) : dayjs();
-    }
+    // Flatten the nested structure: outlets > schedule_groups > time_slots
+    listing.outlets_info.forEach((outlet) => {
+      if (!outlet.schedule_groups) return;
 
-    return listing?.schedule_info.reduce((acc, curr) => {
-      const { frequency, day, timeslot } = curr;
-      if (frequency === "Daily") {
-        if (dayjs(selectedDate).isValid()) {
-          acc.push({ ...formatTimeslot(timeslot), location: curr });
+      outlet.schedule_groups.forEach((scheduleGroup) => {
+        if (!scheduleGroup.time_slots) return;
+
+        // Determine start date from schedule group
+        let startDate;
+        if (scheduleGroup.full_term_start_date) {
+          startDate = dayjs(scheduleGroup.full_term_start_date);
+        } else {
+          startDate = listing?.created_at ? dayjs(listing.created_at) : dayjs();
         }
-      } else if (frequency === "Weekly") {
-        if (selectedDay === day) {
-          acc.push({ ...formatTimeslot(timeslot), location: curr });
-        }
-      } else if (frequency === "Biweekly") {
-        const weeksDifference = dayjs(selectedDate).diff(startDate, "week");
-        if (
-          weeksDifference >= 0 &&
-          weeksDifference % 2 === 0 &&
-          selectedDay === day
-        ) {
-          acc.push({ ...formatTimeslot(timeslot), location: curr });
-        }
-      } else if (frequency === "Monthly") {
-        const selected = dayjs(selectedDate);
 
-        // For monthly: check if selected date is on or after start date
-        // and if the day of month matches the start date's day of month
-        if (selected.isSameOrAfter(startDate, "day")) {
-          const startDayOfMonth = startDate.date();
-          const selectedDayOfMonth = selected.date();
-          const daysInSelectedMonth = selected.daysInMonth();
+        scheduleGroup.time_slots.forEach((timeSlot) => {
+          const { day, start_time, end_time, schedule_id } = timeSlot;
+          const { frequency, slots: maxSlots, package_types, price_payg } = scheduleGroup;
 
-          // Handle months with fewer days (e.g., start on 31st, but Feb only has 28)
-          const targetDayOfMonth = Math.min(
-            startDayOfMonth,
-            daysInSelectedMonth,
-          );
+          // Check if this time slot matches the selected date
+          let shouldInclude = false;
 
-          if (selectedDayOfMonth === targetDayOfMonth) {
-            acc.push({ ...formatTimeslot(timeslot), location: curr });
+          if (frequency === "Daily") {
+            if (dayjs(selectedDate).isValid()) {
+              shouldInclude = true;
+            }
+          } else if (frequency === "Weekly") {
+            if (selectedDay === day) {
+              shouldInclude = true;
+            }
+          } else if (frequency === "Biweekly") {
+            const weeksDifference = dayjs(selectedDate).diff(startDate, "week");
+            if (
+              weeksDifference >= 0 &&
+              weeksDifference % 2 === 0 &&
+              selectedDay === day
+            ) {
+              shouldInclude = true;
+            }
+          } else if (frequency === "Monthly") {
+            const selected = dayjs(selectedDate);
+
+            if (selected.isSameOrAfter(startDate, "day")) {
+              const startDayOfMonth = startDate.date();
+              const selectedDayOfMonth = selected.date();
+              const daysInSelectedMonth = selected.daysInMonth();
+
+              const targetDayOfMonth = Math.min(
+                startDayOfMonth,
+                daysInSelectedMonth,
+              );
+
+              if (selectedDayOfMonth === targetDayOfMonth) {
+                shouldInclude = true;
+              }
+            }
           }
-        }
-      }
 
-      return acc;
-    }, []);
+          if (shouldInclude) {
+            slots.push({
+              ...formatTimeslot(start_time, end_time),
+              location: {
+                schedule_id,
+                day,
+                timeslot: [
+                  dayjs(start_time, "HH:mm:ss").format("HH:mm"),
+                  dayjs(end_time, "HH:mm:ss").format("HH:mm"),
+                ],
+                frequency,
+                nearest_mrt: outlet.nearest_mrt,
+                outlet_address: outlet.outlet_address,
+                credit: price_payg,
+                max_slots: maxSlots,
+                package_types,
+              },
+            });
+          }
+        });
+      });
+    });
+
+    return slots;
   };
 
   const availableTimeSlots = generateAvailableTimeSlots();
@@ -173,7 +202,7 @@ const Class = () => {
 
   useEffect(() => {
     async function fetchSlotAvailability() {
-      if (!listing || !listing.schedule_info || !selectedDate) return;
+      if (!listing || !listing.outlets_info || !selectedDate) return;
 
       const slots = generateAvailableTimeSlots();
       if (!slots.length) return;
@@ -312,7 +341,7 @@ const Class = () => {
   };
 
   const refreshSlotAvailability = async () => {
-    if (!listing || !listing.schedule_info || !selectedDate) return;
+    if (!listing || !listing.outlets_info || !selectedDate) return;
 
     const slots = generateAvailableTimeSlots();
     if (!slots.length) return;
