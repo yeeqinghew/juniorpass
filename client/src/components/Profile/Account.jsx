@@ -246,63 +246,65 @@ const Account = () => {
             </Form>
           </div>
 
-          {/* Security section */}
-          <div className="ac-section">
-            <div className="ac-section-top">
-              <div className="ac-section-info">
-                <h3 className="ac-section-title">Security</h3>
-                <p className="ac-section-desc">Keep your account safe with a strong password</p>
+          {/* Security section - only show for email-authenticated users */}
+          {user?.method === "email" && (
+            <div className="ac-section">
+              <div className="ac-section-top">
+                <div className="ac-section-info">
+                  <h3 className="ac-section-title">Security</h3>
+                  <p className="ac-section-desc">Keep your account safe with a strong password</p>
+                </div>
+                <div className="ac-section-actions">
+                  {!isChangingPassword ? (
+                    <Button icon={<LockOutlined />} onClick={() => setIsChangingPassword(true)}>Change Password</Button>
+                  ) : (
+                    <>
+                      <Button icon={<CloseOutlined />} onClick={handleCancelPassword}>Cancel</Button>
+                      <Button type="primary" icon={<SaveOutlined />} loading={pwLoading} onClick={handleChangePassword}>Update</Button>
+                    </>
+                  )}
+                </div>
               </div>
-              <div className="ac-section-actions">
-                {!isChangingPassword ? (
-                  <Button icon={<LockOutlined />} onClick={() => setIsChangingPassword(true)}>Change Password</Button>
-                ) : (
-                  <>
-                    <Button icon={<CloseOutlined />} onClick={handleCancelPassword}>Cancel</Button>
-                    <Button type="primary" icon={<SaveOutlined />} loading={pwLoading} onClick={handleChangePassword}>Update</Button>
-                  </>
-                )}
-              </div>
+
+              {!isChangingPassword ? (
+                <div className="ac-pw-row">
+                  <div className="ac-pw-icon-wrap"><LockOutlined /></div>
+                  <div>
+                    <p className="ac-pw-label">Password</p>
+                    <p className="ac-pw-hint">Click "Change Password" to update your credentials</p>
+                  </div>
+                </div>
+              ) : (
+                <Form form={passwordForm} layout="vertical" className="ac-form">
+                  <div className="ac-form-grid">
+                    <Form.Item name="oldPassword" label="Current Password"
+                      rules={[{ required: true, message: "Required" }]}>
+                      <Input.Password prefix={<LockOutlined />} placeholder="Current password" />
+                    </Form.Item>
+
+                    <Form.Item name="newPassword" label="New Password"
+                      rules={[{ required: true, message: "Required" }, { min: 8, message: "At least 8 characters" }]}>
+                      <Input.Password prefix={<LockOutlined />} placeholder="New password" />
+                    </Form.Item>
+
+                    <Form.Item name="confirmPassword" label="Confirm New Password"
+                      dependencies={["newPassword"]}
+                      rules={[
+                        { required: true, message: "Required" },
+                        ({ getFieldValue }) => ({
+                          validator(_, value) {
+                            if (!value || getFieldValue("newPassword") === value) return Promise.resolve();
+                            return Promise.reject("Passwords do not match");
+                          },
+                        }),
+                      ]}>
+                      <Input.Password prefix={<LockOutlined />} placeholder="Confirm new password" />
+                    </Form.Item>
+                  </div>
+                </Form>
+              )}
             </div>
-
-            {!isChangingPassword ? (
-              <div className="ac-pw-row">
-                <div className="ac-pw-icon-wrap"><LockOutlined /></div>
-                <div>
-                  <p className="ac-pw-label">Password</p>
-                  <p className="ac-pw-hint">Click "Change Password" to update your credentials</p>
-                </div>
-              </div>
-            ) : (
-              <Form form={passwordForm} layout="vertical" className="ac-form">
-                <div className="ac-form-grid">
-                  <Form.Item name="oldPassword" label="Current Password"
-                    rules={[{ required: true, message: "Required" }]}>
-                    <Input.Password prefix={<LockOutlined />} placeholder="Current password" />
-                  </Form.Item>
-
-                  <Form.Item name="newPassword" label="New Password"
-                    rules={[{ required: true, message: "Required" }, { min: 8, message: "At least 8 characters" }]}>
-                    <Input.Password prefix={<LockOutlined />} placeholder="New password" />
-                  </Form.Item>
-
-                  <Form.Item name="confirmPassword" label="Confirm New Password"
-                    dependencies={["newPassword"]}
-                    rules={[
-                      { required: true, message: "Required" },
-                      ({ getFieldValue }) => ({
-                        validator(_, value) {
-                          if (!value || getFieldValue("newPassword") === value) return Promise.resolve();
-                          return Promise.reject("Passwords do not match");
-                        },
-                      }),
-                    ]}>
-                    <Input.Password prefix={<LockOutlined />} placeholder="Confirm new password" />
-                  </Form.Item>
-                </div>
-              </Form>
-            )}
-          </div>
+          )}
 
         </main>
       </div>

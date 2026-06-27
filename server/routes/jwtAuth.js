@@ -343,12 +343,17 @@ router.post("/change-password", authorization, async (req, res) => {
 
   try {
     const userResult = await pool.query(
-      `SELECT password FROM users WHERE user_id = $1`,
+      `SELECT password, method FROM users WHERE user_id = $1`,
       [userId],
     );
 
     if (userResult.rows.length === 0) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    // Prevent Gmail users from changing password
+    if (userResult.rows[0].method === "gmail") {
+      return res.status(403).json({ message: "Cannot change password for Google-authenticated accounts" });
     }
 
     const validPassword = bcrypt.compareSync(
