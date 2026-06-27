@@ -63,9 +63,12 @@ router.post("/", authorization, async (req, res) => {
       }
     }
 
-    // Get schedule capacity and credit first
+    // Get schedule capacity and credit from schedule_groups
     const schedule = await pool.query(
-      "SELECT slots, credit FROM schedules WHERE schedule_id = $1",
+      `SELECT sg.slots, sg.price_payg as credit
+       FROM schedules s
+       JOIN schedule_groups sg ON s.schedule_group_id = sg.schedule_group_id
+       WHERE s.schedule_id = $1`,
       [schedule_id],
     );
 
@@ -237,12 +240,13 @@ router.get("/availability/:scheduleId", async (req, res) => {
       return res.status(400).json({ error: "Missing start_date or end_date" });
     }
 
-    // Get schedule with slots capacity
+    // Get schedule with slots capacity from schedule_groups
     const schedule = await pool.query(
-      `SELECT s.schedule_id, s.slots, s.day,
+      `SELECT s.schedule_id, sg.slots, s.day, sg.frequency,
               l.listing_id, l.listing_title
        FROM schedules s
-       JOIN listingOutlets lo ON s.listing_outlet_id = lo.listing_outlet_id
+       JOIN schedule_groups sg ON s.schedule_group_id = sg.schedule_group_id
+       JOIN listingOutlets lo ON sg.listing_outlet_id = lo.listing_outlet_id
        JOIN listings l ON lo.listing_id = l.listing_id
        WHERE s.schedule_id = $1`,
       [scheduleId],
