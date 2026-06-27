@@ -94,7 +94,16 @@ const Class = () => {
 
         scheduleGroup.time_slots.forEach((timeSlot) => {
           const { day, start_time, end_time, schedule_id } = timeSlot;
-          const { frequency, slots: maxSlots, package_types, price_payg } = scheduleGroup;
+          const {
+            frequency,
+            slots: maxSlots,
+            package_types,
+            price_payg,
+            price_fullterm,
+            price_shortterm,
+            full_term_class_count,
+            short_term_class_count,
+          } = scheduleGroup;
 
           // Check if this time slot matches the selected date
           let shouldInclude = false;
@@ -149,6 +158,10 @@ const Class = () => {
                 nearest_mrt: outlet.nearest_mrt,
                 outlet_address: outlet.outlet_address,
                 credit: price_payg,
+                price_fullterm,
+                price_shortterm,
+                full_term_class_count,
+                short_term_class_count,
                 max_slots: maxSlots,
                 package_types,
               },
@@ -604,27 +617,47 @@ const Class = () => {
                             </div>
                           }
                           title={
-                            <Space wrap>
-                              <Text strong className="schedule-time-text">
-                                {item.timeRange}
-                              </Text>
-                              <Tag color="gold" className="schedule-credit-tag">
-                                💰 {item.location.credit || listing?.credit}{" "}
-                                Credits
-                              </Tag>
-                              {!isPastClass &&
-                                !isSoldOut &&
-                                spotsLeft !== undefined &&
-                                spotsLeft <= 3 &&
-                                spotsLeft > 0 && (
-                                  <Tag
-                                    color="orange"
-                                    className="schedule-spots-tag"
-                                  >
-                                    Only {spotsLeft}{" "}
-                                    {spotsLeft === 1 ? "spot" : "spots"} left!
-                                  </Tag>
-                                )}
+                            <Space direction="vertical" size="small" style={{ width: "100%" }}>
+                              <Space wrap>
+                                <Text strong className="schedule-time-text">
+                                  {item.timeRange}
+                                </Text>
+                                {!isPastClass &&
+                                  !isSoldOut &&
+                                  spotsLeft !== undefined &&
+                                  spotsLeft <= 3 &&
+                                  spotsLeft > 0 && (
+                                    <Tag
+                                      color="orange"
+                                      className="schedule-spots-tag"
+                                    >
+                                      Only {spotsLeft}{" "}
+                                      {spotsLeft === 1 ? "spot" : "spots"} left!
+                                    </Tag>
+                                  )}
+                              </Space>
+                              <Space wrap size="small">
+                                {item.location.package_types && item.location.package_types.map((packageType, idx) => {
+                                  const colors = {
+                                    'pay-as-you-go': 'purple',
+                                    'full-term': 'green',
+                                    'short-term': 'cyan'
+                                  };
+                                  const labels = {
+                                    'pay-as-you-go': 'PAYG',
+                                    'full-term': 'Full Term',
+                                    'short-term': 'Short Term'
+                                  };
+                                  return (
+                                    <Tag key={idx} color={colors[packageType] || 'default'} style={{ fontSize: '11px' }}>
+                                      {labels[packageType] || packageType}
+                                    </Tag>
+                                  );
+                                })}
+                                <Text type="secondary" style={{ fontSize: '13px' }}>
+                                  💰 From ${item.location.credit || listing?.credit}
+                                </Text>
+                              </Space>
                             </Space>
                           }
                           description={

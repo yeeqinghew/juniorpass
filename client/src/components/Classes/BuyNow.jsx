@@ -1,10 +1,11 @@
-import { useState } from "react";
-import { Modal, Select, Space, Typography, Button, Row, Col } from "antd";
+import { useState, useEffect } from "react";
+import { Modal, Select, Space, Typography, Button, Row, Col, Radio } from "antd";
 import {
   EnvironmentOutlined,
   ClockCircleOutlined,
   CalendarOutlined,
   DollarOutlined,
+  TagOutlined,
 } from "@ant-design/icons";
 import toast from "react-hot-toast";
 import "./BuyNow.css";
@@ -23,12 +24,63 @@ const BuyNow = ({
   onBookingSuccess,
 }) => {
   const [selectedChildId, setSelectedChildId] = useState(null);
+  const [selectedPackageType, setSelectedPackageType] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Reset package type when modal opens with new selection
+  useEffect(() => {
+    if (isBuyNowModalOpen && selected?.location?.package_types) {
+      // Auto-select if only one package type available
+      if (selected.location.package_types.length === 1) {
+        setSelectedPackageType(selected.location.package_types[0]);
+      } else {
+        setSelectedPackageType(null);
+      }
+    }
+  }, [isBuyNowModalOpen, selected]);
 
   const handleCancel = () => {
     setIsBuyNowModalOpen(false);
     setSelectedChildId(null);
+    setSelectedPackageType(null);
   };
+
+  // Get pricing and details for selected package type
+  const getPackageDetails = (packageType) => {
+    if (!packageType || !selected?.location) return null;
+
+    const location = selected.location;
+
+    switch (packageType) {
+      case 'pay-as-you-go':
+        return {
+          label: 'Pay-as-you-go',
+          price: location.credit,
+          description: 'Single class',
+          pricePerClass: location.credit,
+        };
+      case 'full-term':
+        // TODO: Get these from schedule_group data passed through
+        return {
+          label: 'Full Term',
+          price: location.price_fullterm || location.credit * 10,
+          description: `${location.full_term_class_count || 10} classes`,
+          pricePerClass: location.price_fullterm ? (location.price_fullterm / (location.full_term_class_count || 10)).toFixed(2) : location.credit,
+        };
+      case 'short-term':
+        return {
+          label: 'Short Term',
+          price: location.price_shortterm || location.credit * 5,
+          description: `${location.short_term_class_count || 5} classes`,
+          pricePerClass: location.price_shortterm ? (location.price_shortterm / (location.short_term_class_count || 5)).toFixed(2) : location.credit,
+        };
+      default:
+        return null;
+    }
+  };
+
+  const currentPackage = getPackageDetails(selectedPackageType);
+  const displayPrice = currentPackage ? currentPackage.price : listing?.credit;
 
   const handleBooking = async () => {
     // Validate child selection
@@ -37,8 +89,14 @@ const BuyNow = ({
       return;
     }
 
+    // Validate package type selection
+    if (!selectedPackageType) {
+      toast.error("Please select a package type");
+      return;
+    }
+
     // Validate user has enough credits
-    if (!user?.credit || user.credit < listing?.credit) {
+    if (!user?.credit || user.credit < displayPrice) {
       toast.error("Insufficient credits. Please top up your account.");
       return;
     }
@@ -62,6 +120,7 @@ const BuyNow = ({
           start_date: start_date,
           end_date: end_date,
           child_id: selectedChildId,
+          package_type: selectedPackageType,
         }),
       });
 
@@ -73,6 +132,7 @@ const BuyNow = ({
         );
         setIsBuyNowModalOpen(false);
         setSelectedChildId(null);
+        setSelectedPackageType(null);
 
         // Call parent callback to refresh data
         if (onBookingSuccess) {
@@ -101,6 +161,67 @@ const BuyNow = ({
       footer={null}
     >
       <Space direction="vertical" size={16} style={{ width: "100%" }}>
+        {/* Package Type Selection */}
+        {selected?.location?.package_types && selected.location.package_types.length > 1 && (
+          <div>
+            <Text strong style={{ display: "block", marginBottom: "8px" }}>
+              Select Package Type *
+            </Text>
+            <Radio.Group
+              value={selectedPackageType}
+              onChange={(e) => setSelectedPackageType(e.target.value)}
+              style={{ width: "100%" }}
+            >
+              <Space direction="vertical" style={{ width: "100%" }}>
+                {selected.location.package_types.map((packageType) => {
+                  const details = getPackageDetails(packageType);
+                  const savings = packageType !== 'pay-as-you-go' && details
+                    ? ((1 - details.pricePerClass / selected.location.credit) * 100).toFixed(0)
+                    : 0;
+
+                  return (
+                    <Radio
+                      key={packageType}
+                      value={packageType}
+                      style={{
+                        width: "100%",
+                        padding: "12px",
+                        border: selectedPackageType === packageType ? "2px solid #1890ff" : "1px solid #d9d9d9",
+                        borderRadius: "8px",
+                        backgroundColor: selectedPackageType === packageType ? "#e6f7ff" : "#fff",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                        <div>
+                          <Text strong>{details?.label}</Text>
+                          <br />
+                          <Text type="secondary" style={{ fontSize: "12px" }}>
+                            {details?.description}
+                            {savings > 0 && ` • Save ${savings}%`}
+                          </Text>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <Text strong style={{ fontSize: "16px", color: "#1890ff" }}>
+                            ${details?.price}
+                          </Text>
+                          {packageType !== 'pay-as-you-go' && (
+                            <>
+                              <br />
+                              <Text type="secondary" style={{ fontSize: "12px" }}>
+                                ${details?.pricePerClass}/class
+                              </Text>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </Radio>
+                  );
+                })}
+              </Space>
+            </Radio.Group>
+          </div>
+        )}
+
         {/* Select child */}
         <div>
           <Text strong style={{ display: "block", marginBottom: "8px" }}>
@@ -184,7 +305,12 @@ const BuyNow = ({
             <DollarOutlined className="info-icon" />
             <Text className="class-info-label">Cost:</Text>
             <Text className="class-info-value" style={{ fontWeight: 600, color: "var(--primary-color)" }}>
-              {listing?.credit} credits
+              ${displayPrice}
+              {currentPackage && currentPackage.description && (
+                <Text type="secondary" style={{ fontSize: "12px", marginLeft: "8px" }}>
+                  ({currentPackage.description})
+                </Text>
+              )}
             </Text>
           </div>
         </div>
@@ -216,7 +342,7 @@ const BuyNow = ({
               loading={isLoading}
               className="modal-btn modal-btn-primary"
               onClick={handleBooking}
-              disabled={!selectedChildId}
+              disabled={!selectedChildId || !selectedPackageType}
             >
               Confirm Booking
             </Button>
