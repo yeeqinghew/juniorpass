@@ -320,7 +320,9 @@ const Class = () => {
     }
 
     try {
-      const response = await fetchWithAuth(API_ENDPOINTS.GET_CHILDREN);
+      const response = await fetchWithAuth(
+        API_ENDPOINTS.GET_CHILDREN(user.user_id),
+      );
       if (response.status === 401 || response.status === 403) {
         toast.error("Please login again to access your children profiles.");
         navigate(`/login`, { state: { from: `/class/${classId}` } });
@@ -617,7 +619,11 @@ const Class = () => {
                             </div>
                           }
                           title={
-                            <Space direction="vertical" size="small" style={{ width: "100%" }}>
+                            <Space
+                              direction="vertical"
+                              size="small"
+                              style={{ width: "100%" }}
+                            >
                               <Space wrap>
                                 <Text strong className="schedule-time-text">
                                   {item.timeRange}
@@ -637,25 +643,38 @@ const Class = () => {
                                   )}
                               </Space>
                               <Space wrap size="small">
-                                {item.location.package_types && item.location.package_types.map((packageType, idx) => {
-                                  const colors = {
-                                    'pay-as-you-go': 'purple',
-                                    'full-term': 'green',
-                                    'short-term': 'cyan'
-                                  };
-                                  const labels = {
-                                    'pay-as-you-go': 'PAYG',
-                                    'full-term': 'Full Term',
-                                    'short-term': 'Short Term'
-                                  };
-                                  return (
-                                    <Tag key={idx} color={colors[packageType] || 'default'} style={{ fontSize: '11px' }}>
-                                      {labels[packageType] || packageType}
-                                    </Tag>
-                                  );
-                                })}
-                                <Text type="secondary" style={{ fontSize: '13px' }}>
-                                  💰 From ${item.location.credit || listing?.credit}
+                                {item.location.package_types &&
+                                  item.location.package_types.map(
+                                    (packageType, idx) => {
+                                      const colors = {
+                                        "pay-as-you-go": "purple",
+                                        "full-term": "green",
+                                        "short-term": "cyan",
+                                      };
+                                      const labels = {
+                                        "pay-as-you-go": "PAYG",
+                                        "full-term": "Full Term",
+                                        "short-term": "Short Term",
+                                      };
+                                      return (
+                                        <Tag
+                                          key={idx}
+                                          color={
+                                            colors[packageType] || "default"
+                                          }
+                                          style={{ fontSize: "11px" }}
+                                        >
+                                          {labels[packageType] || packageType}
+                                        </Tag>
+                                      );
+                                    },
+                                  )}
+                                <Text
+                                  type="secondary"
+                                  style={{ fontSize: "13px" }}
+                                >
+                                  💰 From $
+                                  {item.location.credit || listing?.credit}
                                 </Text>
                               </Space>
                             </Space>

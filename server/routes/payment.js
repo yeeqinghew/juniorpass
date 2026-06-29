@@ -36,6 +36,37 @@ router.post("/init", async (req, res) => {
   // Generate expiry 10 minutes from now
   const expiryDate = formatSGDateTime(new Date(Date.now() + 10 * 60 * 1000));
 
+  // Determine webhook URL based on environment
+  // Priority: WEBHOOK_URL > NODE_ENV-specific > fallback
+  let webhookUrl;
+  const nodeEnv = process.env.NODE_ENV || "development";
+
+  if (process.env.WEBHOOK_URL) {
+    // Explicit webhook URL takes highest priority
+    webhookUrl = process.env.WEBHOOK_URL;
+  } else {
+    // Auto-detect based on NODE_ENV
+    switch (nodeEnv) {
+      case "production":
+        webhookUrl = process.env.PRODUCTION_URL
+          ? `${process.env.PRODUCTION_URL}/payment/webhook`
+          : "https://api.juniorpass.sg/payment/webhook";
+        break;
+      case "staging":
+        webhookUrl = process.env.STAGING_URL
+          ? `${process.env.STAGING_URL}/payment/webhook`
+          : "https://juniorpass-staging.up.railway.app/payment/webhook";
+        break;
+      default: // development
+        webhookUrl = process.env.NGROK_URL
+          ? `${process.env.NGROK_URL}/payment/webhook`
+          : "https://1468-116-15-191-147.ngrok-free.app/payment/webhook";
+    }
+  }
+
+  console.log(`💳 Environment: ${nodeEnv}`);
+  console.log(`💳 Webhook URL: ${webhookUrl}`);
+
   const resp = await fetch(
     "https://api.sandbox.hit-pay.com/v1/payment-requests",
     {
@@ -50,16 +81,17 @@ router.post("/init", async (req, res) => {
         email,
         purpose: "",
         name,
-        reference_number: ref_num, // TODO: generate unique reference number
+        reference_number: ref_num,
         description: "Top up store credit",
         redirect_url: "", // Not redirecting to any URL after payment due to Drop-In UI
-        webhook: "https://1d8c-119-74-36-169.ngrok-free.app/payment/webhook", // TODO
+        webhook: webhookUrl,
         expiry_date: expiryDate, // 10 minutes expiry
       }),
-    }
+    },
   );
 
   const response = await resp.json();
+  console.log(`💳 Payment request created. Webhook URL: ${webhookUrl}`);
   const {
     id,
     name: resName,
@@ -88,7 +120,7 @@ router.post("/init", async (req, res) => {
     `INSERT INTO payment_requests
       (user_id, amount, reference_number, hitpay_payment_id) 
       VALUES ($1, $2, $3, $4)`,
-    [user_id, amount, reference_number, response.id]
+    [user_id, amount, reference_number, response.id],
   );
 
   res.status(200).json({
@@ -100,6 +132,10 @@ router.post("/init", async (req, res) => {
 
 // updates payment and credit if successful.
 router.post("/webhook", async (req, res) => {
+  console.log("🔔 Webhook received from HitPay");
+  console.log("Headers:", req.headers);
+  console.log("Body:", req.body);
+
   const secret = process.env.hitPaySandboxSecretKey;
 
   const rawBody = req.body;
@@ -147,12 +183,12 @@ router.post("/webhook", async (req, res) => {
       // Get user_id from the database using reference_number
       const paymentResult = await pool.query(
         `SELECT user_id FROM payment_requests WHERE reference_number = $1`,
-        [reference_number]
+        [reference_number],
       );
 
       if (paymentResult.rowCount === 0) {
         console.error(
-          `❌ Payment request not found for reference: ${reference_number}`
+          `❌ Payment request not found for reference: ${reference_number}`,
         );
         return res.status(404).send("Payment request not found");
       }
@@ -180,7 +216,7 @@ router.get("/status/:reference_number", async (req, res) => {
       `SELECT status, webhook_received, updated_at 
        FROM payment_requests 
        WHERE reference_number = $1`,
-      [reference_number]
+      [reference_number],
     );
 
     if (result.rowCount === 0) {
@@ -202,7 +238,7 @@ router.get("/verify/:reference_number", async (req, res) => {
     const result = await pool.query(
       `SELECT user_id, hitpay_payment_id, amount FROM payment_requests 
        WHERE reference_number = $1`,
-      [reference_number]
+      [reference_number],
     );
 
     if (result.rowCount === 0) {
@@ -218,7 +254,7 @@ router.get("/verify/:reference_number", async (req, res) => {
         headers: {
           "X-BUSINESS-API-KEY": process.env.hitPaySandboxApiKey,
         },
-      }
+      },
     );
 
     const data = await response.json();
@@ -250,8 +286,9 @@ async function markPaymentCompleted({
 }) {
   const existing = await pool.query(
     `SELECT status FROM payment_requests
-     WHERE hitpay_payment_id = $1 AND reference_number = $2`,
-    [hitpayPaymentId, reference_number]
+     WHERE hitpay_payment_id = $1 AND
+      reference_number = $2`,
+    [hitpayPaymentId, reference_number],
   );
 
   if (existing.rows[0]?.status === "COMPLETED") {
@@ -262,14 +299,14 @@ async function markPaymentCompleted({
     `UPDATE payment_requests
      SET status = $1, webhook_received = true, updated_at = NOW()
      WHERE hitpay_payment_id = $2 AND reference_number = $3`,
-    ["COMPLETED", hitpayPaymentId, reference_number]
+    ["COMPLETED", hitpayPaymentId, reference_number],
   );
 
   await pool.query(
     `UPDATE users
      SET credit = credit + $1
      WHERE user_id = $2`,
-    [amount, user_id]
+    [amount, user_id],
   );
 
   const REFERRAL_REWARD = 50;
@@ -277,7 +314,7 @@ async function markPaymentCompleted({
   const topUpCount = await pool.query(
     `SELECT COUNT(*) as count FROM payment_requests
      WHERE user_id = $1 AND status = 'COMPLETED'`,
-    [user_id]
+    [user_id],
   );
 
   const isFirstTopUp = parseInt(topUpCount.rows[0].count) === 1;
@@ -289,7 +326,7 @@ async function markPaymentCompleted({
        FROM referrals
        WHERE referee_id = $1 AND status = 'pending'
        LIMIT 1`,
-      [user_id]
+      [user_id],
     );
 
     if (pendingReferral.rows.length > 0) {
@@ -299,19 +336,19 @@ async function markPaymentCompleted({
         // Complete the referral
         await pool.query(
           "UPDATE referrals SET status = 'completed', completed_on = NOW() WHERE id = $1",
-          [referral.id]
+          [referral.id],
         );
 
         // Award credits to referrer
         await pool.query(
           "UPDATE users SET credit = credit + $1 WHERE user_id = $2",
-          [REFERRAL_REWARD, referral.referrer_id]
+          [REFERRAL_REWARD, referral.referrer_id],
         );
 
         // Award credits to referee (the current user)
         await pool.query(
           "UPDATE users SET credit = credit + $1 WHERE user_id = $2",
-          [REFERRAL_REWARD, user_id]
+          [REFERRAL_REWARD, user_id],
         );
 
         // Create notifications
@@ -321,7 +358,7 @@ async function markPaymentCompleted({
              VALUES ('user', $1, 'referral_completed', 'Referral Bonus Earned!',
                      'Your friend completed their first top-up. You earned ' || $2 || ' credits!',
                      jsonb_build_object('reward_credits', $2))`,
-            [referral.referrer_id, REFERRAL_REWARD]
+            [referral.referrer_id, REFERRAL_REWARD],
           );
 
           await pool.query(
@@ -329,13 +366,18 @@ async function markPaymentCompleted({
              VALUES ('user', $1, 'referral_bonus', 'Welcome Bonus!',
                      'Thanks for joining! You earned ' || $2 || ' welcome credits!',
                      jsonb_build_object('reward_credits', $2))`,
-            [user_id, REFERRAL_REWARD]
+            [user_id, REFERRAL_REWARD],
           );
         } catch (notifyErr) {
-          console.error("Failed to create referral notifications:", notifyErr.message);
+          console.error(
+            "Failed to create referral notifications:",
+            notifyErr.message,
+          );
         }
 
-        console.log(`✅ Referral completed: Awarded ${REFERRAL_REWARD} credits each to referrer and referee`);
+        console.log(
+          `✅ Referral completed: Awarded ${REFERRAL_REWARD} credits each to referrer and referee`,
+        );
       } catch (referralErr) {
         console.error("Failed to complete referral:", referralErr.message);
       }
