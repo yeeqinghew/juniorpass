@@ -19,7 +19,6 @@ router.get("/user", authorization, async (req, res) => {
         t.transaction_type,
         t.created_at,
         c.name as child_name,
-        c.age as child_age,
         l.listing_title,
         l.images,
         p.partner_name,
