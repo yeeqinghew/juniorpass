@@ -118,10 +118,12 @@ router.post("/init", async (req, res) => {
 
   await pool.query(
     `INSERT INTO payment_requests
-      (user_id, amount, reference_number, hitpay_payment_id) 
+      (user_id, amount, reference_number, hitpay_payment_id)
       VALUES ($1, $2, $3, $4)`,
     [user_id, amount, reference_number, response.id],
   );
+
+  console.log(`💾 Payment request saved: hitpay_payment_id=${response.id}, reference=${reference_number}`);
 
   res.status(200).json({
     id: response.id,
@@ -351,15 +353,20 @@ async function markPaymentCompleted({
   );
 
   if (existing.rows[0]?.status === "COMPLETED") {
+    console.log(`⚠️ Payment already marked as COMPLETED, skipping`);
     return;
   }
 
-  await pool.query(
+  console.log(`📝 Updating payment_requests to COMPLETED for reference: ${reference_number}`);
+  const updateResult = await pool.query(
     `UPDATE payment_requests
      SET status = $1, webhook_received = true, updated_at = NOW()
      WHERE hitpay_payment_id = $2 AND reference_number = $3`,
     ["COMPLETED", hitpayPaymentId, reference_number],
   );
+  console.log(`✅ Update result: ${updateResult.rowCount} rows updated`);
+
+  console.log(`💵 Adding ${amount} credits to user ${user_id}...`);
 
   await pool.query(
     `UPDATE users

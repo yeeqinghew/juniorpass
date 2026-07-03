@@ -19,7 +19,12 @@ import "./Account.css";
 const { Title, Text } = Typography;
 
 const Account = () => {
+  console.log("🔵 Account component mounted/re-rendered");
+
   const { user, reauthenticate } = useUserContext();
+  console.log("🔵 Account - user from context:", user);
+  console.log("🔵 Account - reauthenticate function exists:", !!reauthenticate);
+
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [profileForm] = Form.useForm();
@@ -30,14 +35,18 @@ const Account = () => {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
+    console.log("🔵 Account useEffect triggered, user:", user);
     if (user) {
-      console.log("User object:", user);
-      console.log("User method:", user.method);
+      console.log("🟢 User object exists:", JSON.stringify(user, null, 2));
+      console.log("🟢 User method:", user.method);
+      console.log("🟢 User ID:", user.user_id);
       profileForm.setFieldsValue({
         name: user.name,
         email: user.email,
         phone_number: user.phone_number || "",
       });
+    } else {
+      console.log("🔴 User is null/undefined in Account useEffect");
     }
   }, [user, profileForm]);
 
