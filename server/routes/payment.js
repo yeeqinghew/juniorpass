@@ -188,8 +188,8 @@ router.post("/webhook", async (req, res) => {
   res.status(200).send("OK");
 
   // Process the webhook data
-  const { payment_id, reference_number, amount, status } = parsed;
-  console.log(`📦 Processing: payment_id=${payment_id}, reference=${reference_number}, amount=${amount}, status=${status}`);
+  const { payment_id, payment_request_id, reference_number, amount, status } = parsed;
+  console.log(`📦 Processing: payment_id=${payment_id}, payment_request_id=${payment_request_id}, reference=${reference_number}, amount=${amount}, status=${status}`);
 
   try {
     if (status === "completed") {
@@ -209,7 +209,7 @@ router.post("/webhook", async (req, res) => {
       const { user_id } = paymentResult.rows[0];
 
       await markPaymentCompleted({
-        hitpayPaymentId: payment_id,
+        hitpayPaymentId: payment_request_id,  // Use payment_request_id, not payment_id
         reference_number,
         amount: parseFloat(amount),
         user_id,
@@ -345,12 +345,24 @@ async function markPaymentCompleted({
   amount,
   user_id,
 }) {
+  console.log(`🔍 markPaymentCompleted called with:`, {
+    hitpayPaymentId,
+    reference_number,
+    amount,
+    user_id,
+  });
+
   const existing = await pool.query(
     `SELECT status FROM payment_requests
      WHERE hitpay_payment_id = $1 AND
       reference_number = $2`,
     [hitpayPaymentId, reference_number],
   );
+
+  console.log(`🔍 Existing record found: ${existing.rowCount} rows`);
+  if (existing.rowCount > 0) {
+    console.log(`🔍 Existing status:`, existing.rows[0]);
+  }
 
   if (existing.rows[0]?.status === "COMPLETED") {
     console.log(`⚠️ Payment already marked as COMPLETED, skipping`);
@@ -365,6 +377,16 @@ async function markPaymentCompleted({
     ["COMPLETED", hitpayPaymentId, reference_number],
   );
   console.log(`✅ Update result: ${updateResult.rowCount} rows updated`);
+
+  if (updateResult.rowCount === 0) {
+    console.error(`❌ UPDATE FAILED - No rows matched! hitpay_payment_id=${hitpayPaymentId}, reference=${reference_number}`);
+    // Query to see what's actually in the DB
+    const debugQuery = await pool.query(
+      `SELECT * FROM payment_requests WHERE reference_number = $1`,
+      [reference_number]
+    );
+    console.error(`❌ Debug - DB record:`, debugQuery.rows[0]);
+  }
 
   console.log(`💵 Adding ${amount} credits to user ${user_id}...`);
 
