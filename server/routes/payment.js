@@ -134,14 +134,18 @@ router.post("/init", async (req, res) => {
 router.post("/webhook", async (req, res) => {
   console.log("🔔 Webhook received from HitPay");
   console.log("Headers:", req.headers);
-  console.log("Body:", req.body);
+  console.log("Raw Body Type:", typeof req.body);
 
   const secret = process.env.hitPaySandboxSecretKey;
 
-  const rawBody = req.body;
+  // req.body is a Buffer, convert to string first
+  const rawBodyString = req.body.toString("utf8");
+  console.log("Body String:", rawBodyString);
 
   // Parse the body to extract parameters
-  const parsed = querystring.parse(rawBody.toString("utf8"));
+  const parsed = querystring.parse(rawBodyString);
+  console.log("Parsed Data:", JSON.stringify(parsed, null, 2));
+
   const receivedHmac = parsed.hmac;
 
   if (!receivedHmac) {
@@ -167,17 +171,24 @@ router.post("/webhook", async (req, res) => {
     .update(concatenatedString)
     .digest("hex");
 
+  console.log("Received HMAC:", receivedHmac);
+  console.log("Calculated HMAC:", calculatedHmac);
+
   if (calculatedHmac !== receivedHmac) {
     console.error("❌ Invalid HMAC!");
     console.error("String used for HMAC calculation:", concatenatedString);
     return res.status(401).send("Unauthorized");
   }
 
+  console.log("✅ HMAC verified successfully");
+
   // Respond first before processing
   res.status(200).send("OK");
 
   // Process the webhook data
   const { payment_id, reference_number, amount, status } = parsed;
+  console.log(`📦 Processing: payment_id=${payment_id}, reference=${reference_number}, amount=${amount}, status=${status}`);
+
   try {
     if (status === "completed") {
       // Get user_id from the database using reference_number
@@ -190,7 +201,7 @@ router.post("/webhook", async (req, res) => {
         console.error(
           `❌ Payment request not found for reference: ${reference_number}`,
         );
-        return res.status(404).send("Payment request not found");
+        return;
       }
 
       const { user_id } = paymentResult.rows[0];
@@ -201,6 +212,10 @@ router.post("/webhook", async (req, res) => {
         amount: parseFloat(amount),
         user_id,
       });
+
+      console.log(`✅ Payment completed successfully for user ${user_id}`);
+    } else {
+      console.log(`⚠️ Payment status is "${status}", not processing`);
     }
   } catch (error) {
     console.error("❌ Error processing webhook:", error);
