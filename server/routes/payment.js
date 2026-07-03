@@ -184,9 +184,6 @@ router.post("/webhook", async (req, res) => {
 
   console.log("✅ HMAC verified successfully");
 
-  // Respond first before processing
-  res.status(200).send("OK");
-
   // Process the webhook data
   const { payment_id, payment_request_id, reference_number, amount, status } = parsed;
   console.log(`📦 Processing: payment_id=${payment_id}, payment_request_id=${payment_request_id}, reference=${reference_number}, amount=${amount}, status=${status}`);
@@ -203,7 +200,8 @@ router.post("/webhook", async (req, res) => {
         console.error(
           `❌ Payment request not found for reference: ${reference_number}`,
         );
-        return;
+        // Still respond OK to HitPay to prevent retries
+        return res.status(200).send("OK");
       }
 
       const { user_id } = paymentResult.rows[0];
@@ -222,6 +220,9 @@ router.post("/webhook", async (req, res) => {
   } catch (error) {
     console.error("❌ Error processing webhook:", error);
   }
+
+  // Respond after processing to ensure DB is updated before frontend polls
+  res.status(200).send("OK");
 });
 
 // polls for frontend status checking.

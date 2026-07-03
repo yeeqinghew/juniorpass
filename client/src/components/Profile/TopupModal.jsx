@@ -174,8 +174,8 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
       }
     };
 
-    // Check after a small delay to let webhook process first
-    setTimeout(() => checkStatus(), 1000); // Wait 1s before first check
+    // Check after a small delay to let webhook process and commit to DB
+    setTimeout(() => checkStatus(), 1500); // Wait 1.5s before first check
 
     // Then poll every 2 seconds
     interval = setInterval(checkStatus, 2000);
