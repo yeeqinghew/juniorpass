@@ -67,7 +67,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
 
   const pollPaymentStatus = (reference_number) => {
     let attempts = 0;
-    const maxAttempts = 12;
+    const maxAttempts = 10; // 50 seconds total
 
     const interval = setInterval(async () => {
       attempts++;
@@ -76,6 +76,8 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           API_ENDPOINTS.PAYMENT_STATUS(reference_number)
         );
         const data = await res.json();
+
+        console.log(`Polling attempt ${attempts}/${maxAttempts}: status=${data.status}, webhook_received=${data.webhook_received}`);
 
         if (data.status === "COMPLETED") {
           clearInterval(interval);
@@ -88,33 +90,47 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           clearInterval(interval);
           isPollingRef.current = false;
           setModalStep("error");
+          return;
         }
 
         if (attempts >= maxAttempts) {
-          const response = await fetchWithAuth(
-            API_ENDPOINTS.PAYMENT_VERIFY(reference_number)
-          );
-          const verifyData = await response.json();
-
           clearInterval(interval);
           isPollingRef.current = false;
 
-          if (verifyData.status === "COMPLETED") {
-            await refreshUser();
-            if (onSuccess) onSuccess();
-            setModalStep("success");
-          } else {
-            toast.error("Payment verification failed. Please contact support.");
+          // One final check via verify endpoint (which checks DB first, then HitPay)
+          try {
+            const verifyResponse = await fetchWithAuth(
+              API_ENDPOINTS.PAYMENT_VERIFY(reference_number)
+            );
+            const verifyData = await verifyResponse.json();
+
+            if (verifyData.status === "COMPLETED") {
+              await refreshUser();
+              if (onSuccess) onSuccess();
+              setModalStep("success");
+            } else {
+              // Payment still pending after 50s - something might be wrong
+              toast.error("Payment is taking longer than expected. Please check your balance or contact support.");
+              setModalStep("error");
+            }
+          } catch (verifyError) {
+            console.error("Verify error:", verifyError);
+            toast.error("Unable to confirm payment status. Please check your account balance.");
             setModalStep("error");
           }
         }
       } catch (error) {
-        clearInterval(interval);
-        isPollingRef.current = false;
-        toast.error("Failed to check payment status. Please try again later.");
-        setModalStep("error");
+        console.error("Polling error:", error);
+        // Don't stop on single error, continue polling
+        if (attempts >= maxAttempts) {
+          clearInterval(interval);
+          isPollingRef.current = false;
+          toast.error("Connection issue. Please check your balance to confirm payment.");
+          setModalStep("error");
+        }
       }
-    }, 5000);
+    }, 5000); // Poll every 5 seconds
+  };
   };
 
   const getFinalAmount = () => {
