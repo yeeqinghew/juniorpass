@@ -52,6 +52,13 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
     setModalStep("form");
   };
 
+  const handleSuccessContinue = () => {
+    // Call onSuccess callback to refresh transactions
+    if (onSuccess) onSuccess();
+    // Then close the modal
+    handleCancel();
+  };
+
   useEffect(() => {
     const script = document.createElement("script");
     script.src = "https://sandbox.hit-pay.com/hitpay.js";
@@ -98,7 +105,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           isPollingRef.current = false;
           try {
             await reauthenticate();
-            if (onSuccess) onSuccess();
+            // Show success modal FIRST, onSuccess will be called when user clicks "Continue"
             setModalStep("success");
           } catch (err) {
             console.error("🔴 Error during reauthenticate:", err);
@@ -134,7 +141,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
               console.log("🟢 Payment confirmed via verify endpoint!");
               try {
                 await reauthenticate();
-                if (onSuccess) onSuccess();
+                // Show success modal FIRST, onSuccess will be called when user clicks "Continue"
                 setModalStep("success");
               } catch (err) {
                 console.error("🔴 Error during reauthenticate:", err);
@@ -167,8 +174,8 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
       }
     };
 
-    // Check immediately on first call
-    checkStatus();
+    // Check after a small delay to let webhook process first
+    setTimeout(() => checkStatus(), 1000); // Wait 1s before first check
 
     // Then poll every 2 seconds
     interval = setInterval(checkStatus, 2000);
@@ -417,7 +424,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           </>
         )}
       </Text>
-      <Button type="primary" size="large" className="modal-btn" onClick={handleCancel}>
+      <Button type="primary" size="large" className="modal-btn" onClick={handleSuccessContinue}>
         Continue
       </Button>
     </div>

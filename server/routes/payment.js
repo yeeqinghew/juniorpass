@@ -227,7 +227,8 @@ router.post("/webhook", async (req, res) => {
 // polls for frontend status checking.
 router.get("/status/:reference_number", async (req, res) => {
   const { reference_number } = req.params;
-  console.log(`📊 Status check for reference: ${reference_number}`);
+  const checkTime = new Date().toISOString();
+  console.log(`📊 [${checkTime}] Status check for reference: ${reference_number}`);
 
   try {
     const result = await pool.query(
@@ -243,7 +244,10 @@ router.get("/status/:reference_number", async (req, res) => {
     }
 
     const data = result.rows[0];
-    console.log(`📊 Status check result:`, data);
+    console.log(`📊 [${checkTime}] Status check result:`, {
+      ...data,
+      timeSinceUpdate: data.updated_at ? `${Date.now() - new Date(data.updated_at).getTime()}ms ago` : 'N/A'
+    });
 
     res.json(data);
   } catch (err) {
