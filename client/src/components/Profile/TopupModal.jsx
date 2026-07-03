@@ -77,14 +77,16 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
     const maxAttempts = 20; // 40 seconds total (2s interval)
     let interval; // Declare interval variable first
 
-    console.log(`🔵 Starting payment polling for reference: ${reference_number}`);
+    console.log(
+      `🔵 Starting payment polling for reference: ${reference_number}`,
+    );
 
     // Check immediately first
     const checkStatus = async () => {
       attempts++;
       try {
         const res = await fetchWithAuth(
-          API_ENDPOINTS.PAYMENT_STATUS(reference_number)
+          API_ENDPOINTS.PAYMENT_STATUS(reference_number),
         );
         const data = await res.json();
 
@@ -93,7 +95,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           statusType: typeof data.status,
           statusUpperCase: data.status?.toUpperCase(),
           webhook_received: data.webhook_received,
-          fullData: data
+          fullData: data,
         });
 
         // Case-insensitive comparison since DB might return different case
@@ -104,7 +106,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           clearInterval(interval);
           isPollingRef.current = false;
           try {
-            await reauthenticate();
+            // await reauthenticate();
             // Show success modal FIRST, onSuccess will be called when user clicks "Continue"
             setModalStep("success");
           } catch (err) {
@@ -121,17 +123,21 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           return true;
         }
 
-        console.log(`⏳ Payment still pending (attempt ${attempts}/${maxAttempts})`);
+        console.log(
+          `⏳ Payment still pending (attempt ${attempts}/${maxAttempts})`,
+        );
 
         if (attempts >= maxAttempts) {
-          console.log("⏰ Max polling attempts reached, trying verify endpoint");
+          console.log(
+            "⏰ Max polling attempts reached, trying verify endpoint",
+          );
           clearInterval(interval);
           isPollingRef.current = false;
 
           // One final check via verify endpoint (which checks DB first, then HitPay)
           try {
             const verifyResponse = await fetchWithAuth(
-              API_ENDPOINTS.PAYMENT_VERIFY(reference_number)
+              API_ENDPOINTS.PAYMENT_VERIFY(reference_number),
             );
             const verifyData = await verifyResponse.json();
 
@@ -150,12 +156,16 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
               }
             } else {
               console.log("🔴 Payment still not completed after verify");
-              toast.error("Payment is taking longer than expected. Please check your balance or contact support.");
+              toast.error(
+                "Payment is taking longer than expected. Please check your balance or contact support.",
+              );
               setModalStep("error");
             }
           } catch (verifyError) {
             console.error("🔴 Verify error:", verifyError);
-            toast.error("Unable to confirm payment status. Please check your account balance.");
+            toast.error(
+              "Unable to confirm payment status. Please check your account balance.",
+            );
             setModalStep("error");
           }
           return true;
@@ -166,7 +176,9 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
         if (attempts >= maxAttempts) {
           clearInterval(interval);
           isPollingRef.current = false;
-          toast.error("Connection issue. Please check your balance to confirm payment.");
+          toast.error(
+            "Connection issue. Please check your balance to confirm payment.",
+          );
           setModalStep("error");
           return true;
         }
@@ -241,7 +253,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
               setIsLoading(false);
               toast.error("Payment failed. Please try again.");
             },
-          }
+          },
         );
 
         window.HitPay.toggle({
@@ -350,9 +362,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
             <div>
               <Text strong>Amount to pay:</Text>
               <br />
-              <Text className="topup-summary-amount">
-                ${getFinalAmount()}
-              </Text>
+              <Text className="topup-summary-amount">${getFinalAmount()}</Text>
               {getBonusAmount() > 0 && (
                 <Text className="topup-summary-bonus">
                   (+${getBonusAmount()} bonus)
@@ -424,7 +434,12 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           </>
         )}
       </Text>
-      <Button type="primary" size="large" className="modal-btn" onClick={handleSuccessContinue}>
+      <Button
+        type="primary"
+        size="large"
+        className="modal-btn"
+        onClick={handleSuccessContinue}
+      >
         Continue
       </Button>
     </div>
