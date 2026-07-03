@@ -31,6 +31,8 @@ const Account = () => {
 
   useEffect(() => {
     if (user) {
+      console.log("User object:", user);
+      console.log("User method:", user.method);
       profileForm.setFieldsValue({
         name: user.name,
         email: user.email,

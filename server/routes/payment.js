@@ -248,6 +248,8 @@ router.get("/status/:reference_number", async (req, res) => {
 // fallback when webhook fails (manual confirmation).
 router.get("/verify/:reference_number", async (req, res) => {
   const { reference_number } = req.params;
+  console.log(`🔍 Verify called for reference: ${reference_number}`);
+
   try {
     // Get payment request ID from DB
     const result = await pool.query(
@@ -257,19 +259,24 @@ router.get("/verify/:reference_number", async (req, res) => {
     );
 
     if (result.rowCount === 0) {
+      console.error(`❌ Payment request not found for reference: ${reference_number}`);
       return res.status(404).json({ error: "Payment request not found" });
     }
 
     const { user_id, hitpay_payment_id, amount, status, webhook_received } =
       result.rows[0];
 
-    // If webhook already processed it, return completed
-    if (status === "COMPLETED" && webhook_received) {
+    console.log(`📊 DB Status: status="${status}", webhook_received=${webhook_received}`);
+
+    // If webhook already processed it, return completed (case-insensitive check)
+    if (status && status.toUpperCase() === "COMPLETED" && webhook_received) {
       console.log(
         `✅ Verify check: Payment already completed by webhook for reference ${reference_number}`,
       );
       return res.status(200).json({ status: "COMPLETED" });
     }
+
+    console.log(`⚠️ Status not COMPLETED or webhook not received, checking HitPay API...`);
 
     // Fallback: Fetch from HitPay directly (with error handling)
     try {
@@ -286,15 +293,19 @@ router.get("/verify/:reference_number", async (req, res) => {
       if (!response.ok) {
         console.error(`❌ HitPay API returned status ${response.status}`);
         // If HitPay API fails but webhook already completed, still return success
-        if (status === "COMPLETED") {
+        if (status && status.toUpperCase() === "COMPLETED") {
+          console.log(`✅ Trusting DB: Payment is COMPLETED despite API error`);
           return res.status(200).json({ status: "COMPLETED" });
         }
+        console.log(`⚠️ Returning current DB status: ${status || "PENDING"}`);
         return res.status(200).json({ status: status || "PENDING" });
       }
 
       const data = await response.json();
+      console.log(`✅ HitPay API response: status=${data.status}`);
 
       if (data.status === "completed") {
+        console.log(`💰 Marking payment as completed...`);
         await markPaymentCompleted({
           hitpayPaymentId: data.id,
           reference_number,
@@ -310,13 +321,14 @@ router.get("/verify/:reference_number", async (req, res) => {
     } catch (fetchError) {
       console.error("❌ HitPay API error:", fetchError.message);
       // If fetch fails but DB shows completed, trust the DB
-      if (status === "COMPLETED") {
+      if (status && status.toUpperCase() === "COMPLETED") {
         console.log(
           `✅ Trusting DB: Payment is COMPLETED despite HitPay API error`,
         );
         return res.status(200).json({ status: "COMPLETED" });
       }
       // Return current status from DB
+      console.log(`⚠️ Returning current DB status after API error: ${status || "PENDING"}`);
       return res.status(200).json({ status: status || "PENDING" });
     }
   } catch (err) {
@@ -355,6 +367,15 @@ async function markPaymentCompleted({
      WHERE user_id = $2`,
     [amount, user_id],
   );
+
+  // Record top-up transaction
+  await pool.query(
+    `INSERT INTO transactions (parent_id, listing_id, used_credit, transaction_type)
+     VALUES ($1, NULL, $2, 'CREDIT')`,
+    [user_id, amount],
+  );
+
+  console.log(`💰 Top-up transaction recorded: ${amount} credits for user ${user_id}`);
 
   const REFERRAL_REWARD = 50;
 
