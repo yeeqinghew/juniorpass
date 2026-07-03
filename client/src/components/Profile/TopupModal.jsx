@@ -28,12 +28,23 @@ const { Title, Text } = Typography;
 
 const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [modalStep, setModalStep] = useState("form");
+  const [_modalStep, _setModalStep] = useState("form");
   const [topUpForm] = Form.useForm();
   const [selectedAmount, setSelectedAmount] = useState(null);
   const [customAmount, setCustomAmount] = useState("");
   const { user, reauthenticate } = useUserContext();
   const isPollingRef = useRef(false);
+
+  // Wrapper to log all modalStep changes
+  const setModalStep = (newStep) => {
+    console.log(`🟣 setModalStep called: ${_modalStep} → ${newStep}`);
+    console.trace(); // Show call stack
+    _setModalStep(newStep);
+  };
+
+  const modalStep = _modalStep;
+
+  console.log(`🟣 TopupModal render - modalStep: ${modalStep}, isTopUpModalOpen: ${isTopUpModalOpen}`);
 
   // Predefined top-up packages
   const topupPackages = [
@@ -84,13 +95,23 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
     // Check immediately first
     const checkStatus = async () => {
       attempts++;
+      console.log(`🔵 [Attempt ${attempts}/${maxAttempts}] Starting status check...`);
+
       try {
         const res = await fetchWithAuth(
           API_ENDPOINTS.PAYMENT_STATUS(reference_number),
         );
+
+        console.log(`🔵 [Attempt ${attempts}/${maxAttempts}] Response received: status=${res.status}, ok=${res.ok}`);
+
+        if (!res.ok) {
+          console.error(`🔴 HTTP Error: ${res.status} ${res.statusText}`);
+          throw new Error(`HTTP ${res.status}`);
+        }
+
         const data = await res.json();
 
-        console.log(`🔵 Polling attempt ${attempts}/${maxAttempts}:`, {
+        console.log(`🔵 [Attempt ${attempts}/${maxAttempts}] Data:`, {
           status: data.status,
           statusType: typeof data.status,
           statusUpperCase: data.status?.toUpperCase(),
@@ -102,24 +123,27 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
         const statusUpper = data.status?.toUpperCase();
 
         if (statusUpper === "COMPLETED") {
-          console.log("🟢 Payment COMPLETED detected!");
+          console.log("🟢 ✅ ✅ ✅ Payment COMPLETED detected! Setting modalStep to success...");
           clearInterval(interval);
           isPollingRef.current = false;
           try {
             // await reauthenticate();
-            // Show success modal FIRST, onSuccess will be called when user clicks "Continue"
+            console.log("🟢 About to call setModalStep('success')...");
             setModalStep("success");
+            console.log("🟢 setModalStep('success') called successfully!");
           } catch (err) {
             console.error("🔴 Error during reauthenticate:", err);
             // Still mark as success since payment went through
+            console.log("🟢 Setting success despite error...");
             setModalStep("success");
           }
           return true;
         } else if (statusUpper === "FAILED") {
-          console.log("🔴 Payment FAILED detected!");
+          console.log("🔴 ❌ ❌ ❌ Payment FAILED detected! Setting modalStep to error...");
           clearInterval(interval);
           isPollingRef.current = false;
           setModalStep("error");
+          console.log("🔴 setModalStep('error') called");
           return true;
         }
 
