@@ -227,22 +227,27 @@ router.post("/webhook", async (req, res) => {
 // polls for frontend status checking.
 router.get("/status/:reference_number", async (req, res) => {
   const { reference_number } = req.params;
+  console.log(`📊 Status check for reference: ${reference_number}`);
 
   try {
     const result = await pool.query(
-      `SELECT status, webhook_received, updated_at 
-       FROM payment_requests 
+      `SELECT status, webhook_received, updated_at
+       FROM payment_requests
        WHERE reference_number = $1`,
       [reference_number],
     );
 
     if (result.rowCount === 0) {
+      console.log(`❌ Status check: No record found for reference ${reference_number}`);
       return res.status(404).json({ error: "Not found" });
     }
 
-    res.json(result.rows[0]);
+    const data = result.rows[0];
+    console.log(`📊 Status check result:`, data);
+
+    res.json(data);
   } catch (err) {
-    console.error(err);
+    console.error("❌ Status check error:", err);
     res.status(500).send("Error checking status");
   }
 });

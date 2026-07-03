@@ -67,9 +67,12 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
 
   const pollPaymentStatus = (reference_number) => {
     let attempts = 0;
-    const maxAttempts = 10; // 50 seconds total
+    const maxAttempts = 20; // 40 seconds total (2s interval)
 
-    const interval = setInterval(async () => {
+    console.log(`🔵 Starting payment polling for reference: ${reference_number}`);
+
+    // Check immediately first
+    const checkStatus = async () => {
       attempts++;
       try {
         const res = await fetchWithAuth(
@@ -77,23 +80,33 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
         );
         const data = await res.json();
 
-        console.log(`Polling attempt ${attempts}/${maxAttempts}: status=${data.status}, webhook_received=${data.webhook_received}`);
+        console.log(`🔵 Polling attempt ${attempts}/${maxAttempts}:`, {
+          status: data.status,
+          statusType: typeof data.status,
+          webhook_received: data.webhook_received,
+          fullData: data
+        });
 
         if (data.status === "COMPLETED") {
+          console.log("🟢 Payment COMPLETED detected!");
           clearInterval(interval);
           isPollingRef.current = false;
           await refreshUser();
           if (onSuccess) onSuccess();
           setModalStep("success");
-          return;
+          return true;
         } else if (data.status === "FAILED") {
+          console.log("🔴 Payment FAILED detected!");
           clearInterval(interval);
           isPollingRef.current = false;
           setModalStep("error");
-          return;
+          return true;
         }
 
+        console.log(`⏳ Payment still pending (attempt ${attempts}/${maxAttempts})`);
+
         if (attempts >= maxAttempts) {
+          console.log("⏰ Max polling attempts reached, trying verify endpoint");
           clearInterval(interval);
           isPollingRef.current = false;
 
@@ -104,33 +117,44 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
             );
             const verifyData = await verifyResponse.json();
 
+            console.log("🔍 Verify endpoint result:", verifyData);
+
             if (verifyData.status === "COMPLETED") {
+              console.log("🟢 Payment confirmed via verify endpoint!");
               await refreshUser();
               if (onSuccess) onSuccess();
               setModalStep("success");
             } else {
-              // Payment still pending after 50s - something might be wrong
+              console.log("🔴 Payment still not completed after verify");
               toast.error("Payment is taking longer than expected. Please check your balance or contact support.");
               setModalStep("error");
             }
           } catch (verifyError) {
-            console.error("Verify error:", verifyError);
+            console.error("🔴 Verify error:", verifyError);
             toast.error("Unable to confirm payment status. Please check your account balance.");
             setModalStep("error");
           }
+          return true;
         }
+        return false;
       } catch (error) {
-        console.error("Polling error:", error);
-        // Don't stop on single error, continue polling
+        console.error("🔴 Polling error:", error);
         if (attempts >= maxAttempts) {
           clearInterval(interval);
           isPollingRef.current = false;
           toast.error("Connection issue. Please check your balance to confirm payment.");
           setModalStep("error");
+          return true;
         }
+        return false;
       }
-    }, 5000); // Poll every 5 seconds
-  };
+    };
+
+    // Check immediately on first call
+    checkStatus();
+
+    // Then poll every 2 seconds
+    const interval = setInterval(checkStatus, 2000);
   };
 
   const getFinalAmount = () => {
