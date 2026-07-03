@@ -4,6 +4,10 @@ const cors = require("cors");
 const client = require("./utils/redisClient");
 const app = express();
 
+// Trust proxy - required for Railway/Heroku/etc. to properly read X-Forwarded-* headers
+// This is necessary for rate limiting, IP detection, and proper HTTPS detection
+app.set('trust proxy', 1);
+
 // middleware
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
   .split(",")
