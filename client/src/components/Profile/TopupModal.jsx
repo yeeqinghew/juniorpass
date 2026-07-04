@@ -28,12 +28,23 @@ const { Title, Text } = Typography;
 
 const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [modalStep, setModalStep] = useState("form");
+  const [_modalStep, _setModalStep] = useState("form");
   const [topUpForm] = Form.useForm();
   const [selectedAmount, setSelectedAmount] = useState(null);
   const [customAmount, setCustomAmount] = useState("");
   const { user, reauthenticate } = useUserContext();
   const isPollingRef = useRef(false);
+
+  // Wrapper to log all modalStep changes
+  const setModalStep = (newStep) => {
+    console.log(`🟣 setModalStep called: ${_modalStep} → ${newStep}`);
+    console.trace(); // Show call stack
+    _setModalStep(newStep);
+  };
+
+  const modalStep = _modalStep;
+
+  console.log(`🟣 TopupModal render - modalStep: ${modalStep}, isTopUpModalOpen: ${isTopUpModalOpen}`);
 
   // Predefined top-up packages
   const topupPackages = [
@@ -87,10 +98,20 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
       if (!isPollingRef.current) return;
 
       attempts++;
+      console.log(`🔵 [Attempt ${attempts}/${maxAttempts}] Starting status check...`);
+
       try {
         const res = await fetchWithAuth(
           API_ENDPOINTS.PAYMENT_STATUS(reference_number),
         );
+
+        console.log(`🔵 [Attempt ${attempts}/${maxAttempts}] Response received: status=${res.status}, ok=${res.ok}`);
+
+        if (!res.ok) {
+          console.error(`🔴 HTTP Error: ${res.status} ${res.statusText}`);
+          throw new Error(`HTTP ${res.status}`);
+        }
+
         const data = await res.json();
 
         console.log(`🔵 Polling attempt ${attempts}/${maxAttempts}:`, data);
