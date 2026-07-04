@@ -32,7 +32,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
   const [topUpForm] = Form.useForm();
   const [selectedAmount, setSelectedAmount] = useState(null);
   const [customAmount, setCustomAmount] = useState("");
-  const { user, reauthenticate } = useUserContext();
+  const { user } = useUserContext();
   const isPollingRef = useRef(false);
 
   // Wrapper to log all modalStep changes
