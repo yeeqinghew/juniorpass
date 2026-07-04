@@ -74,15 +74,18 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
 
   const pollPaymentStatus = (reference_number) => {
     let attempts = 0;
-    const maxAttempts = 20; // 40 seconds total (2s interval)
-    let interval; // Declare interval variable first
+    const maxAttempts = 20;
+    let timeoutId;
+    isPollingRef.current = true;
 
     console.log(
       `🔵 Starting payment polling for reference: ${reference_number}`,
     );
 
-    // Check immediately first
     const checkStatus = async () => {
+      // Guard check: stop executing if polling flag was turned off elsewhere
+      if (!isPollingRef.current) return;
+
       attempts++;
       try {
         const res = await fetchWithAuth(
@@ -90,109 +93,86 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
         );
         const data = await res.json();
 
-        console.log(`🔵 Polling attempt ${attempts}/${maxAttempts}:`, {
-          status: data.status,
-          statusType: typeof data.status,
-          statusUpperCase: data.status?.toUpperCase(),
-          webhook_received: data.webhook_received,
-          fullData: data,
-        });
+        console.log(`🔵 Polling attempt ${attempts}/${maxAttempts}:`, data);
 
-        // Case-insensitive comparison since DB might return different case
         const statusUpper = data.status?.toUpperCase();
 
         if (statusUpper === "COMPLETED") {
           console.log("🟢 Payment COMPLETED detected!");
-          clearInterval(interval);
           isPollingRef.current = false;
-          try {
-            // await reauthenticate();
-            // Show success modal FIRST, onSuccess will be called when user clicks "Continue"
-            setModalStep("success");
-          } catch (err) {
-            console.error("🔴 Error during reauthenticate:", err);
-            // Still mark as success since payment went through
-            setModalStep("success");
-          }
-          return true;
-        } else if (statusUpper === "FAILED") {
-          console.log("🔴 Payment FAILED detected!");
-          clearInterval(interval);
-          isPollingRef.current = false;
-          setModalStep("error");
-          return true;
+          setModalStep("success");
+          return;
         }
 
-        console.log(
-          `⏳ Payment still pending (attempt ${attempts}/${maxAttempts})`,
-        );
+        if (statusUpper === "FAILED") {
+          console.log("🔴 Payment FAILED detected!");
+          isPollingRef.current = false;
+          setModalStep("error");
+          return;
+        }
 
-        if (attempts >= maxAttempts) {
+        // If we haven't reached max attempts, schedule the next check in 2 seconds
+        if (attempts < maxAttempts) {
+          console.log(`⏳ Payment still pending. Next poll in 2s...`);
+          timeoutId = setTimeout(checkStatus, 2000);
+        } else {
+          // Max attempts reached: execute final fallback verification
           console.log(
             "⏰ Max polling attempts reached, trying verify endpoint",
           );
-          clearInterval(interval);
           isPollingRef.current = false;
-
-          // One final check via verify endpoint (which checks DB first, then HitPay)
-          try {
-            const verifyResponse = await fetchWithAuth(
-              API_ENDPOINTS.PAYMENT_VERIFY(reference_number),
-            );
-            const verifyData = await verifyResponse.json();
-
-            console.log("🔍 Verify endpoint result:", verifyData);
-
-            if (verifyData.status?.toUpperCase() === "COMPLETED") {
-              console.log("🟢 Payment confirmed via verify endpoint!");
-              try {
-                await reauthenticate();
-                // Show success modal FIRST, onSuccess will be called when user clicks "Continue"
-                setModalStep("success");
-              } catch (err) {
-                console.error("🔴 Error during reauthenticate:", err);
-                // Still mark as success since payment went through
-                setModalStep("success");
-              }
-            } else {
-              console.log("🔴 Payment still not completed after verify");
-              toast.error(
-                "Payment is taking longer than expected. Please check your balance or contact support.",
-              );
-              setModalStep("error");
-            }
-          } catch (verifyError) {
-            console.error("🔴 Verify error:", verifyError);
-            toast.error(
-              "Unable to confirm payment status. Please check your account balance.",
-            );
-            setModalStep("error");
-          }
-          return true;
+          handleVerificationFallback(reference_number);
         }
-        return false;
       } catch (error) {
         console.error("🔴 Polling error:", error);
-        if (attempts >= maxAttempts) {
-          clearInterval(interval);
+
+        if (attempts < maxAttempts) {
+          timeoutId = setTimeout(checkStatus, 2000);
+        } else {
           isPollingRef.current = false;
           toast.error(
             "Connection issue. Please check your balance to confirm payment.",
           );
           setModalStep("error");
-          return true;
         }
-        return false;
       }
     };
 
-    // Check after a small delay to let webhook process and commit to DB
-    setTimeout(() => checkStatus(), 1500); // Wait 1.5s before first check
+    // Helper logic for final verification step to keep code tidy
+    const handleVerificationFallback = async (refNum) => {
+      try {
+        const verifyResponse = await fetchWithAuth(
+          API_ENDPOINTS.PAYMENT_VERIFY(refNum),
+        );
+        const verifyData = await verifyResponse.json();
 
-    // Then poll every 2 seconds
-    interval = setInterval(checkStatus, 2000);
+        console.log("🔍 Verify endpoint result:", verifyData);
+
+        if (verifyData.status?.toUpperCase() === "COMPLETED") {
+          console.log("🟢 Payment confirmed via verify endpoint!");
+          setModalStep("success");
+        } else {
+          console.log("🔴 Payment still not completed after verify");
+          toast.error(
+            "Payment is taking longer than expected. Please check your balance.",
+          );
+          setModalStep("error");
+        }
+      } catch (verifyError) {
+        console.error("🔴 Verify error:", verifyError);
+        setModalStep("error");
+      }
+    };
+
+    // Start the first check after 1.5 seconds
+    timeoutId = setTimeout(checkStatus, 1500);
+
+    // Clean up function in case modal unmounts while polling
+    return () => {
+      isPollingRef.current = false;
+      clearTimeout(timeoutId);
+    };
   };
-
   const getFinalAmount = () => {
     if (selectedAmount) {
       return selectedAmount;
