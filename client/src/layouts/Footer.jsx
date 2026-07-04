@@ -14,7 +14,7 @@ const { Text, Title } = Typography;
 const { Footer: Foot } = Layout;
 
 const Footer = () => {
-  const isProduction = import.meta.env.PROD;
+  const isProduction = import.meta.env.VITE_NODE_ENV === "production";
   const { isDesktop, isTabletLandscape } = useWindowDimensions();
 
   // desktop and tablet landscape
@@ -177,9 +177,9 @@ const Footer = () => {
             style={{ justifyContent: "center", alignItems: "center" }}
           >
             <PhoneOutlined />
-          <Text>(65)XXXX-XXXX</Text>
-        </Space>
-  )}
+            <Text>(65)XXXX-XXXX</Text>
+          </Space>
+        )}
       </Flex>
 
       <Divider />

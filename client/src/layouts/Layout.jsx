@@ -25,7 +25,7 @@ const IconFont = createFromIconfontCN({
 });
 
 const OverallLayout = () => {
-  const isProduction = import.meta.env.PROD;
+  const isProduction = import.meta.env.VITE_NODE_ENV === "production";
   const [drawerVisible, setDrawerVisible] = useState(false);
   const { user, isAuthenticated, setAuth, setLoading } = useUserContext();
   const navigate = useNavigate();
@@ -172,9 +172,7 @@ const OverallLayout = () => {
               </Menu.Item>
             )}
             <Menu.Item key="package-types">
-                <Link to="/package-types">
-                  Package Types
-                </Link>
+              <Link to="/package-types">Package Types</Link>
             </Menu.Item>
             <Menu.Item key="plan">
               <Link to="/pricing">Credits</Link>

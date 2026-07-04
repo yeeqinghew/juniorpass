@@ -153,7 +153,7 @@ const Referrals = () => {
         <div className="rf-header-badge">
           <StarOutlined style={{ fontSize: 10 }} /> Referral Program
         </div>
-        <h2 className="rf-page-title">Earn Credits, Share the Love 🎁</h2>
+        <h3 className="rf-page-title">Earn Credits, Share the Love 🎁</h3>
         <p className="rf-page-sub">
           Invite friends to Junior Pass — both of you get rewarded
         </p>

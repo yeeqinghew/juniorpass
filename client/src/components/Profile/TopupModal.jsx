@@ -31,7 +31,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
   const [_modalStep, _setModalStep] = useState("form");
   const [topUpForm] = Form.useForm();
   const [selectedAmount, setSelectedAmount] = useState(null);
-  const { user } = useUserContext();
+  const { user, reauthenticate } = useUserContext();
   const isPollingRef = useRef(false);
 
   // Wrapper to log all modalStep changes
@@ -50,8 +50,9 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
     { amount: 200, label: "200", bonus: 40, popular: false },
   ];
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     if (modalStep === "loading") return;
+    await reauthenticate();
     setIsTopUpModalOpen(false);
     setSelectedAmount(null);
     topUpForm.resetFields();

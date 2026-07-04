@@ -35,7 +35,7 @@ const { Header, Content } = Layout;
 const { Text, Title } = Typography;
 
 function HomePage() {
-  const isProduction = import.meta.env.PROD;
+  const isProduction = import.meta.env.VITE_NODE_ENV === "production";
   // Keep track of the hovered card index (-1 means none are hovered)
   const [hoveredIndex, setHoveredIndex] = useState(-1);
   const [drawerVisible, setDrawerVisible] = useState(false);
@@ -50,9 +50,12 @@ function HomePage() {
     setHoveredIndex(-1);
   };
 
-  const images = import.meta.glob('../../images/partners/*.{png,jpg,jpeg,svg}', {
-    eager: true,   // Load immediately instead of lazy
-  });
+  const images = import.meta.glob(
+    "../../images/partners/*.{png,jpg,jpeg,svg}",
+    {
+      eager: true, // Load immediately instead of lazy
+    },
+  );
   const imageList = Object.values(images).map((mod) => mod.default);
 
   const showDrawer = () => {
@@ -106,7 +109,7 @@ function HomePage() {
     window.addEventListener("scroll", handleScroll);
 
     // Smooth scroll polyfill for older browsers
-    document.documentElement.style.scrollBehavior = 'smooth';
+    document.documentElement.style.scrollBehavior = "smooth";
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
@@ -149,7 +152,7 @@ function HomePage() {
       <Layout className="homepage-layout">
         <Header
           id={"header-homepage"}
-          className={`homepage-header ${scrolled ? 'homepage-header--scrolled' : ''}`}
+          className={`homepage-header ${scrolled ? "homepage-header--scrolled" : ""}`}
         >
           {/* Logo */}
           <Link to="/">
@@ -164,7 +167,7 @@ function HomePage() {
           {/* Hamburger menu (visible on mobile) */}
           <div className="hamburger-menu" onClick={showDrawer}>
             <MenuOutlined
-              className={`hamburger-icon ${scrolled ? 'hamburger-icon--scrolled' : ''}`}
+              className={`hamburger-icon ${scrolled ? "hamburger-icon--scrolled" : ""}`}
             />
           </div>
 
@@ -178,7 +181,7 @@ function HomePage() {
             zIndex={1050}
             styles={{
               mask: { zIndex: 1040 },
-              wrapper: { zIndex: 1050 }
+              wrapper: { zIndex: 1050 },
             }}
           >
             <Menu
@@ -194,7 +197,10 @@ function HomePage() {
                 </Menu.Item>
               )}
               <Menu.Item key="package-types">
-                <Link to="/package-types" className="homepage-drawer__menu-item">
+                <Link
+                  to="/package-types"
+                  className="homepage-drawer__menu-item"
+                >
                   Package Types
                 </Link>
               </Menu.Item>
@@ -218,7 +224,7 @@ function HomePage() {
               <Menu.Item key="classes">
                 <Link
                   to="/classes"
-                  className={`homepage-menu__link ${scrolled ? 'homepage-menu__link--scrolled' : ''}`}
+                  className={`homepage-menu__link ${scrolled ? "homepage-menu__link--scrolled" : ""}`}
                 >
                   Browse our classes
                 </Link>
@@ -227,7 +233,7 @@ function HomePage() {
             <Menu.Item key="package-types">
               <Link
                 to="/package-types"
-                className={`homepage-menu__link ${scrolled ? 'homepage-menu__link--scrolled' : ''}`}
+                className={`homepage-menu__link ${scrolled ? "homepage-menu__link--scrolled" : ""}`}
               >
                 Package Types
               </Link>
@@ -235,7 +241,7 @@ function HomePage() {
             <Menu.Item key="plan">
               <Link
                 to="/pricing"
-                className={`homepage-menu__link ${scrolled ? 'homepage-menu__link--scrolled' : ''}`}
+                className={`homepage-menu__link ${scrolled ? "homepage-menu__link--scrolled" : ""}`}
               >
                 Credits
               </Link>
@@ -244,7 +250,7 @@ function HomePage() {
               <Menu.Item key="login">
                 <Link
                   to="/login"
-                  className={`homepage-menu__link ${scrolled ? 'homepage-menu__link--scrolled' : ''}`}
+                  className={`homepage-menu__link ${scrolled ? "homepage-menu__link--scrolled" : ""}`}
                 >
                   Login/Register
                 </Link>
@@ -287,7 +293,7 @@ function HomePage() {
               </div>
               <div className="headline-cta">
                 <Link to="/">
-                {/* <Link to="/register"> */}
+                  {/* <Link to="/register"> */}
                   <Button
                     type="primary"
                     className="headline-button"
@@ -407,7 +413,7 @@ function HomePage() {
                 data-aos-delay="500"
               >
                 <Link to="/">
-                {/* <Link to="/register"> */}
+                  {/* <Link to="/register"> */}
                   <Button
                     type="primary"
                     size="large"
