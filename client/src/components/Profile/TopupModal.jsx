@@ -44,7 +44,9 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
 
   const modalStep = _modalStep;
 
-  console.log(`🟣 TopupModal render - modalStep: ${modalStep}, isTopUpModalOpen: ${isTopUpModalOpen}`);
+  console.log(
+    `🟣 TopupModal render - modalStep: ${modalStep}, isTopUpModalOpen: ${isTopUpModalOpen}`,
+  );
 
   // Predefined top-up packages
   const topupPackages = [
@@ -98,17 +100,22 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
       if (!isPollingRef.current) return;
 
       attempts++;
-      console.log(`🔵 [Attempt ${attempts}/${maxAttempts}] Starting status check...`);
+      console.log(
+        `🔵 [Attempt ${attempts}/${maxAttempts}] Starting status check...`,
+      );
 
       try {
         const res = await fetchWithAuth(
           API_ENDPOINTS.PAYMENT_STATUS(reference_number),
         );
 
-        console.log(`🔵 [Attempt ${attempts}/${maxAttempts}] Response received: status=${res.status}, ok=${res.ok}`);
+        console.log(
+          `🔵 [Attempt ${attempts}/${maxAttempts}] Response received: status=${res.status}, ok=${res.ok}`,
+        );
 
         if (!res.ok) {
           console.error(`🔴 HTTP Error: ${res.status} ${res.statusText}`);
+          toast.error(`Error checking payment status: ${res.status}`);
           throw new Error(`HTTP ${res.status}`);
         }
 
@@ -119,6 +126,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
         const statusUpper = data.status?.toUpperCase();
 
         if (statusUpper === "COMPLETED") {
+          toast.success("Payment completed successfully!");
           console.log("🟢 Payment COMPLETED detected!");
           isPollingRef.current = false;
           setModalStep("success");
@@ -274,12 +282,6 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
     setSelectedAmount(amount);
     setCustomAmount("");
     topUpForm.setFieldsValue({ amount: "" });
-  };
-
-  const onCustomAmountChange = (e) => {
-    const value = e.target.value;
-    setCustomAmount(value);
-    setSelectedAmount(null);
   };
 
   const renderForm = () => (
