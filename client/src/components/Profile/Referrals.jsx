@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Button,
   Card,
@@ -53,12 +53,17 @@ const Referrals = () => {
     if (user) fetchReferralData();
   }, [user]);
 
-  const handleCopyCode = async () => {
+  const copyToClipboard = async (text, message) => {
     try {
-      await navigator.clipboard.writeText(referralData?.referral_code);
+      await navigator.clipboard.writeText(text);
+
       setCopied(true);
-      toast.success("Code copied!");
-      setTimeout(() => setCopied(false), 2000);
+
+      toast.success(message);
+
+      setTimeout(() => {
+        setCopied(false);
+      }, 2000);
     } catch {
       toast.error("Failed to copy");
     }
@@ -83,68 +88,78 @@ const Referrals = () => {
     }
   };
 
-  const getReferralLink = () =>
-    `${window.location.origin}/register?referral_code=${referralData?.referral_code}`;
+  const referralLink = useMemo(
+    () =>
+      `${window.location.origin}/register?referral_code=${referralData?.referral_code}`,
+    [referralData?.referral_code],
+  );
+
   const rewardAmount = referralData?.reward_amount || 50;
   const stats = referralData?.stats || {};
 
-  const statItems = [
-    {
-      key: "total",
-      icon: <UserAddOutlined />,
-      value: stats.total_referrals || 0,
-      label: "Total Invited",
-      color: "primary",
-    },
-    {
-      key: "completed",
-      icon: <CheckCircleOutlined />,
-      value: stats.completed_referrals || 0,
-      label: "Completed",
-      color: "success",
-    },
-    {
-      key: "pending",
-      icon: <ClockCircleOutlined />,
-      value: stats.pending_referrals || 0,
-      label: "Pending",
-      color: "warning",
-    },
-    {
-      key: "earned",
-      icon: <GiftOutlined />,
-      value: stats.total_credits_earned || 0,
-      label: "Credits Earned",
-      color: "purple",
-    },
-  ];
+  const statItems = useMemo(
+    () => [
+      {
+        key: "total",
+        icon: <UserAddOutlined />,
+        value: stats.total_referrals || 0,
+        label: "Invited",
+        color: "primary",
+      },
+      {
+        key: "completed",
+        icon: <CheckCircleOutlined />,
+        value: stats.completed_referrals || 0,
+        label: "Completed",
+        color: "success",
+      },
+      {
+        key: "pending",
+        icon: <ClockCircleOutlined />,
+        value: stats.pending_referrals || 0,
+        label: "Pending",
+        color: "warning",
+      },
+      {
+        key: "earned",
+        icon: <GiftOutlined />,
+        value: stats.total_credits_earned || 0,
+        label: "Credits Earned",
+        color: "purple",
+      },
+    ],
+    [stats],
+  );
 
-  const steps = [
-    {
-      emoji: "🔗",
-      num: 1,
-      name: "Share Your Code",
-      desc: "Copy your code or send an email invite",
-    },
-    {
-      emoji: "✍️",
-      num: 2,
-      name: "Friend Signs Up",
-      desc: "They use your code during registration",
-    },
-    {
-      emoji: "💳",
-      num: 3,
-      name: "First Top-Up",
-      desc: "Your friend completes their first payment",
-    },
-    {
-      emoji: "🏆",
-      num: 4,
-      name: "Both Earn Credits",
-      desc: `You and your friend each get ${rewardAmount} credits`,
-    },
-  ];
+  const steps = useMemo(
+    () => [
+      {
+        emoji: <LinkOutlined />,
+        num: 1,
+        name: "Share Your Code",
+        desc: "Copy your code or send an email invite",
+      },
+      {
+        emoji: <UserAddOutlined />,
+        num: 2,
+        name: "Friend Signs Up",
+        desc: "They use your code during registration",
+      },
+      {
+        emoji: <ThunderboltOutlined />,
+        num: 3,
+        name: "First Top-Up",
+        desc: "Your friend completes their first payment",
+      },
+      {
+        emoji: <GiftOutlined />,
+        num: 4,
+        name: "Both Earn Credits",
+        desc: `You and your friend each get ${rewardAmount} credits`,
+      },
+    ],
+    [rewardAmount],
+  );
 
   return (
     <div className="rf-page fade-in">
@@ -153,23 +168,31 @@ const Referrals = () => {
         <div className="rf-header-badge">
           <StarOutlined style={{ fontSize: 10 }} /> Referral Program
         </div>
-        <h3 className="rf-page-title">Earn Credits, Share the Love 🎁</h3>
+        <h3 className="rf-page-title">Earn Credits, Share the Love</h3>
         <p className="rf-page-sub">
-          Invite friends to Junior Pass — both of you get rewarded
+          When your friend completes their first top-up, you both earn{" "}
+          {rewardAmount} credits!
         </p>
       </div>
 
       <Spin spinning={loading}>
         {referralData && (
           <>
-            {/* ── Referral code card — plain flex, NO Row/Col ── */}
             <Card className="rf-code-card" bordered={false}>
               <div className="rf-code-inner">
                 <div className="rf-code-left">
                   <div className="rf-code-label">
                     <LinkOutlined /> Your Referral Code
                   </div>
-                  <div className="rf-code-display" onClick={handleCopyCode}>
+                  <div
+                    className="rf-code-display"
+                    onClick={() =>
+                      copyToClipboard(
+                        referralData.referral_code,
+                        "Code copied!",
+                      )
+                    }
+                  >
                     <span className="rf-code-value">
                       {referralData.referral_code}
                     </span>
@@ -217,7 +240,6 @@ const Referrals = () => {
               </div>
             </Card>
 
-            {/* ── Stats — CSS grid, NO Row/Col ── */}
             <div className="rf-stats-grid">
               {statItems.map((s) => (
                 <div className="rf-stat-card" key={s.key}>
@@ -236,7 +258,7 @@ const Referrals = () => {
                 <Title level={5} className="rf-list-title">
                   <span className="rf-list-title-icon">
                     <UserAddOutlined />
-                  </span>{" "}
+                  </span>
                   Recent Referrals
                 </Title>
                 {referralData.recent_referrals?.length > 0 && (
@@ -251,7 +273,9 @@ const Referrals = () => {
 
               {!referralData.recent_referrals?.length ? (
                 <div className="rf-empty">
-                  <div className="rf-empty-icon">🤝</div>
+                  <div className="rf-empty-icon">
+                    <UserAddOutlined />
+                  </div>
                   <Text
                     style={{
                       fontWeight: 600,
@@ -339,7 +363,6 @@ const Referrals = () => {
                 </span>
               </div>
 
-              {/* Steps — CSS grid, NO Row/Col */}
               <div className="rf-steps">
                 {steps.map((step, i) => (
                   <>
@@ -468,14 +491,11 @@ const Referrals = () => {
             Referral link:
           </Text>
           <div className="rf-share-link-row">
-            <Input value={getReferralLink()} readOnly size="small" />
+            <Input value={referralLink} readOnly size="small" />
             <Button
               icon={<CopyOutlined />}
               style={{ borderRadius: "var(--border-radius)", flexShrink: 0 }}
-              onClick={() => {
-                navigator.clipboard.writeText(getReferralLink());
-                toast.success("Link copied!");
-              }}
+              onClick={() => copyToClipboard(referralLink, "Link copied!")}
             />
           </div>
         </div>

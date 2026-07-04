@@ -15,13 +15,8 @@ import useWindowDimensions from "../../hooks/useWindowDimensions";
 import "./index.css";
 
 const Profile = () => {
-  console.log("🟣 Profile component mounted/re-rendered");
-
   const { state } = useLocation();
   const { user } = useUserContext();
-
-  console.log("🟣 Profile - location state:", state);
-  console.log("🟣 Profile - user from context:", user);
 
   const { isMobile, isTabletPortrait } = useWindowDimensions();
   const isMobileOrTabletPortrait = isMobile || isTabletPortrait;
@@ -115,7 +110,6 @@ const Profile = () => {
           items={items}
           tabBarGutter={isMobileOrTabletPortrait ? 0 : 12}
           size={isMobileOrTabletPortrait ? "small" : "middle"}
-          onChange={(key) => console.log("🟣 Tab changed to:", key)}
         />
       </div>
     </div>

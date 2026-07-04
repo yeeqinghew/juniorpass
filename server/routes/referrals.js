@@ -41,32 +41,32 @@ router.get("/my-referral", authorization, async (req, res) => {
     );
 
     // Get recent referrals
-    const referrals = await pool.query(
-      `
-      SELECT
-        r.id,
-        r.status,
-        r.created_at,
-        r.completed_on,
-        u.name as referee_name,
-        u.email as referee_email
-      FROM referrals r
-      JOIN users u ON r.referee_id = u.user_id
-      WHERE r.referrer_id = $1
-      ORDER BY r.created_at DESC
-      LIMIT 10
-      `,
-      [userId],
-    );
+    // const referrals = await pool.query(
+    //   `
+    //   SELECT
+    //     r.id,
+    //     r.status,
+    //     r.created_at,
+    //     r.completed_on,
+    //     u.name as referee_name,
+    //     u.email as referee_email
+    //   FROM referrals r
+    //   JOIN users u ON r.referee_id = u.user_id
+    //   WHERE r.referrer_id = $1
+    //   ORDER BY r.created_at DESC
+    //   LIMIT 10
+    //   `,
+    //   [userId],
+    // );
 
     // Define fixed reward amount
-    const REFERRAL_REWARD = 50;
+    // const REFERRAL_REWARD = 50;
 
     res.status(200).json({
       referral_code: referralCode,
       stats: stats.rows[0],
-      recent_referrals: referrals.rows,
-      reward_amount: REFERRAL_REWARD,
+      // recent_referrals: referrals.rows,
+      // reward_amount: REFERRAL_REWARD,
     });
   } catch (error) {
     console.error("Error fetching referral info:", error.message);
