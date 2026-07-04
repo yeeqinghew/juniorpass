@@ -31,22 +31,16 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
   const [_modalStep, _setModalStep] = useState("form");
   const [topUpForm] = Form.useForm();
   const [selectedAmount, setSelectedAmount] = useState(null);
-  const [customAmount, setCustomAmount] = useState("");
   const { user } = useUserContext();
   const isPollingRef = useRef(false);
 
   // Wrapper to log all modalStep changes
   const setModalStep = (newStep) => {
-    console.log(`🟣 setModalStep called: ${_modalStep} → ${newStep}`);
     console.trace(); // Show call stack
     _setModalStep(newStep);
   };
 
   const modalStep = _modalStep;
-
-  console.log(
-    `🟣 TopupModal render - modalStep: ${modalStep}, isTopUpModalOpen: ${isTopUpModalOpen}`,
-  );
 
   // Predefined top-up packages
   const topupPackages = [
@@ -60,15 +54,13 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
     if (modalStep === "loading") return;
     setIsTopUpModalOpen(false);
     setSelectedAmount(null);
-    setCustomAmount("");
     topUpForm.resetFields();
     setModalStep("form");
+    setIsLoading(false);
   };
 
   const handleSuccessContinue = () => {
-    // Call onSuccess callback to refresh transactions
     if (onSuccess) onSuccess();
-    // Then close the modal
     handleCancel();
   };
 
@@ -91,26 +83,15 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
     let timeoutId;
     isPollingRef.current = true;
 
-    console.log(
-      `🔵 Starting payment polling for reference: ${reference_number}`,
-    );
-
     const checkStatus = async () => {
       // Guard check: stop executing if polling flag was turned off elsewhere
       if (!isPollingRef.current) return;
 
       attempts++;
-      console.log(
-        `🔵 [Attempt ${attempts}/${maxAttempts}] Starting status check...`,
-      );
 
       try {
         const res = await fetchWithAuth(
           API_ENDPOINTS.PAYMENT_STATUS(reference_number),
-        );
-
-        console.log(
-          `🔵 [Attempt ${attempts}/${maxAttempts}] Response received: status=${res.status}, ok=${res.ok}`,
         );
 
         if (!res.ok) {
@@ -121,20 +102,16 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
 
         const data = await res.json();
 
-        console.log(`🔵 Polling attempt ${attempts}/${maxAttempts}:`, data);
-
         const statusUpper = data.status?.toUpperCase();
 
         if (statusUpper === "COMPLETED") {
           toast.success("Payment completed successfully!");
-          console.log("🟢 Payment COMPLETED detected!");
           isPollingRef.current = false;
           setModalStep("success");
           return;
         }
 
         if (statusUpper === "FAILED") {
-          console.log("🔴 Payment FAILED detected!");
           isPollingRef.current = false;
           setModalStep("error");
           return;
@@ -142,13 +119,9 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
 
         // If we haven't reached max attempts, schedule the next check in 2 seconds
         if (attempts < maxAttempts) {
-          console.log(`⏳ Payment still pending. Next poll in 2s...`);
           timeoutId = setTimeout(checkStatus, 2000);
         } else {
           // Max attempts reached: execute final fallback verification
-          console.log(
-            "⏰ Max polling attempts reached, trying verify endpoint",
-          );
           isPollingRef.current = false;
           handleVerificationFallback(reference_number);
         }
@@ -175,21 +148,19 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
         );
         const verifyData = await verifyResponse.json();
 
-        console.log("🔍 Verify endpoint result:", verifyData);
-
         if (verifyData.status?.toUpperCase() === "COMPLETED") {
-          console.log("🟢 Payment confirmed via verify endpoint!");
           setModalStep("success");
         } else {
-          console.log("🔴 Payment still not completed after verify");
           toast.error(
             "Payment is taking longer than expected. Please check your balance.",
           );
           setModalStep("error");
         }
       } catch (verifyError) {
-        console.error("🔴 Verify error:", verifyError);
+        console.error("🔴 Verification fallback error:", verifyError);
         setModalStep("error");
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -202,12 +173,6 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
       clearTimeout(timeoutId);
     };
   };
-  const getFinalAmount = () => {
-    if (selectedAmount) {
-      return selectedAmount;
-    }
-    return parseFloat(customAmount) || 0;
-  };
 
   const getBonusAmount = () => {
     const package1 = topupPackages.find((pkg) => pkg.amount === selectedAmount);
@@ -216,18 +181,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
 
   const onHandleTopUp = async () => {
     try {
-      const amount = getFinalAmount();
-
-      if (!amount || amount < 5) {
-        toast.error("Minimum top-up amount is $5.");
-        return;
-      }
-
-      if (amount > 1000) {
-        toast.error("Maximum top-up amount is $1000.");
-        return;
-      }
-
+      const amount = selectedAmount;
       setIsLoading(true);
       const response = await fetchWithAuth(API_ENDPOINTS.INIT_PAYMENT, {
         method: "POST",
@@ -274,13 +228,13 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
     } catch (error) {
       console.error("Error initializing HitPay:", error);
       toast.error("Failed to initiate payment. Please try again.");
+    } finally {
       setIsLoading(false);
     }
   };
 
   const selectPackage = (amount) => {
     setSelectedAmount(amount);
-    setCustomAmount("");
     topUpForm.setFieldsValue({ amount: "" });
   };
 
@@ -339,33 +293,14 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
         </Row>
       </div>
 
-      {/* <Divider style={{ margin: "12px 0" }}>OR</Divider> */}
-
-      {/* Custom Amount */}
-      {/* <Form form={topUpForm} layout="vertical" className="modal-form">
-        <Form.Item label={<Text strong>Custom Amount</Text>} style={{ marginBottom: 12 }}>
-          <Input
-            placeholder="Enter amount (min $5)"
-            value={customAmount}
-            onChange={onCustomAmountChange}
-            type="number"
-            min={5}
-            max={1000}
-            size="large"
-            prefix={<DollarOutlined />}
-            className={customAmount ? "input-selected" : ""}
-          />
-        </Form.Item>
-      </Form> */}
-
       {/* Summary Card */}
-      {(selectedAmount || customAmount) && (
+      {selectedAmount && (
         <Card className="topup-summary-card" bordered={false}>
           <div className="topup-summary-content">
             <div>
               <Text strong>Amount to pay:</Text>
               <br />
-              <Text className="topup-summary-amount">${getFinalAmount()}</Text>
+              <Text className="topup-summary-amount">${selectedAmount}</Text>
               {getBonusAmount() > 0 && (
                 <Text className="topup-summary-bonus">
                   (+${getBonusAmount()} bonus)
@@ -397,7 +332,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
             loading={isLoading}
             className="modal-btn modal-btn-primary"
             onClick={onHandleTopUp}
-            disabled={!getFinalAmount() || getFinalAmount() < 5}
+            disabled={!selectedAmount}
           >
             Pay Now
           </Button>
@@ -427,7 +362,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
         Top-up Successful!
       </Title>
       <Text className="modal-success-text">
-        ${getFinalAmount()} has been added to your account.
+        ${selectedAmount} has been added to your account.
         {getBonusAmount() > 0 && (
           <>
             <br />

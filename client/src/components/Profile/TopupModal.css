@@ -75,11 +75,6 @@
   font-size: var(--font-size-xs);
 }
 
-/* Custom Amount Input */
-.input-selected {
-  border-color: var(--primary-color) !important;
-}
-
 /* Summary Card */
 .topup-summary-card {
   background: var(--color-success-light) !important;
