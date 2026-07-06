@@ -77,8 +77,20 @@ router.post("/", authorization, async (req, res) => {
     }
 
     const maxSlots = schedule.rows[0].slots || 10;
-    const creditCost = schedule.rows[0].credit || listing.rows[0].credit || 1;
+    // Convert decimal price to integer (price_payg is DECIMAL, credits are INTEGER)
+    const scheduleCreditRaw = schedule.rows[0].credit;
+    const scheduleCredit = scheduleCreditRaw ? Math.round(parseFloat(scheduleCreditRaw)) : null;
+    const creditCost = scheduleCredit || listing.rows[0].credit || 1;
     const userCredits = user.rows[0].credit;
+
+    console.log(`💳 Booking credit calculation:`, {
+      schedule_credit_raw: scheduleCreditRaw,
+      schedule_credit_parsed: scheduleCredit,
+      listing_credit: listing.rows[0].credit,
+      creditCost,
+      creditCostType: typeof creditCost,
+      userCredits,
+    });
 
     // Check user's credit balance
     if (userCredits < creditCost) {
@@ -375,19 +387,24 @@ router.delete("/:bookingId", authorization, async (req, res) => {
     // Get booking details with listing information and child_id
     const booking = await pool.query(
       `
-      SELECT 
+      SELECT
         b.booking_id,
         b.listing_id,
         b.user_id,
         b.start_date,
         b.end_date,
         b.created_at,
-        l.credit,
+        b.schedule_id,
+        l.credit as listing_credit,
         l.partner_id,
         l.listing_title,
-        (SELECT child_id FROM transactions WHERE parent_id = b.user_id AND listing_id = b.listing_id AND transaction_type = 'DEBIT' ORDER BY created_at DESC LIMIT 1) as child_id
+        sg.price_payg as schedule_credit,
+        (SELECT child_id FROM transactions WHERE parent_id = b.user_id AND listing_id = b.listing_id AND transaction_type = 'DEBIT' ORDER BY created_at DESC LIMIT 1) as child_id,
+        (SELECT used_credit FROM transactions WHERE parent_id = b.user_id AND listing_id = b.listing_id AND transaction_type = 'DEBIT' ORDER BY created_at DESC LIMIT 1) as actual_credit_charged
       FROM bookings b
       JOIN listings l ON b.listing_id = l.listing_id
+      LEFT JOIN schedules s ON b.schedule_id = s.schedule_id
+      LEFT JOIN schedule_groups sg ON s.schedule_group_id = sg.schedule_group_id
       WHERE b.booking_id = $1 AND b.user_id = $2
     `,
       [bookingId, user_id],
@@ -414,7 +431,19 @@ router.delete("/:bookingId", authorization, async (req, res) => {
       });
     }
 
-    const creditRefund = bookingData.credit;
+    console.log(`🗑️ Cancel booking - credit calculation:`, {
+      listing_credit: bookingData.listing_credit,
+      schedule_credit: bookingData.schedule_credit,
+      actual_credit_charged: bookingData.actual_credit_charged,
+    });
+
+    // Use the actual credit charged from transaction, or fallback to schedule/listing credit
+    const creditRefund = bookingData.actual_credit_charged ||
+                        (bookingData.schedule_credit ? Math.round(parseFloat(bookingData.schedule_credit)) : null) ||
+                        bookingData.listing_credit ||
+                        1;
+
+    console.log(`🗑️ Credit refund amount: ${creditRefund}`);
 
     // Perform cancellation within transaction
     const client = await pool.connect();
@@ -508,14 +537,20 @@ router.delete("/:bookingId", authorization, async (req, res) => {
         refunded_credit: creditRefund,
       });
     } catch (e) {
+      console.error("❌ Error during booking cancellation transaction:", e);
       await client.query("ROLLBACK");
       throw e;
     } finally {
       client.release();
     }
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Server error" });
+    console.error("❌ Cancel booking error:", error.message);
+    console.error("Stack:", error.stack);
+    res.status(500).json({
+      error: "Server error",
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 

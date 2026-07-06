@@ -813,19 +813,20 @@ const ChildrenClasses = () => {
           />
           <div className="cc-modal-btns">
             <Button
+              danger
+              loading={cancelLoading}
+              onClick={confirmCancelBooking}
+            >
+              Yes, Cancel Booking
+            </Button>
+            <Button
+              type="primary"
               onClick={() => {
                 setIsCancelModalOpen(false);
                 setBookingToCancel(null);
               }}
             >
-              Keep Booking
-            </Button>
-            <Button
-              danger
-              loading={cancelLoading}
-              onClick={confirmCancelBooking}
-            >
-              Cancel Booking
+              No, Go Back
             </Button>
           </div>
         </Space>

@@ -104,6 +104,8 @@ const Credits = () => {
 
   const renderTxn = (item) => {
     const isDebit = item.transaction_type === "DEBIT";
+    const displayTitle = item.listing_title || (isDebit ? "Transaction" : "Credit Top-up");
+
     return (
       <div className="cr-txn-item" key={item.transaction_id}>
         <div className={`cr-txn-icon ${isDebit ? "debit" : "credit"}`}>
@@ -112,7 +114,7 @@ const Credits = () => {
         <div className="cr-txn-details">
           <div className="cr-txn-row">
             <span className="cr-txn-name">
-              {item.listing_title || "Transaction"}
+              {displayTitle}
             </span>
             <span className={`cr-txn-amount ${isDebit ? "debit" : "credit"}`}>
               {isDebit ? "−" : "+"}

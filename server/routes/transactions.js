@@ -10,7 +10,7 @@ router.get("/user", authorization, async (req, res) => {
 
     const transactions = await pool.query(
       `
-      SELECT 
+      SELECT
         t.transaction_id,
         t.parent_id,
         t.child_id,
@@ -24,9 +24,9 @@ router.get("/user", authorization, async (req, res) => {
         p.partner_name,
         p.picture as partner_picture
       FROM transactions t
-      JOIN children c ON t.child_id = c.child_id
-      JOIN listings l ON t.listing_id = l.listing_id
-      JOIN partners p ON l.partner_id = p.partner_id
+      LEFT JOIN children c ON t.child_id = c.child_id
+      LEFT JOIN listings l ON t.listing_id = l.listing_id
+      LEFT JOIN partners p ON l.partner_id = p.partner_id
       WHERE t.parent_id = $1
       ORDER BY t.created_at DESC
     `,
