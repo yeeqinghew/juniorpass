@@ -94,6 +94,7 @@ app.use("/media", require("./routes/media"));
 app.use("/children", require("./routes/children"));
 app.use("/payment", require("./routes/payment"));
 app.use("/bookings", require("./routes/bookings"));
+app.use("/class-occurrences", require("./routes/classOccurrences"));
 app.use("/transactions", require("./routes/transactions"));
 app.use("/notifications", require("./routes/notifications"));
 app.use("/outlets", require("./routes/outlets"));

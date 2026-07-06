@@ -25,21 +25,26 @@ dayjs.extend(isBetween);
 
 const { Text, Title } = Typography;
 
-const CalendarView = ({ bookings = [], onAddToEmail }) => {
+const CalendarView = ({ bookings = [], occurrences = [], onAddToEmail }) => {
   const [selectedDate, setSelectedDate] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // Use occurrences if available, otherwise fall back to bookings
+  const displayData = occurrences.length > 0 ? occurrences : bookings;
+
   const bookingsByDate = useMemo(() => {
     const grouped = {};
-    bookings.forEach((booking) => {
-      const date = dayjs(booking.start_date).format("YYYY-MM-DD");
+    displayData.forEach((item) => {
+      // Use scheduled_date for occurrences, start_date for bookings
+      const dateField = item.scheduled_date || item.start_date;
+      const date = dayjs(dateField).format("YYYY-MM-DD");
       if (!grouped[date]) {
         grouped[date] = [];
       }
-      grouped[date].push(booking);
+      grouped[date].push(item);
     });
     return grouped;
-  }, [bookings]);
+  }, [displayData]);
 
   const getListData = (value) => {
     const dateStr = value.format("YYYY-MM-DD");
@@ -99,13 +104,17 @@ const CalendarView = ({ bookings = [], onAddToEmail }) => {
     );
   }, [selectedDate, bookingsByDate]);
 
-  const handleAddToEmail = (booking) => {
+  const handleAddToEmail = (item) => {
+    // Handle both occurrences and bookings
+    const startDate = item.scheduled_date || item.start_date;
+    const endDate = item.scheduled_end_date || item.end_date;
+
     const eventData = {
-      title: booking.listing_title,
-      start: new Date(booking.start_date),
-      end: new Date(booking.end_date),
-      description: `Class: ${booking.listing_title}\nPartner: ${booking.partner_name || "N/A"}\nChild: ${booking.child_name || "N/A"}`,
-      location: booking.outlet_address || "TBD",
+      title: item.listing_title,
+      start: new Date(startDate),
+      end: new Date(endDate),
+      description: `Class: ${item.listing_title}\nPartner: ${item.partner_name || "N/A"}\nChild: ${item.child_name || "N/A"}${item.occurrence_number ? `\nClass ${item.occurrence_number} of ${item.classes_total}` : ''}`,
+      location: item.outlet_address || "TBD",
     };
 
     // Generate iCal format
@@ -119,7 +128,7 @@ const CalendarView = ({ bookings = [], onAddToEmail }) => {
     );
     element.setAttribute(
       "download",
-      `${booking.listing_title.replace(/\s+/g, "_")}.ics`,
+      `${item.listing_title.replace(/\s+/g, "_")}.ics`,
     );
     element.style.display = "none";
     document.body.appendChild(element);
@@ -199,11 +208,13 @@ END:VCALENDAR`;
         ) : (
           <List
             dataSource={selectedDateBookings}
-            renderItem={(booking) => {
-              const isPast = new Date(booking.start_date) < new Date();
+            renderItem={(item) => {
+              const startDate = item.scheduled_date || item.start_date;
+              const endDate = item.scheduled_end_date || item.end_date;
+              const isPast = new Date(startDate) < new Date();
               return (
                 <List.Item
-                  key={booking.booking_id}
+                  key={item.occurrence_id || item.booking_id}
                   actions={
                     !isPast
                       ? [
@@ -213,7 +224,7 @@ END:VCALENDAR`;
                               ghost
                               icon={<MailOutlined />}
                               size="small"
-                              onClick={() => handleAddToEmail(booking)}
+                              onClick={() => handleAddToEmail(item)}
                             >
                               Add to Calendar
                             </Button>
@@ -226,10 +237,20 @@ END:VCALENDAR`;
                   <List.Item.Meta
                     title={
                       <Space>
-                        <Text strong>{booking.listing_title}</Text>
+                        <Text strong>{item.listing_title}</Text>
                         <Tag color={isPast ? "default" : "green"}>
                           {isPast ? "Completed" : "Upcoming"}
                         </Tag>
+                        {item.occurrence_number && (
+                          <Tag color="blue">
+                            Class {item.occurrence_number}/{item.classes_total}
+                          </Tag>
+                        )}
+                        {item.status && item.status !== 'scheduled' && (
+                          <Tag color={item.status === 'cancelled' ? 'red' : 'orange'}>
+                            {item.status}
+                          </Tag>
+                        )}
                       </Space>
                     }
                     description={
@@ -237,15 +258,14 @@ END:VCALENDAR`;
                         <Space size="small">
                           <ClockCircleOutlined />
                           <Text type="secondary">
-                            {formatTime(booking.start_date)} -{" "}
-                            {formatTime(booking.end_date)}
+                            {formatTime(startDate)} - {formatTime(endDate)}
                           </Text>
                         </Space>
                         <Text type="secondary" className="booking-child">
-                          Child: {booking.child_name || "N/A"}
+                          Child: {item.child_name || "N/A"}
                         </Text>
                         <Text type="secondary" className="booking-partner">
-                          Partner: {booking.partner_name || "N/A"}
+                          Partner: {item.partner_name || "N/A"}
                         </Text>
                       </Space>
                     }

@@ -4,7 +4,7 @@ const pool = require("../db");
 const authorization = require("../middleware/authorization");
 
 router.post("/", authorization, async (req, res) => {
-  const { listing_id, schedule_id, start_date, end_date, child_id } = req.body;
+  const { listing_id, schedule_id, start_date, end_date, child_id, package_type } = req.body;
 
   try {
     // Validate request body
@@ -63,9 +63,11 @@ router.post("/", authorization, async (req, res) => {
       }
     }
 
-    // Get schedule capacity and credit from schedule_groups
+    // Get schedule capacity, credit, and package info from schedule_groups
     const schedule = await pool.query(
-      `SELECT sg.slots, sg.price_payg as credit
+      `SELECT sg.slots, sg.price_payg as credit, sg.schedule_group_id,
+              sg.package_types, sg.full_term_class_count, sg.short_term_class_count,
+              sg.frequency
        FROM schedules s
        JOIN schedule_groups sg ON s.schedule_group_id = sg.schedule_group_id
        WHERE s.schedule_id = $1`,
@@ -76,9 +78,23 @@ router.post("/", authorization, async (req, res) => {
       return res.status(404).json({ error: "Schedule not found" });
     }
 
-    const maxSlots = schedule.rows[0].slots || 10;
+    const scheduleGroup = schedule.rows[0];
+    const maxSlots = scheduleGroup.slots || 10;
+    const schedule_group_id = scheduleGroup.schedule_group_id;
+
+    // Determine package type (default to pay-as-you-go if not provided)
+    const enrolledPackageType = package_type || 'pay-as-you-go';
+
+    // Calculate total classes based on package type
+    let classes_total = 1; // Default for pay-as-you-go and trial
+    if (enrolledPackageType === 'full-term' && scheduleGroup.full_term_class_count) {
+      classes_total = scheduleGroup.full_term_class_count;
+    } else if (enrolledPackageType === 'short-term' && scheduleGroup.short_term_class_count) {
+      classes_total = scheduleGroup.short_term_class_count;
+    }
+
     // Convert decimal price to integer (price_payg is DECIMAL, credits are INTEGER)
-    const scheduleCreditRaw = schedule.rows[0].credit;
+    const scheduleCreditRaw = scheduleGroup.credit;
     const scheduleCredit = scheduleCreditRaw ? Math.round(parseFloat(scheduleCreditRaw)) : null;
     const creditCost = scheduleCredit || listing.rows[0].credit || 1;
     const userCredits = user.rows[0].credit;
@@ -90,6 +106,8 @@ router.post("/", authorization, async (req, res) => {
       creditCost,
       creditCostType: typeof creditCost,
       userCredits,
+      package_type: enrolledPackageType,
+      classes_total,
     });
 
     // Check user's credit balance
@@ -151,15 +169,51 @@ router.post("/", authorization, async (req, res) => {
         [creditCost, listing.rows[0].partner_id],
       );
 
-      // Create booking record
+      // Create booking record with package info
       const newBooking = await client.query(
         `
-        INSERT INTO bookings (listing_id, schedule_id, user_id, start_date, end_date)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO bookings (
+          listing_id, schedule_id, user_id, schedule_group_id,
+          start_date, end_date, enrolled_package_type, classes_total
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
       `,
-        [listing_id, schedule_id, user_id, start_date, end_date],
+        [
+          listing_id, schedule_id, user_id, schedule_group_id,
+          start_date, end_date, enrolledPackageType, classes_total
+        ],
       );
+
+      const booking_id = newBooking.rows[0].booking_id;
+
+      // Generate class occurrences based on frequency
+      const startDateTime = new Date(start_date);
+      const endDateTime = new Date(end_date);
+      const classDurationMs = endDateTime - startDateTime;
+
+      // Determine interval in days based on frequency (default to weekly)
+      let intervalDays = 7; // Weekly by default
+      if (scheduleGroup.frequency === 'Biweekly') intervalDays = 14;
+      if (scheduleGroup.frequency === 'Monthly') intervalDays = 30;
+
+      console.log(`📅 Generating ${classes_total} class occurrences with ${intervalDays}-day interval`);
+
+      // Create individual class occurrences
+      for (let i = 0; i < classes_total; i++) {
+        const occurrenceStart = new Date(startDateTime.getTime() + (i * intervalDays * 24 * 60 * 60 * 1000));
+        const occurrenceEnd = new Date(occurrenceStart.getTime() + classDurationMs);
+
+        await client.query(
+          `INSERT INTO class_occurrences (
+            booking_id, scheduled_date, scheduled_end_date, occurrence_number, status
+          )
+          VALUES ($1, $2, $3, $4, $5)`,
+          [booking_id, occurrenceStart, occurrenceEnd, i + 1, 'scheduled']
+        );
+      }
+
+      console.log(`✅ Created ${classes_total} class occurrences for booking ${booking_id}`);
 
       // Record parent's debit transaction if child context is provided
       if (child_id) {
@@ -310,7 +364,7 @@ router.get("/user", authorization, async (req, res) => {
     const user_id = req.user;
     const bookings = await pool.query(
       `
-      SELECT 
+      SELECT
         b.*,
         l.listing_title,
         l.description as listing_description,
@@ -318,10 +372,10 @@ router.get("/user", authorization, async (req, res) => {
         p.partner_name,
         p.picture as partner_picture,
         (
-          SELECT child_id 
-          FROM transactions 
-          WHERE parent_id = b.user_id 
-            AND listing_id = b.listing_id 
+          SELECT child_id
+          FROM transactions
+          WHERE parent_id = b.user_id
+            AND listing_id = b.listing_id
             AND transaction_type = 'DEBIT'
             AND created_at >= b.created_at
           ORDER BY created_at ASC
@@ -339,6 +393,66 @@ router.get("/user", authorization, async (req, res) => {
     res.json({
       success: true,
       bookings: bookings.rows,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET all class occurrences for a user (for calendar view)
+router.get("/user/occurrences", authorization, async (req, res) => {
+  try {
+    const user_id = req.user;
+    const occurrences = await pool.query(
+      `
+      SELECT
+        co.*,
+        b.booking_id,
+        b.listing_id,
+        b.enrolled_package_type,
+        b.classes_total,
+        l.listing_title,
+        l.images,
+        p.partner_name,
+        p.picture as partner_picture,
+        (
+          SELECT child_id
+          FROM transactions
+          WHERE parent_id = b.user_id
+            AND listing_id = b.listing_id
+            AND transaction_type = 'DEBIT'
+            AND created_at >= b.created_at
+          ORDER BY created_at ASC
+          LIMIT 1
+        ) as child_id,
+        (
+          SELECT name
+          FROM children
+          WHERE child_id = (
+            SELECT child_id
+            FROM transactions
+            WHERE parent_id = b.user_id
+              AND listing_id = b.listing_id
+              AND transaction_type = 'DEBIT'
+              AND created_at >= b.created_at
+            ORDER BY created_at ASC
+            LIMIT 1
+          )
+        ) as child_name
+      FROM class_occurrences co
+      JOIN bookings b ON co.booking_id = b.booking_id
+      JOIN listings l ON b.listing_id = l.listing_id
+      JOIN partners p ON l.partner_id = p.partner_id
+      WHERE b.user_id = $1
+      ORDER BY co.scheduled_date ASC
+    `,
+      [user_id],
+    );
+
+    res.json({
+      success: true,
+      occurrences: occurrences.rows,
     });
   } catch (error) {
     console.error(error);
