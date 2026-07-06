@@ -183,8 +183,9 @@ router.post("/", authorization, async (req, res) => {
       // Create booking record
       const newBooking = await client.query(
         `
-        INSERT INTO bookings (listing_id, schedule_id, user_id, start_date, end_date)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO bookings 
+        (listing_id, schedule_id, user_id, schedule_group_id, start_date, end_date, enrolled_package_type, classes_total)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
       `,
         [
