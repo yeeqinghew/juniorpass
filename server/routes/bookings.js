@@ -4,7 +4,14 @@ const pool = require("../db");
 const authorization = require("../middleware/authorization");
 
 router.post("/", authorization, async (req, res) => {
-  const { listing_id, schedule_id, start_date, end_date, child_id, package_type } = req.body;
+  const {
+    listing_id,
+    schedule_id,
+    start_date,
+    end_date,
+    child_id,
+    package_type,
+  } = req.body;
 
   try {
     // Validate request body
@@ -83,19 +90,27 @@ router.post("/", authorization, async (req, res) => {
     const schedule_group_id = scheduleGroup.schedule_group_id;
 
     // Determine package type (default to pay-as-you-go if not provided)
-    const enrolledPackageType = package_type || 'pay-as-you-go';
+    const enrolledPackageType = package_type || "pay-as-you-go";
 
     // Calculate total classes based on package type
     let classes_total = 1; // Default for pay-as-you-go and trial
-    if (enrolledPackageType === 'full-term' && scheduleGroup.full_term_class_count) {
+    if (
+      enrolledPackageType === "full-term" &&
+      scheduleGroup.full_term_class_count
+    ) {
       classes_total = scheduleGroup.full_term_class_count;
-    } else if (enrolledPackageType === 'short-term' && scheduleGroup.short_term_class_count) {
+    } else if (
+      enrolledPackageType === "short-term" &&
+      scheduleGroup.short_term_class_count
+    ) {
       classes_total = scheduleGroup.short_term_class_count;
     }
 
     // Convert decimal price to integer (price_payg is DECIMAL, credits are INTEGER)
     const scheduleCreditRaw = scheduleGroup.credit;
-    const scheduleCredit = scheduleCreditRaw ? Math.round(parseFloat(scheduleCreditRaw)) : null;
+    const scheduleCredit = scheduleCreditRaw
+      ? Math.round(parseFloat(scheduleCreditRaw))
+      : null;
     const creditCost = scheduleCredit || listing.rows[0].credit || 1;
     const userCredits = user.rows[0].credit;
 
@@ -180,8 +195,14 @@ router.post("/", authorization, async (req, res) => {
         RETURNING *
       `,
         [
-          listing_id, schedule_id, user_id, schedule_group_id,
-          start_date, end_date, enrolledPackageType, classes_total
+          listing_id,
+          schedule_id,
+          user_id,
+          schedule_group_id,
+          start_date,
+          end_date,
+          enrolledPackageType,
+          classes_total,
         ],
       );
 
@@ -194,26 +215,34 @@ router.post("/", authorization, async (req, res) => {
 
       // Determine interval in days based on frequency (default to weekly)
       let intervalDays = 7; // Weekly by default
-      if (scheduleGroup.frequency === 'Biweekly') intervalDays = 14;
-      if (scheduleGroup.frequency === 'Monthly') intervalDays = 30;
+      if (scheduleGroup.frequency === "Biweekly") intervalDays = 14;
+      if (scheduleGroup.frequency === "Monthly") intervalDays = 30;
 
-      console.log(`📅 Generating ${classes_total} class occurrences with ${intervalDays}-day interval`);
+      console.log(
+        `📅 Generating ${classes_total} class occurrences with ${intervalDays}-day interval`,
+      );
 
       // Create individual class occurrences
       for (let i = 0; i < classes_total; i++) {
-        const occurrenceStart = new Date(startDateTime.getTime() + (i * intervalDays * 24 * 60 * 60 * 1000));
-        const occurrenceEnd = new Date(occurrenceStart.getTime() + classDurationMs);
+        const occurrenceStart = new Date(
+          startDateTime.getTime() + i * intervalDays * 24 * 60 * 60 * 1000,
+        );
+        const occurrenceEnd = new Date(
+          occurrenceStart.getTime() + classDurationMs,
+        );
 
         await client.query(
           `INSERT INTO class_occurrences (
             booking_id, scheduled_date, scheduled_end_date, occurrence_number, status
           )
           VALUES ($1, $2, $3, $4, $5)`,
-          [booking_id, occurrenceStart, occurrenceEnd, i + 1, 'scheduled']
+          [booking_id, occurrenceStart, occurrenceEnd, i + 1, "scheduled"],
         );
       }
 
-      console.log(`✅ Created ${classes_total} class occurrences for booking ${booking_id}`);
+      console.log(
+        `✅ Created ${classes_total} class occurrences for booking ${booking_id}`,
+      );
 
       // Record parent's debit transaction if child context is provided
       if (child_id) {
@@ -509,7 +538,6 @@ router.delete("/:bookingId", authorization, async (req, res) => {
         b.end_date,
         b.created_at,
         b.schedule_id,
-        l.credit as listing_credit,
         l.partner_id,
         l.listing_title,
         sg.price_payg as schedule_credit,
@@ -552,10 +580,13 @@ router.delete("/:bookingId", authorization, async (req, res) => {
     });
 
     // Use the actual credit charged from transaction, or fallback to schedule/listing credit
-    const creditRefund = bookingData.actual_credit_charged ||
-                        (bookingData.schedule_credit ? Math.round(parseFloat(bookingData.schedule_credit)) : null) ||
-                        bookingData.listing_credit ||
-                        1;
+    const creditRefund =
+      bookingData.actual_credit_charged ||
+      (bookingData.schedule_credit
+        ? Math.round(parseFloat(bookingData.schedule_credit))
+        : null) ||
+      bookingData.listing_credit ||
+      1;
 
     console.log(`🗑️ Credit refund amount: ${creditRefund}`);
 
@@ -663,7 +694,7 @@ router.delete("/:bookingId", authorization, async (req, res) => {
     res.status(500).json({
       error: "Server error",
       message: error.message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
   }
 });

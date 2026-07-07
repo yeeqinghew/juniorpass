@@ -113,7 +113,7 @@ const CalendarView = ({ bookings = [], occurrences = [], onAddToEmail }) => {
       title: item.listing_title,
       start: new Date(startDate),
       end: new Date(endDate),
-      description: `Class: ${item.listing_title}\nPartner: ${item.partner_name || "N/A"}\nChild: ${item.child_name || "N/A"}${item.occurrence_number ? `\nClass ${item.occurrence_number} of ${item.classes_total}` : ''}`,
+      description: `Class: ${item.listing_title}\nPartner: ${item.partner_name || "N/A"}\nChild: ${item.child_name || "N/A"}${item.occurrence_number ? `\nClass ${item.occurrence_number} of ${item.classes_total}` : ""}`,
       location: item.outlet_address || "TBD",
     };
 
@@ -246,8 +246,12 @@ END:VCALENDAR`;
                             Class {item.occurrence_number}/{item.classes_total}
                           </Tag>
                         )}
-                        {item.status && item.status !== 'scheduled' && (
-                          <Tag color={item.status === 'cancelled' ? 'red' : 'orange'}>
+                        {item.status && item.status !== "scheduled" && (
+                          <Tag
+                            color={
+                              item.status === "cancelled" ? "red" : "orange"
+                            }
+                          >
                             {item.status}
                           </Tag>
                         )}

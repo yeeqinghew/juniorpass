@@ -84,7 +84,7 @@ const ChildrenClasses = () => {
         o.partner_name?.toLowerCase().includes(term) ||
         o.child_name?.toLowerCase().includes(term),
     );
-  }, [bookings, searchTerm]);
+  }, [occurrences, searchTerm]);
 
   const fetchChildrenAndBookings = async () => {
     setLoading(true);
