@@ -61,9 +61,14 @@ CREATE TABLE users (
     method methods NOT NULL DEFAULT 'email', -- login method used
     credit INTEGER DEFAULT 0,
     display_picture VARCHAR(255),
+    credit_validity_date TIMESTAMP,
+    credit_last_topup_date TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS idx_users_credit_validity ON users(credit_validity_date)
+WHERE credit > 0 AND credit_validity_date IS NOT NULL;
 
 -- automate updated_at timestamp on update
 CREATE TRIGGER set_timestamp_users
