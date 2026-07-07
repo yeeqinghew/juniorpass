@@ -338,18 +338,19 @@ async function markPaymentCompleted({
     console.error(`❌ Debug - DB record:`, debugQuery.rows[0]);
   }
 
-  await pool.query(
-    `UPDATE users
-     SET credit = credit + $1
-     WHERE user_id = $2`,
-    [amount, user_id],
+  // Use topup_credits function to add credits AND extend validity
+  const validityResult = await pool.query(
+    `SELECT * FROM topup_credits($1, $2, $3, $4)`,
+    [user_id, amount, amount, 1], // user_id, credits, amount_usd, rate (1 USD = 1 credit)
   );
 
-  // Record top-up transaction
+  const { new_validity_date } = validityResult.rows[0];
+
+  // Record top-up transaction with validity information
   await pool.query(
-    `INSERT INTO transactions (parent_id, listing_id, used_credit, transaction_type)
-     VALUES ($1, NULL, $2, 'CREDIT')`,
-    [user_id, amount],
+    `INSERT INTO transactions (parent_id, listing_id, used_credit, transaction_type, amount_usd, credit_rate, validity_extended_to, description)
+     VALUES ($1, NULL, $2, 'CREDIT', $3, $4, $5, $6)`,
+    [user_id, amount, amount, 1, new_validity_date, `Top-up: $${amount} - Credits valid until ${new Date(new_validity_date).toLocaleDateString()}`],
   );
 
   const REFERRAL_REWARD = 50;

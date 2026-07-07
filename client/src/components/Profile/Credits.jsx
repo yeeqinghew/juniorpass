@@ -9,6 +9,7 @@ import {
   Typography,
   Segmented,
   Tooltip,
+  Alert,
 } from "antd";
 import {
   PlusOutlined,
@@ -21,6 +22,8 @@ import {
   CalendarOutlined,
   UserOutlined,
   InfoCircleOutlined,
+  ClockCircleOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
 import { useUserContext } from "../UserContext";
 import TopupModal from "./TopupModal";
@@ -34,13 +37,36 @@ const Credits = () => {
   const { user } = useUserContext();
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
   const [transactions, setTransactions] = useState([]);
+  const [creditBalance, setCreditBalance] = useState(null);
   const [loading, setLoading] = useState(false);
   const [filterType, setFilterType] = useState("all");
+
+  const fetchCreditBalance = async () => {
+    try {
+      const res = await fetchWithAuth(API_ENDPOINTS.GET_CREDIT_BALANCE, {
+        method: "GET",
+      });
+      const data = res.ok ? await res.json() : null;
+      if (data) {
+        setCreditBalance(data);
+
+        // Show immediate notification if credits just expired
+        if (data.just_expired) {
+          toast.error(
+            `Your ${data.expired_amount} credits have expired and been removed.`,
+            { duration: 6000 }
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch credit balance:", error);
+    }
+  };
 
   const fetchTransactions = async () => {
     setLoading(true);
     try {
-      const res = await fetchWithAuth(API_ENDPOINTS.GET_TRANSACTIONS, { 
+      const res = await fetchWithAuth(API_ENDPOINTS.GET_TRANSACTIONS, {
         method: "GET",
       });
       const data = res.ok ? await res.json() : null;
@@ -54,7 +80,10 @@ const Credits = () => {
   };
 
   useEffect(() => {
-    if (user) fetchTransactions();
+    if (user) {
+      fetchTransactions();
+      fetchCreditBalance();
+    }
   }, [user]);
 
   const calculateStats = () => {
@@ -102,6 +131,29 @@ const Credits = () => {
     });
   };
 
+  const formatValidityDate = (dateStr) => {
+    if (!dateStr) return "Not set";
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-US", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const getValidityColor = (daysRemaining) => {
+    if (daysRemaining <= 0) return "error";
+    if (daysRemaining <= 7) return "error";
+    if (daysRemaining <= 30) return "warning";
+    return "success";
+  };
+
+  const getValidityIcon = (daysRemaining) => {
+    if (daysRemaining <= 0) return <CloseCircleOutlined />;
+    if (daysRemaining <= 30) return <WarningOutlined />;
+    return <CheckCircleOutlined />;
+  };
+
   const renderTxn = (item) => {
     const isDebit = item.transaction_type === "DEBIT";
     const displayTitle = item.listing_title || (isDebit ? "Transaction" : "Credit Top-up");
@@ -113,9 +165,7 @@ const Credits = () => {
         </div>
         <div className="cr-txn-details">
           <div className="cr-txn-row">
-            <span className="cr-txn-name">
-              {displayTitle}
-            </span>
+            <span className="cr-txn-name">{displayTitle}</span>
             <span className={`cr-txn-amount ${isDebit ? "debit" : "credit"}`}>
               {isDebit ? "−" : "+"}
               {item.used_credit}
@@ -151,7 +201,51 @@ const Credits = () => {
         </Text>
       </div>
 
-      {/* ── Balance hero — plain flex, NO Row/Col ── */}
+      {/* Validity Warning Alert */}
+      {creditBalance && creditBalance.is_expiring_soon && !creditBalance.is_expired && (
+        <Alert
+          message="Credits Expiring Soon!"
+          description={`Your ${creditBalance.credit} credits will expire in ${creditBalance.days_remaining} days on ${formatValidityDate(creditBalance.validity_date)}. Top up now to extend validity by 90 days!`}
+          type="warning"
+          icon={<WarningOutlined />}
+          showIcon
+          closable
+          style={{ marginBottom: 16 }}
+          action={
+            <Button
+              size="small"
+              type="primary"
+              onClick={() => setIsTopUpModalOpen(true)}
+            >
+              Top Up Now
+            </Button>
+          }
+        />
+      )}
+
+      {creditBalance && creditBalance.is_expired && creditBalance.credit > 0 && (
+        <Alert
+          message="Credits Expired"
+          description={`Your ${creditBalance.credit} credits have expired. Please top up to get new credits with 90-day validity.`}
+          type="error"
+          icon={<CloseCircleOutlined />}
+          showIcon
+          closable
+          style={{ marginBottom: 16 }}
+          action={
+            <Button
+              size="small"
+              type="primary"
+              danger
+              onClick={() => setIsTopUpModalOpen(true)}
+            >
+              Top Up Now
+            </Button>
+          }
+        />
+      )}
+
+      {/* Balance hero */}
       <Card className="cr-balance-card" bordered={false}>
         <div className="cr-balance-inner">
           <div className="cr-balance-left">
@@ -162,6 +256,29 @@ const Credits = () => {
               <span className="cr-balance-number">{user?.credit || 0}</span>
               <span className="cr-balance-unit">credits</span>
             </div>
+
+            {/* Validity Information */}
+            {creditBalance && creditBalance.validity_date && (
+              <div className="cr-validity-info">
+                <Space size={4} align="center">
+                  <ClockCircleOutlined style={{ fontSize: 14 }} />
+                  <Text type="secondary" style={{ fontSize: 13 }}>
+                    Valid until:
+                  </Text>
+                  <Text strong style={{ fontSize: 13 }}>
+                    {formatValidityDate(creditBalance.validity_date)}
+                  </Text>
+                  <Tag
+                    icon={getValidityIcon(creditBalance.days_remaining)}
+                    color={getValidityColor(creditBalance.days_remaining)}
+                    style={{ margin: 0 }}
+                  >
+                    {creditBalance.days_remaining} days
+                  </Tag>
+                </Space>
+              </div>
+            )}
+
             <Tooltip title="Credits can be used to book classes for your children">
               <span className="cr-balance-hint">
                 <InfoCircleOutlined /> Use credits to book enrichment classes
@@ -181,7 +298,7 @@ const Credits = () => {
         </div>
       </Card>
 
-      {/* ── Stats — CSS grid, NO Row/Col ── */}
+      {/* Stats */}
       <div className="cr-stats-grid">
         <div className="cr-stat-card">
           <div className="cr-stat-icon error">
@@ -221,7 +338,7 @@ const Credits = () => {
         </div>
       </div>
 
-      {/* ── Transaction history ── */}
+      {/* Transaction history */}
       <Card className="cr-txn-card" bordered={false}>
         <div className="cr-txn-head">
           <Title level={5} className="cr-txn-title">
@@ -277,7 +394,11 @@ const Credits = () => {
       <TopupModal
         isTopUpModalOpen={isTopUpModalOpen}
         setIsTopUpModalOpen={setIsTopUpModalOpen}
-        onSuccess={fetchTransactions}
+        onSuccess={() => {
+          fetchTransactions();
+          fetchCreditBalance();
+        }}
+        creditBalance={creditBalance}
       />
     </div>
   );

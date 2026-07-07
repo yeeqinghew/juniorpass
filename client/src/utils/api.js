@@ -126,6 +126,11 @@ export const API_ENDPOINTS = {
   PAYMENT_STATUS: (referenceNumber) => `/payment/status/${referenceNumber}`,
   PAYMENT_VERIFY: (referenceNumber) => `/payment/verify/${referenceNumber}`,
 
+  // Credits
+  GET_CREDIT_BALANCE: "/credits/balance",
+  CALCULATE_TOPUP: "/credits/calculate-topup",
+  EXTEND_VALIDITY: "/credits/extend-validity",
+
   // Referrals
   GET_REFERRAL_CODE: "/referrals/code",
   GET_REFERRALS: "/referrals",

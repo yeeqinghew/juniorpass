@@ -45,9 +45,10 @@ router.post("/", authorization, async (req, res) => {
       [listing_id],
     );
     const user_id = req.user;
-    const user = await pool.query("SELECT * FROM users WHERE user_id = $1", [
-      user_id,
-    ]);
+    const user = await pool.query(
+      "SELECT credit, credit_validity_date FROM users WHERE user_id = $1",
+      [user_id]
+    );
 
     if (listing.rows.length === 0) {
       return res.status(404).json({ error: "Listing not found" });
@@ -55,6 +56,47 @@ router.post("/", authorization, async (req, res) => {
 
     if (user.rows.length === 0) {
       return res.status(404).json({ error: "User not found" });
+    }
+
+    // AUTO-EXPIRE CHECK: If credits expired, zero them out before booking
+    const userData = user.rows[0];
+    if (userData.credit > 0 && userData.credit_validity_date &&
+        new Date(userData.credit_validity_date) <= new Date()) {
+
+      const expiredAmount = userData.credit;
+
+      // Zero out credits
+      await pool.query(
+        `UPDATE users SET credit = 0, credit_validity_date = NULL WHERE user_id = $1`,
+        [user_id]
+      );
+
+      // Log expiry
+      await pool.query(
+        `INSERT INTO transactions (parent_id, child_id, listing_id, used_credit, transaction_type, description)
+         VALUES ($1, NULL, NULL, $2, 'DEBIT', $3)`,
+        [user_id, expiredAmount, `Credits expired - ${expiredAmount} credits removed`]
+      );
+
+      return res.status(400).json({
+        error: "Your credits have expired",
+        message: `Your ${expiredAmount} credits expired and have been removed. Please top up to continue booking.`,
+        expired: true,
+      });
+    }
+
+    // Check if credits will expire soon (warning)
+    if (userData.credit_validity_date) {
+      const daysRemaining = Math.floor(
+        (new Date(userData.credit_validity_date) - new Date()) / (1000 * 60 * 60 * 24)
+      );
+      if (daysRemaining <= 0) {
+        return res.status(400).json({
+          error: "Your credits have expired",
+          message: "Please top up to continue booking.",
+          expired: true,
+        });
+      }
     }
 
     // Optional: validate child belongs to this parent if provided

@@ -79,6 +79,16 @@
   color: var(--text-secondary);
 }
 
+/* Validity information */
+.cr-validity-info {
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border-radius: var(--border-radius);
+  display: inline-flex;
+  align-items: center;
+}
+
 .cr-balance-hint {
   font-size: 13px;
   color: var(--text-secondary);

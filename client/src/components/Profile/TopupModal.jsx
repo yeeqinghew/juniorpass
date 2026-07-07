@@ -11,6 +11,8 @@ import {
   Spin,
   Typography,
   Divider,
+  Tag,
+  Alert,
 } from "antd";
 import {
   CreditCardOutlined,
@@ -18,6 +20,8 @@ import {
   GiftOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  ClockCircleOutlined,
+  InfoCircleOutlined,
 } from "@ant-design/icons";
 import toast from "react-hot-toast";
 import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
@@ -26,17 +30,17 @@ import "./TopupModal.css";
 
 const { Title, Text } = Typography;
 
-const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
+const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess, creditBalance }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [_modalStep, _setModalStep] = useState("form");
   const [topUpForm] = Form.useForm();
   const [selectedAmount, setSelectedAmount] = useState(null);
+  const [topupPreview, setTopupPreview] = useState(null);
   const { user, reauthenticate } = useUserContext();
   const isPollingRef = useRef(false);
 
   // Wrapper to log all modalStep changes
   const setModalStep = (newStep) => {
-    console.trace(); // Show call stack
     _setModalStep(newStep);
   };
 
@@ -50,11 +54,39 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
     { amount: 200, label: "200", bonus: 40, popular: false },
   ];
 
+  // Fetch topup preview when amount is selected
+  useEffect(() => {
+    if (selectedAmount && isTopUpModalOpen) {
+      fetchTopupPreview(selectedAmount);
+    }
+  }, [selectedAmount, isTopUpModalOpen]);
+
+  const fetchTopupPreview = async (amount) => {
+    try {
+      const creditAmount = amount + getBonusAmount(amount);
+      const res = await fetchWithAuth(API_ENDPOINTS.CALCULATE_TOPUP, {
+        method: "POST",
+        body: JSON.stringify({
+          amount_usd: amount,
+          credit_amount: creditAmount,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setTopupPreview(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch topup preview:", error);
+    }
+  };
+
   const handleCancel = async () => {
     if (modalStep === "loading") return;
     await reauthenticate();
     setIsTopUpModalOpen(false);
     setSelectedAmount(null);
+    setTopupPreview(null);
     topUpForm.resetFields();
     setModalStep("form");
     setIsLoading(false);
@@ -85,7 +117,6 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
     isPollingRef.current = true;
 
     const checkStatus = async () => {
-      // Guard check: stop executing if polling flag was turned off elsewhere
       if (!isPollingRef.current) return;
 
       attempts++;
@@ -118,11 +149,9 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           return;
         }
 
-        // If we haven't reached max attempts, schedule the next check in 2 seconds
         if (attempts < maxAttempts) {
           timeoutId = setTimeout(checkStatus, 2000);
         } else {
-          // Max attempts reached: execute final fallback verification
           isPollingRef.current = false;
           handleVerificationFallback(reference_number);
         }
@@ -141,7 +170,6 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
       }
     };
 
-    // Helper logic for final verification step to keep code tidy
     const handleVerificationFallback = async (refNum) => {
       try {
         const verifyResponse = await fetchWithAuth(
@@ -165,18 +193,16 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
       }
     };
 
-    // Start the first check after 1.5 seconds
     timeoutId = setTimeout(checkStatus, 1500);
 
-    // Clean up function in case modal unmounts while polling
     return () => {
       isPollingRef.current = false;
       clearTimeout(timeoutId);
     };
   };
 
-  const getBonusAmount = () => {
-    const package1 = topupPackages.find((pkg) => pkg.amount === selectedAmount);
+  const getBonusAmount = (amount = selectedAmount) => {
+    const package1 = topupPackages.find((pkg) => pkg.amount === amount);
     return package1?.bonus || 0;
   };
 
@@ -239,6 +265,16 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
     topUpForm.setFieldsValue({ amount: "" });
   };
 
+  const formatValidityDate = (dateStr) => {
+    if (!dateStr) return "Not set";
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-US", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
   const renderForm = () => (
     <Space direction="vertical" size={16} style={{ width: "100%" }}>
       {/* Header */}
@@ -253,6 +289,35 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           Add credits to your account for class bookings
         </Text>
       </div>
+
+      {/* Current Validity Info */}
+      {creditBalance && creditBalance.validity_date && (
+        <Alert
+          message="Current Credit Status"
+          description={
+            <Space direction="vertical" size={4}>
+              <div>
+                <Text strong>Balance: </Text>
+                <Text>{creditBalance.credit} credits</Text>
+              </div>
+              <div>
+                <Text strong>Valid Until: </Text>
+                <Text>{formatValidityDate(creditBalance.validity_date)}</Text>
+                <Tag
+                  color={creditBalance.days_remaining <= 30 ? "orange" : "green"}
+                  style={{ marginLeft: 8 }}
+                >
+                  {creditBalance.days_remaining} days left
+                </Tag>
+              </div>
+            </Space>
+          }
+          type="info"
+          icon={<ClockCircleOutlined />}
+          showIcon
+          style={{ marginBottom: 8 }}
+        />
+      )}
 
       {/* Package Selection */}
       <div className="topup-packages">
@@ -270,12 +335,12 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
                 {pkg.popular && (
                   <div className="topup-popular-badge">POPULAR</div>
                 )}
-                <div className="topup-package-amount">{pkg.label}</div>
+                <div className="topup-package-amount">${pkg.label}</div>
                 <div className="topup-package-bonus">
                   {pkg.bonus > 0 ? (
                     <>
                       <Text type="success" strong>
-                        + {pkg.bonus} credits
+                        + {pkg.bonus} bonus
                       </Text>
                       <br />
                       <Text type="secondary" className="topup-package-total">
@@ -294,22 +359,46 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
         </Row>
       </div>
 
-      {/* Summary Card */}
-      {selectedAmount && (
-        <Card className="topup-summary-card" bordered={false}>
-          <div className="topup-summary-content">
-            <div>
-              <Text strong>Amount to pay:</Text>
-              <br />
-              <Text className="topup-summary-amount">${selectedAmount}</Text>
-              {getBonusAmount() > 0 && (
-                <Text className="topup-summary-bonus">
-                  (+${getBonusAmount()} bonus)
-                </Text>
-              )}
+      {/* Validity Preview */}
+      {selectedAmount && topupPreview && (
+        <Card className="topup-preview-card" bordered={false}>
+          <Space direction="vertical" size={12} style={{ width: "100%" }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <Text strong>After Top-up:</Text>
+              <InfoCircleOutlined style={{ color: "#1890ff" }} />
             </div>
-            <GiftOutlined className="topup-summary-icon" />
-          </div>
+
+            <div className="preview-row">
+              <Text type="secondary">New Balance:</Text>
+              <Text strong style={{ fontSize: 16 }}>
+                {topupPreview.new_credit} credits
+              </Text>
+            </div>
+
+            <div className="preview-row highlight">
+              <Space direction="vertical" size={4} style={{ width: "100%" }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <Text strong>New Validity:</Text>
+                  <Text strong style={{ color: "#52c41a" }}>
+                    {formatValidityDate(topupPreview.new_validity)}
+                  </Text>
+                </div>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Extended by {topupPreview.days_added} days
+                  {topupPreview.is_capped && " (at maximum 365-day limit)"}
+                </Text>
+              </Space>
+            </div>
+
+            <Divider style={{ margin: "8px 0" }} />
+
+            <div className="preview-row">
+              <Text strong style={{ fontSize: 16 }}>Amount to Pay:</Text>
+              <Text strong style={{ fontSize: 20, color: "#1890ff" }}>
+                ${selectedAmount}
+              </Text>
+            </div>
+          </Space>
         </Card>
       )}
 
@@ -368,7 +457,17 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           <>
             <br />
             <Text type="success">
-              Including ${getBonusAmount()} bonus credit!
+              Including {getBonusAmount()} bonus credits!
+            </Text>
+          </>
+        )}
+        {topupPreview && (
+          <>
+            <br />
+            <br />
+            <Text strong>
+              Your credits are now valid until{" "}
+              {formatValidityDate(topupPreview.new_validity)}
             </Text>
           </>
         )}
