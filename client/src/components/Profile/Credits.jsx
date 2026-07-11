@@ -9,6 +9,7 @@ import {
   Typography,
   Segmented,
   Tooltip,
+  Pagination,
 } from "antd";
 import {
   PlusOutlined,
@@ -27,20 +28,25 @@ import TopupModal from "./TopupModal";
 import toast from "react-hot-toast";
 import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
 import "./Credits.css";
+import useWindowDimensions from "../../hooks/useWindowDimensions";
 
 const { Text, Title } = Typography;
 
 const Credits = () => {
   const { user } = useUserContext();
+  const { isMobile, isTabletPortrait } = useWindowDimensions();
+  const isMobileOrTabletPortrait = isMobile || isTabletPortrait;
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filterType, setFilterType] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(isMobileOrTabletPortrait ? 5 : 10);
 
   const fetchTransactions = async () => {
     setLoading(true);
     try {
-      const res = await fetchWithAuth(API_ENDPOINTS.GET_TRANSACTIONS, { 
+      const res = await fetchWithAuth(API_ENDPOINTS.GET_TRANSACTIONS, {
         method: "GET",
       });
       const data = res.ok ? await res.json() : null;
@@ -56,6 +62,10 @@ const Credits = () => {
   useEffect(() => {
     if (user) fetchTransactions();
   }, [user]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterType]);
 
   const calculateStats = () => {
     const totalSpent = transactions
@@ -81,6 +91,11 @@ const Credits = () => {
         ? transactions.filter((t) => t.transaction_type === "CREDIT")
         : transactions;
 
+  const paginatedTransactions = filteredTransactions.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize,
+  );
+
   const formatDate = (s) => {
     const date = new Date(s),
       now = new Date();
@@ -104,7 +119,8 @@ const Credits = () => {
 
   const renderTxn = (item) => {
     const isDebit = item.transaction_type === "DEBIT";
-    const displayTitle = item.listing_title || (isDebit ? "Transaction" : "Credit Top-up");
+    const displayTitle =
+      item.listing_title || (isDebit ? "Transaction" : "Credit Top-up");
 
     return (
       <div className="cr-txn-item" key={item.transaction_id}>
@@ -113,9 +129,7 @@ const Credits = () => {
         </div>
         <div className="cr-txn-details">
           <div className="cr-txn-row">
-            <span className="cr-txn-name">
-              {displayTitle}
-            </span>
+            <span className="cr-txn-name">{displayTitle}</span>
             <span className={`cr-txn-amount ${isDebit ? "debit" : "credit"}`}>
               {isDebit ? "−" : "+"}
               {item.used_credit}
@@ -267,9 +281,30 @@ const Credits = () => {
               )}
             </Empty>
           ) : (
-            <div className="cr-txn-list">
-              {filteredTransactions.map(renderTxn)}
-            </div>
+            <>
+              <div className="cr-txn-list">
+                {paginatedTransactions.map(renderTxn)}
+              </div>
+
+              {filteredTransactions.length > pageSize && (
+                <div className="cr-pagination">
+                  <Pagination
+                    current={currentPage}
+                    pageSize={pageSize}
+                    total={filteredTransactions.length}
+                    onChange={(page, size) => {
+                      setCurrentPage(page);
+                      setPageSize(size);
+                    }}
+                    showSizeChanger
+                    pageSizeOptions={[5, 10, 20]}
+                    showTotal={(total, range) =>
+                      `${range[0]}-${range[1]} of ${total} transactions`
+                    }
+                  />
+                </div>
+              )}
+            </>
           )}
         </Spin>
       </Card>
