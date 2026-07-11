@@ -101,13 +101,7 @@ router.post("/", authorization, async (req, res) => {
 
     // Validate package
     let availablePackageTypes = scheduleGroup.package_types || [];
-    console.log(
-      `📦 Available package types for schedule_group ${schedule_group_id}:`,
-      {
-        availablePackageTypes,
-        enrolledPackageType,
-      },
-    );
+
     if (typeof availablePackageTypes === "string") {
       availablePackageTypes = availablePackageTypes
         .replace(/[{}]/g, "")

@@ -12,18 +12,11 @@ import {
   Tooltip,
   message,
 } from "antd";
-import {
-  CalendarOutlined,
-  ClockCircleOutlined,
-  MailOutlined,
-} from "@ant-design/icons";
+import { CalendarOutlined, ClockCircleOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import isBetween from "dayjs/plugin/isBetween";
 import "./CalendarView.css";
 
-dayjs.extend(isBetween);
-
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 const CalendarView = ({ bookings = [], occurrences = [], onAddToEmail }) => {
   const [selectedDate, setSelectedDate] = useState(null);
@@ -52,7 +45,6 @@ const CalendarView = ({ bookings = [], occurrences = [], onAddToEmail }) => {
   };
 
   const cellRender = (current, info) => {
-    // Only render for date cells, not month/year cells
     if (info.type !== "date") {
       return info.originNode;
     }
@@ -62,19 +54,30 @@ const CalendarView = ({ bookings = [], occurrences = [], onAddToEmail }) => {
 
     return (
       <div className="calendar-events">
-        {listData.slice(0, 2).map((booking) => (
-          <div key={booking.booking_id} className="calendar-event-item">
-            <Tag
-              color={
-                new Date(booking.start_date) < new Date() ? "default" : "green"
-              }
-              className="calendar-event-tag"
+        {listData.slice(0, 2).map((item) => {
+          const startDate = item.scheduled_date || item.start_date;
+          const isPast = dayjs(startDate).isBefore(dayjs());
+
+          return (
+            <div
+              key={item.occurrence_id || item.booking_id}
+              className={`calendar-event-row ${
+                isPast ? "calendar-event-past" : ""
+              }`}
             >
-              {booking.listing_title?.substring(0, 15)}
-              {booking.listing_title?.length > 15 ? "..." : ""}
-            </Tag>
-          </div>
-        ))}
+              <span className="calendar-event-dot" />
+
+              <span className="calendar-event-child">
+                {item.child_name || "Child"}
+              </span>
+
+              <span className="calendar-event-separator">·</span>
+
+              <span className="calendar-event-title">{item.listing_title}</span>
+            </div>
+          );
+        })}
+
         {listData.length > 2 && (
           <div className="calendar-more-events">
             +{listData.length - 2} more
@@ -99,9 +102,12 @@ const CalendarView = ({ bookings = [], occurrences = [], onAddToEmail }) => {
   const selectedDateBookings = useMemo(() => {
     if (!selectedDate) return [];
     const dateStr = selectedDate.format("YYYY-MM-DD");
-    return (bookingsByDate[dateStr] || []).sort(
-      (a, b) => new Date(a.start_date) - new Date(b.start_date),
-    );
+    return [...(bookingsByDate[dateStr] || [])].sort((a, b) => {
+      const aDate = a.scheduled_date || a.start_date;
+      const bDate = b.scheduled_date || b.start_date;
+
+      return new Date(aDate) - new Date(bDate);
+    });
   }, [selectedDate, bookingsByDate]);
 
   const handleAddToEmail = (item) => {
@@ -136,7 +142,7 @@ const CalendarView = ({ bookings = [], occurrences = [], onAddToEmail }) => {
     document.body.removeChild(element);
 
     if (onAddToEmail) {
-      onAddToEmail(booking);
+      onAddToEmail(item);
     }
 
     message.success(
@@ -170,6 +176,20 @@ END:VCALENDAR`;
   const formatTime = (dateTimeString) => {
     return dayjs(dateTimeString).format("HH:mm");
   };
+
+  const selectedBookingsByChild = useMemo(() => {
+    return selectedDateBookings.reduce((grouped, item) => {
+      const childName = item.child_name || "N/A";
+
+      if (!grouped[childName]) {
+        grouped[childName] = [];
+      }
+
+      grouped[childName].push(item);
+
+      return grouped;
+    }, {});
+  }, [selectedDateBookings]);
 
   return (
     <div className="calendar-view-container">
@@ -206,78 +226,90 @@ END:VCALENDAR`;
             style={{ marginTop: 48, marginBottom: 48 }}
           />
         ) : (
-          <List
-            dataSource={selectedDateBookings}
-            renderItem={(item) => {
-              const startDate = item.scheduled_date || item.start_date;
-              const endDate = item.scheduled_end_date || item.end_date;
-              const isPast = new Date(startDate) < new Date();
-              return (
-                <List.Item
-                  key={item.occurrence_id || item.booking_id}
-                  actions={
-                    !isPast
-                      ? [
-                          <Tooltip title="Add to email calendar">
-                            <Button
-                              type="primary"
-                              ghost
-                              icon={<MailOutlined />}
-                              size="small"
-                              onClick={() => handleAddToEmail(item)}
-                            >
-                              Add to Calendar
-                            </Button>
-                          </Tooltip>,
-                        ]
-                      : []
-                  }
-                  className={isPast ? "booking-item-past" : ""}
-                >
-                  <List.Item.Meta
-                    title={
-                      <Space>
-                        <Text strong>{item.listing_title}</Text>
-                        <Tag color={isPast ? "default" : "green"}>
-                          {isPast ? "Completed" : "Upcoming"}
-                        </Tag>
-                        {item.occurrence_number && (
-                          <Tag color="blue">
-                            Class {item.occurrence_number}/{item.classes_total}
-                          </Tag>
-                        )}
-                        {item.status && item.status !== "scheduled" && (
-                          <Tag
-                            color={
-                              item.status === "cancelled" ? "red" : "orange"
+          <div className="calendar-child-groups">
+            {Object.entries(selectedBookingsByChild).map(
+              ([childName, childClasses]) => (
+                <div key={childName} className="calendar-child-group">
+                  <div className="calendar-child-heading">
+                    <div className="calendar-child-initial">
+                      {childName.charAt(0).toUpperCase()}
+                    </div>
+
+                    <div>
+                      <Text strong>{childName}</Text>
+                      <div>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          {childClasses.length}{" "}
+                          {childClasses.length === 1 ? "class" : "classes"}
+                        </Text>
+                      </div>
+                    </div>
+                  </div>
+
+                  <List
+                    dataSource={childClasses}
+                    renderItem={(item) => {
+                      const startDate = item.scheduled_date || item.start_date;
+                      const endDate = item.scheduled_end_date || item.end_date;
+
+                      const isPast = dayjs(startDate).isBefore(dayjs());
+
+                      return (
+                        <List.Item
+                          key={item.occurrence_id || item.booking_id}
+                          className="calendar-class-item"
+                          actions={
+                            !isPast
+                              ? [
+                                  <Tooltip
+                                    key="calendar"
+                                    title="Add to calendar"
+                                  >
+                                    <Button
+                                      type="text"
+                                      icon={<CalendarOutlined />}
+                                      onClick={() => handleAddToEmail(item)}
+                                    />
+                                  </Tooltip>,
+                                ]
+                              : []
+                          }
+                        >
+                          <List.Item.Meta
+                            title={
+                              <div className="calendar-class-title">
+                                <Text strong>{item.listing_title}</Text>
+
+                                {item.occurrence_number && (
+                                  <Tag color="blue">
+                                    {item.occurrence_number}/
+                                    {item.classes_total}
+                                  </Tag>
+                                )}
+                              </div>
                             }
-                          >
-                            {item.status}
-                          </Tag>
-                        )}
-                      </Space>
-                    }
-                    description={
-                      <Space direction="vertical" size={4}>
-                        <Space size="small">
-                          <ClockCircleOutlined />
-                          <Text type="secondary">
-                            {formatTime(startDate)} - {formatTime(endDate)}
-                          </Text>
-                        </Space>
-                        <Text type="secondary" className="booking-child">
-                          Child: {item.child_name || "N/A"}
-                        </Text>
-                        <Text type="secondary" className="booking-partner">
-                          Partner: {item.partner_name || "N/A"}
-                        </Text>
-                      </Space>
-                    }
+                            description={
+                              <Space direction="vertical" size={2}>
+                                <Text type="secondary">
+                                  <ClockCircleOutlined />{" "}
+                                  {formatTime(startDate)} –{" "}
+                                  {formatTime(endDate)}
+                                </Text>
+
+                                <Text type="secondary">
+                                  {item.partner_name || "Partner unavailable"}
+                                </Text>
+                              </Space>
+                            }
+                          />
+                        </List.Item>
+                      );
+                    }}
                   />
-                </List.Item>
-              );
-            }}
-          />
+                </div>
+              ),
+            )}
+          </div>
         )}
       </Modal>
     </div>
