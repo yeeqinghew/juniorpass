@@ -286,21 +286,33 @@ const Credits = () => {
                 {paginatedTransactions.map(renderTxn)}
               </div>
 
-              {filteredTransactions.length > pageSize && (
-                <div className="cr-pagination">
+              {filteredTransactions.length > 0 && (
+                <div className="cr-pagination-section">
+                  <div className="cr-pagination-summary">
+                    Showing {(currentPage - 1) * pageSize + 1}–
+                    {Math.min(
+                      currentPage * pageSize,
+                      filteredTransactions.length,
+                    )}{" "}
+                    of {filteredTransactions.length}
+                  </div>
+
                   <Pagination
                     current={currentPage}
                     pageSize={pageSize}
                     total={filteredTransactions.length}
                     onChange={(page, size) => {
                       setCurrentPage(page);
-                      setPageSize(size);
+
+                      if (size !== pageSize) {
+                        setPageSize(size);
+                        setCurrentPage(1);
+                      }
                     }}
-                    showSizeChanger
                     pageSizeOptions={[5, 10, 20]}
-                    showTotal={(total, range) =>
-                      `${range[0]}-${range[1]} of ${total} transactions`
-                    }
+                    showSizeChanger
+                    showLessItems
+                    responsive
                   />
                 </div>
               )}
