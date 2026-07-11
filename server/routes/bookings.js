@@ -72,11 +72,18 @@ router.post("/", authorization, async (req, res) => {
 
     // Get schedule capacity, credit, and package info from schedule_groups
     const schedule = await pool.query(
-      `SELECT sg.slots, sg.price_payg as credit, sg.schedule_group_id,
-              sg.package_types, sg.full_term_class_count, sg.short_term_class_count,
+      `SELECT sg.slots, 
+              sg.price_payg as credit,
+              sg.price_fullterm, 
+              sg.price_shortterm,
+              sg.schedule_group_id,
+              sg.package_types, 
+              sg.full_term_class_count, 
+              sg.short_term_class_count,
               sg.frequency
        FROM schedules s
-       JOIN schedule_groups sg ON s.schedule_group_id = sg.schedule_group_id
+       JOIN schedule_groups sg 
+       ON s.schedule_group_id = sg.schedule_group_id
        WHERE s.schedule_id = $1`,
       [schedule_id],
     );
@@ -89,41 +96,60 @@ router.post("/", authorization, async (req, res) => {
     const maxSlots = scheduleGroup.slots || 10;
     const schedule_group_id = scheduleGroup.schedule_group_id;
 
-    // Determine package type (default to pay-as-you-go if not provided)
+    // Determine package type
     const enrolledPackageType = package_type || "pay-as-you-go";
 
-    // Calculate total classes based on package type
-    let classes_total = 1; // Default for pay-as-you-go and trial
-    if (
-      enrolledPackageType === "full-term" &&
-      scheduleGroup.full_term_class_count
-    ) {
-      classes_total = scheduleGroup.full_term_class_count;
-    } else if (
-      enrolledPackageType === "short-term" &&
-      scheduleGroup.short_term_class_count
-    ) {
-      classes_total = scheduleGroup.short_term_class_count;
+    // Validate package
+    let availablePackageTypes = scheduleGroup.package_types || [];
+    console.log(
+      `📦 Available package types for schedule_group ${schedule_group_id}:`,
+      {
+        availablePackageTypes,
+        enrolledPackageType,
+      },
+    );
+    if (typeof availablePackageTypes === "string") {
+      availablePackageTypes = availablePackageTypes
+        .replace(/[{}]/g, "")
+        .split(",")
+        .map((type) => type.trim())
+        .filter(Boolean);
     }
 
-    // Convert decimal price to integer (price_payg is DECIMAL, credits are INTEGER)
-    const scheduleCreditRaw = scheduleGroup.credit;
-    const scheduleCredit = scheduleCreditRaw
-      ? Math.round(parseFloat(scheduleCreditRaw))
-      : null;
-    const creditCost = scheduleCredit || listing.rows[0].credit || 1;
-    const userCredits = user.rows[0].credit;
+    if (!Array.isArray(availablePackageTypes)) {
+      availablePackageTypes = [];
+    }
 
-    console.log(`💳 Booking credit calculation:`, {
-      schedule_credit_raw: scheduleCreditRaw,
-      schedule_credit_parsed: scheduleCredit,
-      listing_credit: listing.rows[0].credit,
-      creditCost,
-      creditCostType: typeof creditCost,
-      userCredits,
-      package_type: enrolledPackageType,
-      classes_total,
-    });
+    if (!availablePackageTypes.includes(enrolledPackageType)) {
+      return res.status(400).json({ error: "Package type is not available" });
+    }
+
+    // Calculate credits + number of classes
+    let classes_total;
+    let creditCost;
+    switch (enrolledPackageType) {
+      case "pay-as-you-go":
+        classes_total = 1;
+        creditCost = Number(scheduleGroup.price_payg);
+        break;
+
+      case "short-term":
+        classes_total = Number(scheduleGroup.short_term_class_count);
+        creditCost = Number(scheduleGroup.price_shortterm);
+        break;
+
+      case "full-term":
+        classes_total = Number(scheduleGroup.full_term_class_count);
+        creditCost = Number(scheduleGroup.price_fullterm);
+        break;
+
+      default:
+        return res.status(400).json({
+          error: "Invalid package type",
+        });
+    }
+
+    const userCredits = Number(user.rows[0].credit);
 
     // Check user's credit balance
     if (userCredits < creditCost) {

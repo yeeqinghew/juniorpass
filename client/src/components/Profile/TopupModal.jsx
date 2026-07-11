@@ -304,7 +304,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
               <Text className="topup-summary-amount">${selectedAmount}</Text>
               {getBonusAmount() > 0 && (
                 <Text className="topup-summary-bonus">
-                  (+${getBonusAmount()} bonus)
+                  (+ {getBonusAmount()} credits bonus)
                 </Text>
               )}
             </div>
