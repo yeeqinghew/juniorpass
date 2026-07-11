@@ -49,6 +49,7 @@ const ChildrenClasses = () => {
   const [loading, setLoading] = useState(false);
   const [children, setChildren] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [occurrences, setOccurrences] = useState([]);
   const [filterType, setFilterType] = useState("upcoming");
   const [isAddChildModalOpen, setIsAddChildModalOpen] = useState(false);
   const [editingChild, setEditingChild] = useState(null);
@@ -74,18 +75,33 @@ const ChildrenClasses = () => {
     );
   }, [bookings, searchTerm]);
 
+  const filteredOccurrences = useMemo(() => {
+    if (!searchTerm.trim()) return occurrences;
+    const term = searchTerm.toLowerCase();
+    return occurrences.filter(
+      (o) =>
+        o.listing_title?.toLowerCase().includes(term) ||
+        o.partner_name?.toLowerCase().includes(term) ||
+        o.child_name?.toLowerCase().includes(term),
+    );
+  }, [occurrences, searchTerm]);
+
   const fetchChildrenAndBookings = async () => {
     setLoading(true);
     try {
-      const [cr, br] = await Promise.all([
+      const [cr, br, or] = await Promise.all([
         fetchWithAuth(API_ENDPOINTS.GET_CHILDREN(user.user_id), {
           method: "GET",
         }),
         fetchWithAuth(API_ENDPOINTS.GET_BOOKINGS, { method: "GET" }),
+        fetchWithAuth(API_ENDPOINTS.GET_CLASS_OCCURRENCES, { method: "GET" }),
       ]);
       if (cr.ok && br.ok) {
         setChildren(await cr.json());
         setBookings((await br.json()).bookings || []);
+      }
+      if (or.ok) {
+        setOccurrences((await or.json()).occurrences || []);
       }
     } catch {
       toast.error("Failed to fetch data");
@@ -579,7 +595,12 @@ const ChildrenClasses = () => {
         </div>
       )}
 
-      {activeTab === "calendar" && <CalendarView bookings={filteredBookings} />}
+      {activeTab === "calendar" && (
+        <CalendarView
+          bookings={filteredBookings}
+          occurrences={filteredOccurrences}
+        />
+      )}
 
       {activeTab === "list" && (
         <Spin spinning={loading}>

@@ -16,136 +16,220 @@
   padding: 12px 0;
 }
 
+/* Calendar cell events */
 .calendar-events {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   margin-top: 4px;
+  overflow: hidden;
 }
 
-.calendar-event-item {
-  width: 100%;
+.calendar-event-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: #f0f7ff;
+  font-size: 11px;
+  line-height: 18px;
 }
 
-.calendar-event-tag {
-  width: 100%;
-  font-size: 12px;
-  padding: 2px 6px;
+.calendar-event-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #1677ff;
+  flex-shrink: 0;
+}
+
+.calendar-event-child {
+  max-width: 55px;
+  flex-shrink: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.calendar-event-separator {
+  color: #8c8c8c;
+  flex-shrink: 0;
+}
+
+.calendar-event-title {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: inline-block;
+  white-space: nowrap;
+}
+
+.calendar-event-past {
+  opacity: 0.55;
+  background: #f5f5f5;
+}
+
+.calendar-event-past .calendar-event-dot {
+  background: #bfbfbf;
 }
 
 .calendar-more-events {
+  padding-left: 4px;
   font-size: 11px;
-  color: var(--primary-color, #1890ff);
+  font-weight: 600;
+  color: var(--primary-color, #1677ff);
   cursor: pointer;
-  padding: 0 6px;
-  font-weight: 500;
+}
+
+/* Modal child grouping */
+.calendar-child-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.calendar-child-group {
+  padding: 14px;
+  border: 1px solid #f0f0f0;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.calendar-child-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.calendar-child-initial {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #e6f4ff;
+  color: #1677ff;
+  font-weight: 700;
+}
+
+.calendar-class-item {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.calendar-class-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .calendar-modal .ant-modal-header {
   border-bottom: 1px solid #f0f0f0;
 }
 
-.calendar-modal .ant-list {
-  max-height: 60vh;
-  overflow-y: auto;
-}
-
 .booking-item-past {
   opacity: 0.7;
 }
 
-.booking-item-past .ant-list-item-meta-title {
-  color: rgba(0, 0, 0, 0.65);
-}
-
-.booking-child,
-.booking-partner {
-  font-size: 13px;
-  display: block;
-  margin-top: 4px;
-}
-
-.booking-child::before {
-  content: "👶 ";
-}
-
-.booking-partner::before {
-  content: "🏢 ";
-}
-
-/* Responsive Design */
-@media screen and (max-width: 768px) {
-  .calendar-modal {
-    width: 90% !important;
-  }
-
-  .calendar-modal .ant-modal-content {
-    max-height: 70vh;
-  }
-
-  .calendar-event-tag {
-    font-size: 11px;
-  }
-
-  .calendar-more-events {
-    font-size: 10px;
-  }
-}
-
-/* Calendar hover effects */
+/* Calendar hover */
 .custom-calendar .ant-picker-cell {
-  transition: all 0.3s ease;
+  transition: background-color 0.2s ease;
 }
 
-/* Only allow hover effect on dates with bookings */
 .custom-calendar .ant-picker-cell:has(.calendar-events):hover {
   background-color: rgba(24, 144, 255, 0.06);
   cursor: pointer;
 }
 
-/* Dates without bookings should not show hover effect */
 .custom-calendar .ant-picker-cell:not(:has(.calendar-events)) {
   cursor: default;
-}
-
-/* Prevent header cells (month/year selector) from triggering modal */
-.custom-calendar .ant-picker-calendar-header .ant-picker-cell {
-  cursor: default !important;
 }
 
 .custom-calendar .ant-picker-cell-selected {
   background-color: rgba(24, 144, 255, 0.12);
 }
 
-/* Event tag styling */
-.calendar-event-tag {
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.calendar-event-tag:hover {
-  opacity: 0.8;
-}
-
-/* Modal scrollbar styling */
-.calendar-modal .ant-list::-webkit-scrollbar {
+/* Modal scrollbar */
+.calendar-child-groups::-webkit-scrollbar {
   width: 6px;
 }
 
-.calendar-modal .ant-list::-webkit-scrollbar-track {
+.calendar-child-groups::-webkit-scrollbar-track {
   background: #f1f1f1;
   border-radius: 10px;
 }
 
-.calendar-modal .ant-list::-webkit-scrollbar-thumb {
+.calendar-child-groups::-webkit-scrollbar-thumb {
   background: #888;
   border-radius: 10px;
 }
 
-.calendar-modal .ant-list::-webkit-scrollbar-thumb:hover {
+.calendar-child-groups::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+/* Responsive */
+@media screen and (max-width: 768px) {
+  .calendar-modal {
+    width: 92% !important;
+  }
+
+  .calendar-modal .ant-modal-content {
+    max-height: 80vh;
+  }
+
+  .calendar-event-row {
+    font-size: 10px;
+  }
+
+  .calendar-event-child {
+    max-width: 42px;
+  }
+
+  .calendar-event-title {
+    display: none;
+  }
+
+  .calendar-event-separator {
+    display: none;
+  }
+
+  .calendar-more-events {
+    font-size: 10px;
+  }
+
+  .calendar-child-group {
+    padding: 10px;
+  }
+}
+
+/* Don't let AntD hide our events */
+.custom-calendar .ant-picker-cell-selected .ant-picker-cell-inner {
+  background: #e6f4ff !important;
+  color: inherit !important;
+}
+
+.custom-calendar .ant-picker-cell-selected .calendar-event-row {
+  background: #1677ff !important;
+  color: white !important;
+}
+
+.custom-calendar .ant-picker-cell-selected .calendar-event-dot {
+  background: white !important;
+}
+
+.custom-calendar .ant-picker-cell-selected .calendar-event-separator {
+  color: rgba(255, 255, 255, .75);
+}
+
+.custom-calendar .ant-picker-cell-selected .calendar-more-events {
+  color: white;
 }

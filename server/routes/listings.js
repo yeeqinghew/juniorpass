@@ -262,6 +262,12 @@ router.get("", cacheMiddleware, async (req, res) => {
       FROM listings l
       JOIN partners p ON p.partner_id = l.partner_id
       WHERE l.active = true
+        AND (
+          CASE
+            WHEN jsonb_typeof(l.images) = 'array' THEN jsonb_array_length(l.images) > 0
+            ELSE false
+          END
+        )
       ORDER BY l.created_at DESC;
       `,
     );

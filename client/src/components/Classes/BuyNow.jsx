@@ -1,5 +1,14 @@
 import { useState, useEffect } from "react";
-import { Modal, Select, Space, Typography, Button, Row, Col, Radio } from "antd";
+import {
+  Modal,
+  Select,
+  Space,
+  Typography,
+  Button,
+  Row,
+  Col,
+  Radio,
+} from "antd";
 import {
   EnvironmentOutlined,
   ClockCircleOutlined,
@@ -52,27 +61,36 @@ const BuyNow = ({
     const location = selected.location;
 
     switch (packageType) {
-      case 'pay-as-you-go':
+      case "pay-as-you-go":
         return {
-          label: 'Pay-as-you-go',
+          label: "Pay-as-you-go",
           price: location.credit,
-          description: 'Single class',
+          description: "Single class",
           pricePerClass: location.credit,
         };
-      case 'full-term':
+      case "full-term":
         // TODO: Get these from schedule_group data passed through
         return {
-          label: 'Full Term',
+          label: "Full Term",
           price: location.price_fullterm || location.credit * 10,
           description: `${location.full_term_class_count || 10} classes`,
-          pricePerClass: location.price_fullterm ? (location.price_fullterm / (location.full_term_class_count || 10)).toFixed(2) : location.credit,
+          pricePerClass: location.price_fullterm
+            ? (
+                location.price_fullterm / (location.full_term_class_count || 10)
+              ).toFixed(2)
+            : location.credit,
         };
-      case 'short-term':
+      case "short-term":
         return {
-          label: 'Short Term',
+          label: "Short Term",
           price: location.price_shortterm || location.credit * 5,
           description: `${location.short_term_class_count || 5} classes`,
-          pricePerClass: location.price_shortterm ? (location.price_shortterm / (location.short_term_class_count || 5)).toFixed(2) : location.credit,
+          pricePerClass: location.price_shortterm
+            ? (
+                location.price_shortterm /
+                (location.short_term_class_count || 5)
+              ).toFixed(2)
+            : location.credit,
         };
       default:
         return null;
@@ -105,7 +123,8 @@ const BuyNow = ({
 
     try {
       // Construct proper timestamp from selected date and time
-      const selectedDateStr = selected?.selectedDate || new Date().toISOString().split('T')[0];
+      const selectedDateStr =
+        selected?.selectedDate || new Date().toISOString().split("T")[0];
       const startTime = selected?.location?.timeslot?.[0];
       const endTime = selected?.location?.timeslot?.[1];
 
@@ -128,7 +147,7 @@ const BuyNow = ({
 
       if (response.ok) {
         toast.success(
-          "Booking confirmed! Class has been added to your schedule."
+          "Booking confirmed! Class has been added to your schedule.",
         );
         setIsBuyNowModalOpen(false);
         setSelectedChildId(null);
@@ -162,65 +181,91 @@ const BuyNow = ({
     >
       <Space direction="vertical" size={16} style={{ width: "100%" }}>
         {/* Package Type Selection */}
-        {selected?.location?.package_types && selected.location.package_types.length > 1 && (
-          <div>
-            <Text strong style={{ display: "block", marginBottom: "8px" }}>
-              Select Package Type *
-            </Text>
-            <Radio.Group
-              value={selectedPackageType}
-              onChange={(e) => setSelectedPackageType(e.target.value)}
-              style={{ width: "100%" }}
-            >
-              <Space direction="vertical" style={{ width: "100%" }}>
-                {selected.location.package_types.map((packageType) => {
-                  const details = getPackageDetails(packageType);
-                  const savings = packageType !== 'pay-as-you-go' && details
-                    ? ((1 - details.pricePerClass / selected.location.credit) * 100).toFixed(0)
-                    : 0;
+        {selected?.location?.package_types &&
+          selected.location.package_types.length > 1 && (
+            <div>
+              <Text strong style={{ display: "block", marginBottom: "8px" }}>
+                Select Package Type *
+              </Text>
+              <Radio.Group
+                value={selectedPackageType}
+                onChange={(e) => setSelectedPackageType(e.target.value)}
+                style={{ width: "100%" }}
+              >
+                <Space direction="vertical" style={{ width: "100%" }}>
+                  {selected.location.package_types.map((packageType) => {
+                    const details = getPackageDetails(packageType);
+                    const savings =
+                      packageType !== "pay-as-you-go" && details
+                        ? (
+                            (1 -
+                              details.pricePerClass /
+                                selected.location.credit) *
+                            100
+                          ).toFixed(0)
+                        : 0;
 
-                  return (
-                    <Radio
-                      key={packageType}
-                      value={packageType}
-                      style={{
-                        width: "100%",
-                        padding: "12px",
-                        border: selectedPackageType === packageType ? "2px solid #1890ff" : "1px solid #d9d9d9",
-                        borderRadius: "8px",
-                        backgroundColor: selectedPackageType === packageType ? "#e6f7ff" : "#fff",
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-                        <div>
-                          <Text strong>{details?.label}</Text>
-                          <br />
-                          <Text type="secondary" style={{ fontSize: "12px" }}>
-                            {details?.description}
-                            {savings > 0 && ` • Save ${savings}%`}
-                          </Text>
+                    return (
+                      <Radio
+                        key={packageType}
+                        value={packageType}
+                        style={{
+                          width: "100%",
+                          padding: "12px",
+                          border:
+                            selectedPackageType === packageType
+                              ? "2px solid #1890ff"
+                              : "1px solid #d9d9d9",
+                          borderRadius: "8px",
+                          backgroundColor:
+                            selectedPackageType === packageType
+                              ? "#e6f7ff"
+                              : "#fff",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            width: "100%",
+                          }}
+                        >
+                          <div>
+                            <Text strong>{details?.label}</Text>
+                            <br />
+                            <Text type="secondary" style={{ fontSize: "12px" }}>
+                              {details?.description}
+                              {savings > 0 && ` • Save ${savings}%`}
+                            </Text>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <Text
+                              strong
+                              style={{ fontSize: "16px", color: "#1890ff" }}
+                            >
+                              {details?.price} credits
+                            </Text>
+                            {packageType !== "pay-as-you-go" && (
+                              <>
+                                <br />
+                                <Text
+                                  type="secondary"
+                                  style={{ fontSize: "12px" }}
+                                >
+                                  ${details?.pricePerClass}/class
+                                </Text>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        <div style={{ textAlign: "right" }}>
-                          <Text strong style={{ fontSize: "16px", color: "#1890ff" }}>
-                            ${details?.price}
-                          </Text>
-                          {packageType !== 'pay-as-you-go' && (
-                            <>
-                              <br />
-                              <Text type="secondary" style={{ fontSize: "12px" }}>
-                                ${details?.pricePerClass}/class
-                              </Text>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </Radio>
-                  );
-                })}
-              </Space>
-            </Radio.Group>
-          </div>
-        )}
+                      </Radio>
+                    );
+                  })}
+                </Space>
+              </Radio.Group>
+            </div>
+          )}
 
         {/* Select child */}
         <div>
@@ -243,7 +288,10 @@ const BuyNow = ({
         </div>
 
         {/* Map */}
-        <div className="buynow-map-container" style={{ marginTop: 16, marginBottom: 16 }}>
+        <div
+          className="buynow-map-container"
+          style={{ marginTop: 16, marginBottom: 16 }}
+        >
           <Map
             mapStyle="mapbox://styles/mapbox/streets-v8"
             mapboxAccessToken={import.meta.env.VITE_MAPBOX_TOKEN}
@@ -304,10 +352,16 @@ const BuyNow = ({
           <div className="class-info-row">
             <DollarOutlined className="info-icon" />
             <Text className="class-info-label">Cost:</Text>
-            <Text className="class-info-value" style={{ fontWeight: 600, color: "var(--primary-color)" }}>
+            <Text
+              className="class-info-value"
+              style={{ fontWeight: 600, color: "var(--primary-color)" }}
+            >
               ${displayPrice}
               {currentPackage && currentPackage.description && (
-                <Text type="secondary" style={{ fontSize: "12px", marginLeft: "8px" }}>
+                <Text
+                  type="secondary"
+                  style={{ fontSize: "12px", marginLeft: "8px" }}
+                >
                   ({currentPackage.description})
                 </Text>
               )}

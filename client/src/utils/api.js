@@ -109,6 +109,7 @@ export const API_ENDPOINTS = {
 
   // Bookings
   GET_BOOKINGS: "/bookings/user",
+  GET_CLASS_OCCURRENCES: "/bookings/user/occurrences",
   CREATE_BOOKING: "/bookings",
   CANCEL_BOOKING: (bookingId) => `/bookings/${bookingId}`,
 
