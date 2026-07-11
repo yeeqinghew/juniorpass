@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Avatar, Tabs, Tooltip } from "antd";
 import Account from "./Account";
 import Credits from "./Credits";
@@ -17,6 +18,7 @@ import "./index.css";
 const Profile = () => {
   const { state } = useLocation();
   const { user } = useUserContext();
+  const [activeTab, setActiveTab] = useState(state || "account");
 
   const { isMobile, isTabletPortrait } = useWindowDimensions();
   const isMobileOrTabletPortrait = isMobile || isTabletPortrait;
@@ -99,19 +101,60 @@ const Profile = () => {
 
   return (
     <div className="profile-container">
-      {isMobileOrTabletPortrait && avatarSection}
-      <div className="profile-tabs">
-        <Tabs
-          defaultActiveKey={state || "account"}
-          tabPosition={isMobileOrTabletPortrait ? "top" : "left"}
-          tabBarExtraContent={
-            isMobileOrTabletPortrait ? null : { top: avatarSection }
-          }
-          items={items}
-          tabBarGutter={isMobileOrTabletPortrait ? 0 : 12}
-          size={isMobileOrTabletPortrait ? "small" : "middle"}
-        />
-      </div>
+      {isMobileOrTabletPortrait ? (
+        <>
+          {avatarSection}
+
+          <div className="profile-tabs mobile">
+            <Tabs
+              activeKey={activeTab}
+              onChange={setActiveTab}
+              tabPosition="top"
+              items={items}
+              tabBarGutter={0}
+              size="small"
+            />
+          </div>
+        </>
+      ) : (
+        <div className="profile-desktop-layout">
+          <aside className="profile-sidebar">
+            {avatarSection}
+
+            <div className="profile-sidebar-menu">
+              {items.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`profile-menu-item ${
+                    activeTab === item.key ? "active" : ""
+                  }`}
+                  onClick={() => setActiveTab(item.key)}
+                >
+                  {item.key === "account" && <UserOutlined />}
+                  {item.key === "children-classes" && <TeamOutlined />}
+                  {item.key === "credit" && <CreditCardOutlined />}
+                  {item.key === "referral" && <GiftOutlined />}
+
+                  <span>
+                    {item.key === "account" && "Account"}
+                    {item.key === "children-classes" && "Children & Classes"}
+                    {item.key === "credit" && "Credit"}
+                    {item.key === "referral" && "Referral"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </aside>
+
+          <main className="profile-main-content">
+            {activeTab === "account" && <Account />}
+            {activeTab === "children-classes" && <ChildrenClasses />}
+            {activeTab === "credit" && <Credits />}
+            {activeTab === "referral" && <Referrals />}
+          </main>
+        </div>
+      )}
     </div>
   );
 };
