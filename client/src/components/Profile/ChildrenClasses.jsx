@@ -323,68 +323,64 @@ const ChildrenClasses = () => {
     const isPast = new Date(booking.start_date) < new Date();
 
     return (
-      <List.Item
-        key={booking.booking_id}
-        actions={
-          !isPast
-            ? [
+      <List.Item key={booking.booking_id} className="cc-booking-item">
+        <div className="cc-booking-card">
+          <Avatar
+            size={52}
+            src={imageUrl}
+            icon={<UserOutlined />}
+            className="cc-booking-avatar"
+          />
+
+          <div className="cc-booking-content">
+            <div className="cc-booking-top">
+              <div className="cc-booking-heading">
+                <Text strong className="cc-booking-title">
+                  {booking.listing_title}
+                </Text>
+
+                <div className="cc-booking-tags">
+                  <Tag
+                    color={isPast ? "default" : "green"}
+                    className="cc-booking-status-tag"
+                  >
+                    {isPast ? "Completed" : "Confirmed"}
+                  </Tag>
+
+                  {booking.partner_name && (
+                    <Tag color="purple" className="cc-booking-partner-tag">
+                      {booking.partner_name}
+                    </Tag>
+                  )}
+                </div>
+              </div>
+
+              {!isPast && (
                 <Button
-                  type="primary"
                   danger
                   size="small"
+                  className="cc-booking-cancel"
                   onClick={() => handleCancelBooking(booking)}
                 >
                   Cancel
-                </Button>,
-              ]
-            : []
-        }
-      >
-        <List.Item.Meta
-          avatar={
-            <Avatar
-              size={52}
-              src={imageUrl}
-              icon={<UserOutlined />}
-              className="cc-booking-avatar"
-            />
-          }
-          title={
-            <Space direction="vertical" size={4}>
-              <Text strong className="cc-booking-title">
-                {booking.listing_title}
-              </Text>
-              <Space size="small">
-                <Tag
-                  color={isPast ? "default" : "green"}
-                  style={{ borderRadius: 100, fontSize: 11, fontWeight: 600 }}
-                >
-                  {isPast ? "Completed" : "Confirmed"}
-                </Tag>
-                {booking.partner_name && (
-                  <Tag
-                    color="purple"
-                    style={{ borderRadius: 100, fontSize: 11, fontWeight: 600 }}
-                  >
-                    {booking.partner_name}
-                  </Tag>
-                )}
-              </Space>
-            </Space>
-          }
-          description={
-            /* ── Plain flex div — NO Row/Col ── */
+                </Button>
+              )}
+            </div>
+
             <div className="cc-booking-meta">
               <span className="cc-booking-meta-item">
-                <CalendarOutlined /> {formatDate(booking.start_date)}
+                <CalendarOutlined />
+                {formatDate(booking.start_date)}
               </span>
+
               <span className="cc-booking-meta-item">
-                <ClockCircleOutlined /> {formatTime(booking.start_date)} –{" "}
+                <ClockCircleOutlined />
+                {formatTime(booking.start_date)} –{" "}
                 {formatTime(booking.end_date)}
               </span>
             </div>
-          }
-        />
+          </div>
+        </div>
       </List.Item>
     );
   };
