@@ -432,7 +432,7 @@ const Class = () => {
     <div className="class-page">
       <div className="class-page-inner">
         <Row gutter={[24, 24]}>
-          <Col xs={24} sm={24} md={24} lg={16} xl={16}>
+          <Col xs={24} sm={24} md={24} lg={17} xl={17}>
             {/* Hero Image Carousel */}
             <Card bordered={false} className="class-hero-card">
               <Carousel autoplay arrows dots>
@@ -484,6 +484,36 @@ const Class = () => {
                     </Tag>
                   ))}
                 </Space>
+
+                {!isDesktop && !isTabletLandscape && (
+                  <button
+                    type="button"
+                    className="mobile-partner-strip"
+                    onClick={() =>
+                      navigate(`/partner/${listing?.partner_info?.partner_id}`)
+                    }
+                  >
+                    <Avatar
+                      size={48}
+                      src={listing?.partner_info?.picture}
+                      className="mobile-partner-avatar"
+                    />
+
+                    <div className="mobile-partner-info">
+                      <Text className="mobile-partner-label">Offered by</Text>
+
+                      <Text strong className="mobile-partner-name">
+                        {listing?.partner_name}
+                      </Text>
+
+                      <Text className="mobile-partner-verified">
+                        Verified Partner
+                      </Text>
+                    </div>
+
+                    <RightOutlined className="mobile-partner-arrow" />
+                  </button>
+                )}
 
                 <Paragraph className="class-description">
                   {listing?.description}
@@ -728,8 +758,8 @@ const Class = () => {
             </Card>
           </Col>
 
-          <Col xs={24} sm={24} md={24} lg={8} xl={8}>
-            {isDesktop || isTabletLandscape ? (
+          <Col lg={7} xl={7}>
+            {(isDesktop || isTabletLandscape) && (
               <Affix offsetTop={120}>
                 <Card
                   bordered={false}
@@ -811,81 +841,6 @@ const Class = () => {
                   </Button>
                 </Card>
               </Affix>
-            ) : (
-              <Card
-                bordered={false}
-                className="class-partner-card"
-                hoverable
-                onClick={() => {
-                  navigate(`/partner/${listing?.partner_info?.partner_id}`, {});
-                }}
-              >
-                {/* Partner Header */}
-                <div className="partner-card-header">
-                  <Avatar
-                    size={64}
-                    src={listing?.partner_info?.picture}
-                    className="partner-card-avatar"
-                  />
-                  <div>
-                    <Title level={4} className="partner-card-name">
-                      {listing?.partner_name}
-                    </Title>
-                    <Text className="partner-card-badge">Verified Partner</Text>
-                  </div>
-                </div>
-
-                <Divider className="partner-card-divider" />
-
-                {/* Contact Information */}
-                <Space
-                  direction="vertical"
-                  size="middle"
-                  style={{ width: "100%" }}
-                >
-                  <div className="partner-contact-item">
-                    <ShopOutlined className="partner-contact-icon" />
-                    <div>
-                      <Text className="partner-contact-label">Website</Text>
-                      <Text className="partner-contact-value">
-                        {listing?.partner_info?.website || "N/A"}
-                      </Text>
-                    </div>
-                  </div>
-
-                  <div className="partner-contact-item">
-                    <MailOutlined className="partner-contact-icon" />
-                    <div>
-                      <Text className="partner-contact-label">Email</Text>
-                      <Text className="partner-contact-value">
-                        {listing?.partner_info?.email}
-                      </Text>
-                    </div>
-                  </div>
-
-                  <div className="partner-contact-item">
-                    <PhoneOutlined className="partner-contact-icon" />
-                    <div>
-                      <Text className="partner-contact-label">Phone</Text>
-                      <Text className="partner-contact-value">
-                        {listing?.partner_info?.contact_number}
-                      </Text>
-                    </div>
-                  </div>
-                </Space>
-
-                <Divider className="partner-card-divider" />
-
-                {/* View Profile Button */}
-                <Button
-                  type="primary"
-                  block
-                  size="large"
-                  className="view-partner-btn"
-                >
-                  View Partner Profile
-                </Button>
-              </Card>
             )}
           </Col>
         </Row>

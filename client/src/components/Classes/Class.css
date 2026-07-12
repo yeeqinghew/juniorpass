@@ -15,9 +15,9 @@
 }
 
 .class-page .class-page-inner {
-  max-width: 1400px;
   margin: 0 auto;
   width: 100%;
+  max-width: 1280px;
 }
 
 /* Hero Card with Carousel */
@@ -33,15 +33,15 @@
   padding: 0;
 }
 
-.class-carousel-image {
+.class-carousel-image,
+.class-hero-card .ant-carousel .slick-slide .ant-image-img {
   width: 100%;
-  height: 400px;
   object-fit: cover;
-  display: block;
+  height: clamp(300px, 32vw, 440px);
 }
 
 /* Fix Ant Design Image wrapper whitespace */
-.class-hero-card .ant-carousel .slick-slide > div {
+.class-hero-card .ant-carousel .slick-slide>div {
   display: block;
 }
 
@@ -51,9 +51,6 @@
 }
 
 .class-hero-card .ant-carousel .slick-slide .ant-image-img {
-  width: 100%;
-  height: 400px;
-  object-fit: cover;
   display: block;
 }
 
@@ -316,28 +313,158 @@
 
 @media screen and (max-width: 767.9px) {
   .class-page {
-    padding: var(--spacing-3xl) var(--spacing-sm) var(--spacing-lg) var(--spacing-sm);
+    min-height: 100vh;
+    padding:
+      var(--spacing-md) var(--spacing-sm) var(--spacing-xl);
   }
 
-  .class-carousel-image {
-    height: 250px;
+  .class-content-card {
+    margin-bottom: var(--spacing-md);
+    border-radius: var(--radius-lg) !important;
   }
 
+  .class-content-card .ant-card-body {
+    padding: var(--spacing-md);
+  }
+
+  .class-content-card h2.ant-typography {
+    margin-bottom: 10px;
+    font-size: var(--font-size-xl) !important;
+    line-height: 1.3;
+  }
+
+  .class-description {
+    margin-bottom: 0;
+    font-size: var(--font-size-sm);
+  }
+
+  .class-carousel-image,
   .class-hero-card .ant-carousel .slick-slide .ant-image-img {
-    height: 250px;
+    height: 220px;
   }
 
   .class-carousel-title {
     font-size: var(--font-size-xl) !important;
   }
 
-  .class-content-card .ant-card-body,
-  .class-partner-card .ant-card-body {
-    padding: var(--spacing-md);
+  .mobile-partner-strip {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    margin: 4px 0 8px;
+    padding: 12px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    background: var(--bg-cream);
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition:
+      border-color var(--transition-base),
+      background-color var(--transition-base);
+    box-sizing: border-box;
+    overflow: hidden;
   }
 
-  .class-partner-card {
-    margin-top: var(--spacing-lg);
+  .mobile-partner-info,
+  .mobile-partner-name {
+    max-width: 100%;
+  }
+
+  .mobile-partner-strip:hover,
+  .mobile-partner-strip:active {
+    border-color: var(--primary-color);
+    background: var(--bg-info-light);
+  }
+
+  .mobile-partner-avatar {
+    flex-shrink: 0;
+    border: 2px solid var(--bg-white);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .mobile-partner-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mobile-partner-label {
+    color: var(--text-muted);
+    font-size: var(--font-size-xs);
+    line-height: 1.3;
+  }
+
+  .mobile-partner-name {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-dark);
+    font-size: var(--font-size-md);
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-partner-verified {
+    color: var(--primary-color);
+    font-size: var(--font-size-xs);
+    line-height: 1.3;
+  }
+
+  .mobile-partner-arrow {
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  .class-schedule-item .ant-list-item-meta-content {
+    min-width: 0;
+  }
+
+  .class-schedule-item .ant-space {
+    max-width: 100%;
+  }
+
+  .class-schedule-item .ant-tag {
+    white-space: normal;
+    height: auto;
+  }
+
+  .schedule-time-text {
+    white-space: normal;
+  }
+
+  .class-schedule-item {
+    display: block !important;
+    padding: 14px !important;
+    transform: none !important;
+  }
+
+  .class-schedule-item .ant-list-item-meta {
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  .class-schedule-item .ant-list-item-action {
+    width: 100%;
+    margin: 12px 0 0 !important;
+  }
+
+  .class-schedule-item .ant-list-item-action>li {
+    width: 100%;
+    padding: 0 !important;
+  }
+
+  .class-schedule-item .book-now-btn {
+    width: 100%;
+  }
+
+  .schedule-time-icon {
+    width: 40px;
+    height: 40px;
+    font-size: var(--font-size-md);
   }
 }
 
