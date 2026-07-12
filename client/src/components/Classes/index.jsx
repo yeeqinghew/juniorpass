@@ -1,42 +1,83 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Space,
+  Button,
+  Checkbox,
+  DatePicker,
+  Dropdown,
+  Empty,
+  Image,
   Input,
   List,
-  Rate,
-  Image,
+  Pagination,
+  Segmented,
   Tag,
-  Divider,
-  Button,
-  Dropdown,
-  Checkbox,
-  Menu,
-  DatePicker,
   TimePicker,
+  Typography,
 } from "antd";
 import {
-  SearchOutlined,
-  EnvironmentTwoTone,
-  DownOutlined,
   CloseOutlined,
+  DownOutlined,
+  EnvironmentOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
 import Map, {
-  Marker,
-  Popup,
-  NavigationControl,
   GeolocateControl,
+  Marker,
+  NavigationControl,
+  Popup,
 } from "react-map-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useNavigate } from "react-router-dom";
-import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
-import toast from "react-hot-toast";
-import "./index.css";
-import useWindowDimensions from "../../hooks/useWindowDimensions.jsx";
 import dayjs from "dayjs";
-import isBetween from "dayjs/plugin/isBetween.js";
+import isBetween from "dayjs/plugin/isBetween";
+import toast from "react-hot-toast";
+
+import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
+import useWindowDimensions from "../../hooks/useWindowDimensions.jsx";
 import { WEEKDAYS } from "../../constants.jsx";
 import { applyTimeToDate } from "../../utils/timeHelpers.jsx";
+import "./index.css";
+
 dayjs.extend(isBetween);
+
+const { Paragraph, Text, Title } = Typography;
+
+const parseOutletAddress = (value) => {
+  if (!value) return null;
+
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    const longitude = Number(parsed?.LONGITUDE);
+    const latitude = Number(parsed?.LATITUDE);
+
+    if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+      return null;
+    }
+
+    return {
+      ...parsed,
+      longitude,
+      latitude,
+    };
+  } catch (error) {
+    console.error("Unable to parse outlet address:", error);
+    return null;
+  }
+};
+
+const normaliseArrayValue = (value) => {
+  if (Array.isArray(value)) return value;
+
+  if (typeof value === "string") {
+    return value
+      .replace(/[{}]/g, "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+};
 
 const Classes = () => {
   const [popupInfo, setPopupInfo] = useState(null);
@@ -44,7 +85,8 @@ const Classes = () => {
   const [categories, setCategories] = useState([]);
   const [ageGroups, setAgeGroups] = useState([]);
   const [packageTypes, setPackageTypes] = useState([]);
-  const [filterInput, setFilterInput] = useState(null);
+
+  const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedAgeGroups, setSelectedAgeGroups] = useState([]);
   const [selectedPackageTypes, setSelectedPackageTypes] = useState([]);
@@ -53,234 +95,66 @@ const Classes = () => {
   const [useSpecificDate, setUseSpecificDate] = useState(false);
   const [tempDate, setTempDate] = useState(null);
   const [tempTime, setTempTime] = useState(null);
-  const [view, setView] = useState("list"); // 'list' or 'map'
+
+  const [view, setView] = useState("list");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 8;
+
   const { isMobile, isTabletPortrait } = useWindowDimensions();
   const isMobileOrTabletPortrait = isMobile || isTabletPortrait;
+
   const navigate = useNavigate();
-  const mapRef = useRef();
-
-  const getListings = async () => {
-    try {
-      const response = await fetchWithAuth(API_ENDPOINTS.GET_ALL_LISTINGS);
-      const jsonData = await response.json();
-      setListings(jsonData);
-    } catch (error) {
-      console.error(error.message);
-      toast.error(error.message);
-    }
-  };
-
-  const getCategories = async () => {
-    try {
-      const response = await fetchWithAuth(API_ENDPOINTS.GET_ALL_CATEGORIES);
-      const jsonData = await response.json();
-      setCategories(jsonData);
-    } catch (error) {
-      console.error(error.message);
-    }
-  };
-
-  const getAgeGroups = async () => {
-    try {
-      const response = await fetchWithAuth(API_ENDPOINTS.GET_ALL_AGE_GROUPS);
-      const jsonData = await response.json();
-      setAgeGroups(jsonData);
-    } catch (error) {
-      console.error(error.message);
-    }
-  };
-
-  const getAgeGroupLabel = (min_age, max_age) => {
-    if (max_age === null) {
-      return `above ${min_age} years old`;
-    }
-    return `${min_age}-${max_age} years old`;
-  };
-
-  const getPackageTypes = async () => {
-    try {
-      const response = await fetchWithAuth(API_ENDPOINTS.GET_ALL_PACKAGES);
-      const jsonData = await response.json();
-      setPackageTypes(jsonData);
-    } catch (error) {
-      console.error(error.message);
-    }
-  };
-
-  const pins = useMemo(() => {
-    return listings?.map((listing) => {
-      // Use a more visible color for map pins - bright coral/red stands out better on maps
-      const color = "#ff4757"; // Bright coral red for maximum visibility
-
-      // Safety check for outlets_info
-      if (!listing?.outlets_info || !Array.isArray(listing.outlets_info)) {
-        return null;
-      }
-
-      return listing.outlets_info.map((outlet, index) => {
-        let parsedAddress = {};
-        try {
-          parsedAddress = JSON.parse(outlet?.outlet_address || "{}");
-        } catch (e) {
-          parsedAddress = {};
-          console.error("Error parsing outlet address:", e);
-        }
-        if (!parsedAddress.LONGITUDE || !parsedAddress.LATITUDE) {
-          return null;
-        }
-        return (
-          <Marker
-            key={`${listing?.listing_id}-${index}`}
-            longitude={parsedAddress.LONGITUDE}
-            latitude={parsedAddress.LATITUDE}
-            anchor="top"
-            onClick={(e) => {
-              // If we let the click event propagates to the map, it will immediately close the popup
-              // with `closeOnClick: true`
-              e.originalEvent.stopPropagation();
-              setPopupInfo(listing);
-            }}
-          >
-            <div
-              style={{
-                position: "relative",
-                animation: "pulse 2s ease-in-out infinite",
-              }}
-            >
-              <EnvironmentTwoTone
-                twoToneColor={color}
-                style={{
-                  fontSize: "64px",
-                  cursor: "pointer",
-                  filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.5))",
-                  transition: "transform 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "scale(1.2)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "scale(1)";
-                }}
-              />
-            </div>
-          </Marker>
-        );
-      });
-    });
-  }, [listings]);
-
-  const handleCategoryChange = (category) => {
-    setSelectedCategories((prevCategories) =>
-      prevCategories.includes(category.name)
-        ? prevCategories.filter((item) => item !== category.name)
-        : [...prevCategories, category.name],
-    );
-  };
-
-  const handleAgeGroupChange = (ageGroup) => {
-    setSelectedAgeGroups((prevAgeGroups) =>
-      prevAgeGroups.includes(ageGroup)
-        ? prevAgeGroups.filter((item) => item !== ageGroup)
-        : [...prevAgeGroups, ageGroup],
-    );
-  };
-
-  const handlePackageTypeChange = (packageType) => {
-    setSelectedPackageTypes((prevSelected) => {
-      if (prevSelected.includes(packageType.package_type)) {
-        return prevSelected.filter((type) => type !== packageType.package_type);
-      } else {
-        return [...prevSelected, packageType.package_type];
-      }
-    });
-  };
-
-  const applyFilters = (listings) => {
-    return listings.filter((listing) => {
-      // Categories
-      const matchesCategory =
-        selectedCategories.length === 0 ||
-        listing?.partner_info?.categories.some((category) =>
-          selectedCategories.includes(category),
-        );
-
-      // Age groups
-      const ageGroups = listing.age_groups.replace(/[{}]/g, "").split(",");
-      const matchesAgeGroup =
-        selectedAgeGroups.length === 0 ||
-        ageGroups.some((ageGroup) => selectedAgeGroups.includes(ageGroup));
-
-      // TODO: filter by package types
-
-      // Selected day - check all outlets and their schedule groups
-      const matchesSelectedDay =
-        !selectedDay ||
-        (Array.isArray(listing.outlets_info) &&
-          listing.outlets_info.some((outlet) =>
-            outlet.schedule_groups?.some((group) =>
-              group.time_slots?.some(
-                (slot) => slot?.day?.toLowerCase() === selectedDay?.toLowerCase()
-              )
-            )
-          ));
-
-      // Specific date - check all outlets and their schedule groups
-      const matchesSpecificDateAndTime =
-        !useSpecificDate || !selectedDateTime
-          ? true
-          : Array.isArray(listing.outlets_info) &&
-            listing.outlets_info.some((outlet) =>
-              outlet.schedule_groups?.some((group) =>
-                group.time_slots?.some((slot) => {
-                  const selectedDate = dayjs(selectedDateTime);
-                  const selectedDayName = selectedDate.format("dddd");
-                  if (slot.day?.toLowerCase() !== selectedDayName.toLowerCase())
-                    return false;
-
-                  const startStr = slot.start_time;
-                  const endStr = slot.end_time;
-                  if (!startStr || !endStr) return false;
-
-                  const { start, end } = applyTimeToDate(
-                    selectedDate,
-                    startStr,
-                    endStr,
-                  );
-
-                  return selectedDate.isBetween(start, end, "minute", "[)");
-                })
-              )
-            );
-
-      const isMatch = useSpecificDate
-        ? matchesCategory && matchesAgeGroup && matchesSpecificDateAndTime
-        : matchesCategory && matchesAgeGroup && matchesSelectedDay;
-      return isMatch;
-    });
-  };
-
-  const onSearch = (e) => {
-    const filteredData = listings.filter((item) => {
-      return Object.keys(item).some((key) => {
-        return String(item[key])
-          .toLowerCase()
-          .includes(e.target.value.toLowerCase());
-      });
-    });
-    setFilterInput(applyFilters(filteredData));
-  };
+  const mapRef = useRef(null);
 
   useEffect(() => {
-    getListings();
-    getCategories();
-    getAgeGroups();
-    getPackageTypes();
+    const loadPageData = async () => {
+      try {
+        const [
+          listingResponse,
+          categoryResponse,
+          ageResponse,
+          packageResponse,
+        ] = await Promise.all([
+          fetchWithAuth(API_ENDPOINTS.GET_ALL_LISTINGS),
+          fetchWithAuth(API_ENDPOINTS.GET_ALL_CATEGORIES),
+          fetchWithAuth(API_ENDPOINTS.GET_ALL_AGE_GROUPS),
+          fetchWithAuth(API_ENDPOINTS.GET_ALL_PACKAGES),
+        ]);
+
+        if (!listingResponse.ok) {
+          throw new Error("Failed to load classes");
+        }
+
+        const listingData = await listingResponse.json();
+        setListings(Array.isArray(listingData) ? listingData : []);
+
+        if (categoryResponse.ok) {
+          const categoryData = await categoryResponse.json();
+          setCategories(Array.isArray(categoryData) ? categoryData : []);
+        }
+
+        if (ageResponse.ok) {
+          const ageData = await ageResponse.json();
+          setAgeGroups(Array.isArray(ageData) ? ageData : []);
+        }
+
+        if (packageResponse.ok) {
+          const packageData = await packageResponse.json();
+          setPackageTypes(Array.isArray(packageData) ? packageData : []);
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error(error.message || "Failed to load classes");
+      }
+    };
+
+    loadPageData();
   }, []);
 
   useEffect(() => {
-    setFilterInput(applyFilters(listings));
+    setCurrentPage(1);
   }, [
-    listings,
+    searchTerm,
     selectedCategories,
     selectedAgeGroups,
     selectedPackageTypes,
@@ -289,187 +163,369 @@ const Classes = () => {
     useSpecificDate,
   ]);
 
-  // Resize map when view changes (important for mobile)
   useEffect(() => {
-    if (view === "map" && mapRef.current) {
-      // Small delay to ensure DOM has updated
-      setTimeout(() => {
-        mapRef.current?.resize();
-      }, 100);
-    }
+    if (view !== "map" || !mapRef.current) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      mapRef.current?.resize();
+    }, 100);
+
+    return () => window.clearTimeout(timeoutId);
   }, [view]);
 
-  const handleListHover = (listingId) => {
-    // Find the listing with the matching listingId
-    const listing = listings.find(
-      (listing) => listing?.listing_id === listingId,
-    );
-    if (listing) {
-      // Set popupInfo to the details of the listing
-      setPopupInfo(listing);
+  const getAgeGroupLabel = (ageGroup) => {
+    if (ageGroup.max_age === null) {
+      return `${ageGroup.min_age}+ years`;
     }
+
+    return `${ageGroup.min_age}-${ageGroup.max_age} years`;
   };
 
-  const handleListLeave = () => {
-    setPopupInfo(null); // Clear popupInfo when leaving the list item
+  const filteredListings = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+
+    return listings.filter((listing) => {
+      const categoriesForListing = listing?.partner_info?.categories || [];
+      const agesForListing = normaliseArrayValue(listing?.age_groups);
+      const packagesForListing = normaliseArrayValue(listing?.package_types);
+
+      const outletSearchValues = Array.isArray(listing?.outlets_info)
+        ? listing.outlets_info
+            .map(
+              (outlet) => parseOutletAddress(outlet?.outlet_address)?.SEARCHVAL,
+            )
+            .filter(Boolean)
+            .join(" ")
+        : "";
+
+      const searchableText = [
+        listing?.listing_title,
+        listing?.description,
+        listing?.partner_name,
+        categoriesForListing.join(" "),
+        outletSearchValues,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch = !term || searchableText.includes(term);
+
+      const matchesCategory =
+        selectedCategories.length === 0 ||
+        categoriesForListing.some((category) =>
+          selectedCategories.includes(category),
+        );
+
+      const matchesAgeGroup =
+        selectedAgeGroups.length === 0 ||
+        agesForListing.some((ageGroup) => selectedAgeGroups.includes(ageGroup));
+
+      const matchesPackage =
+        selectedPackageTypes.length === 0 ||
+        packagesForListing.some((packageType) =>
+          selectedPackageTypes.includes(packageType),
+        );
+
+      const matchesSelectedDay =
+        !selectedDay ||
+        (Array.isArray(listing?.outlets_info) &&
+          listing.outlets_info.some((outlet) =>
+            outlet?.schedule_groups?.some((group) =>
+              group?.time_slots?.some(
+                (slot) =>
+                  slot?.day?.toLowerCase() === selectedDay.toLowerCase(),
+              ),
+            ),
+          ));
+
+      const matchesSpecificDateAndTime =
+        !useSpecificDate || !selectedDateTime
+          ? true
+          : Array.isArray(listing?.outlets_info) &&
+            listing.outlets_info.some((outlet) =>
+              outlet?.schedule_groups?.some((group) =>
+                group?.time_slots?.some((slot) => {
+                  const selectedDate = dayjs(selectedDateTime);
+                  const selectedDayName = selectedDate.format("dddd");
+
+                  if (
+                    slot?.day?.toLowerCase() !== selectedDayName.toLowerCase()
+                  ) {
+                    return false;
+                  }
+
+                  if (!slot?.start_time || !slot?.end_time) {
+                    return false;
+                  }
+
+                  const { start, end } = applyTimeToDate(
+                    selectedDate,
+                    slot.start_time,
+                    slot.end_time,
+                  );
+
+                  return selectedDate.isBetween(start, end, "minute", "[)");
+                }),
+              ),
+            );
+
+      return (
+        matchesSearch &&
+        matchesCategory &&
+        matchesAgeGroup &&
+        matchesPackage &&
+        (useSpecificDate ? matchesSpecificDateAndTime : matchesSelectedDay)
+      );
+    });
+  }, [
+    listings,
+    searchTerm,
+    selectedCategories,
+    selectedAgeGroups,
+    selectedPackageTypes,
+    selectedDay,
+    selectedDateTime,
+    useSpecificDate,
+  ]);
+
+  const paginatedListings = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredListings.slice(startIndex, startIndex + pageSize);
+  }, [filteredListings, currentPage]);
+
+  const pins = useMemo(
+    () =>
+      filteredListings.flatMap((listing) => {
+        if (!Array.isArray(listing?.outlets_info)) return [];
+
+        return listing.outlets_info.flatMap((outlet, index) => {
+          const parsedAddress = parseOutletAddress(outlet?.outlet_address);
+          if (!parsedAddress) return [];
+
+          return [
+            <Marker
+              key={`${listing.listing_id}-${index}`}
+              longitude={parsedAddress.longitude}
+              latitude={parsedAddress.latitude}
+              anchor="bottom"
+              onClick={(event) => {
+                event.originalEvent.stopPropagation();
+                setPopupInfo({
+                  listing,
+                  outlet,
+                  address: parsedAddress,
+                });
+              }}
+            >
+              <button
+                type="button"
+                className="class-map-marker"
+                aria-label={`View ${listing.listing_title}`}
+              >
+                <EnvironmentOutlined />
+              </button>
+            </Marker>,
+          ];
+        });
+      }),
+    [filteredListings],
+  );
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setSelectedCategories([]);
+    setSelectedAgeGroups([]);
+    setSelectedPackageTypes([]);
+    setSelectedDay(null);
+    setSelectedDateTime(null);
+    setTempDate(null);
+    setTempTime(null);
+    setUseSpecificDate(false);
   };
 
-  // TODO: if listing is created less than 7 days, get a NEW tag
+  const hasActiveFilters =
+    Boolean(searchTerm) ||
+    selectedCategories.length > 0 ||
+    selectedAgeGroups.length > 0 ||
+    selectedPackageTypes.length > 0 ||
+    Boolean(selectedDay) ||
+    Boolean(selectedDateTime);
+
+  const toggleValue = (setter, value) => {
+    setter((current) =>
+      current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value],
+    );
+  };
+
+  const categoryMenuItems = categories.map((category) => ({
+    key: category.id || category.name,
+    label: (
+      <Checkbox
+        checked={selectedCategories.includes(category.name)}
+        onClick={(event) => event.stopPropagation()}
+        onChange={() => toggleValue(setSelectedCategories, category.name)}
+      >
+        {category.name}
+      </Checkbox>
+    ),
+  }));
+
+  const ageMenuItems = ageGroups.map((ageGroup) => ({
+    key: ageGroup.id || ageGroup.name,
+    label: (
+      <Checkbox
+        checked={selectedAgeGroups.includes(ageGroup.name)}
+        onClick={(event) => event.stopPropagation()}
+        onChange={() => toggleValue(setSelectedAgeGroups, ageGroup.name)}
+      >
+        {getAgeGroupLabel(ageGroup)}
+      </Checkbox>
+    ),
+  }));
+
+  const packageMenuItems = packageTypes.map((packageType) => {
+    const value = packageType.package_type || packageType.name;
+
+    return {
+      key: packageType.id || value,
+      label: (
+        <Checkbox
+          checked={selectedPackageTypes.includes(value)}
+          onClick={(event) => event.stopPropagation()}
+          onChange={() => toggleValue(setSelectedPackageTypes, value)}
+        >
+          {packageType.name || value}
+        </Checkbox>
+      ),
+    };
+  });
+
+  const dayMenuItems = WEEKDAYS.map((day) => ({
+    key: day,
+    label: day,
+    onClick: () => setSelectedDay(day),
+  }));
+
+  const openClass = (listing) => {
+    navigate(`/class/${listing.listing_id}`, {
+      state: { listing },
+    });
+  };
+
   return (
-    <div className="classes">
-      <Space direction="vertical" wrap>
-        <div className="searchbar-container">
+    <main className="classes">
+      <div className="classes-inner">
+        <header className="classes-header">
+          <div>
+            <Title level={2} className="classes-title">
+              Explore Classes
+            </Title>
+            <Text className="classes-subtitle">
+              Find enrichment classes that match your child&apos;s interests.
+            </Text>
+          </div>
+
+          <Text className="classes-result-count">
+            {filteredListings.length}{" "}
+            {filteredListings.length === 1 ? "class" : "classes"}
+          </Text>
+        </header>
+
+        <section className="classes-search-row">
           <Input
             size="large"
             allowClear
-            onChange={onSearch}
-            className={"searchbar"}
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            className="searchbar"
             prefix={<SearchOutlined />}
-            placeholder="Search by location, classes, category"
+            placeholder="Search classes, partners, categories or locations"
           />
+
           {isMobileOrTabletPortrait && (
-            <Button
-              type="primary"
-              onClick={() => setView(view === "list" ? "map" : "list")}
-              className={"listMapButton"}
-            >
-              {view === "list" ? "Map" : "List"}
-            </Button>
+            <Segmented
+              value={view}
+              onChange={setView}
+              options={[
+                { label: "List", value: "list" },
+                { label: "Map", value: "map" },
+              ]}
+              className="classes-view-switch"
+            />
           )}
-        </div>
-        <Space
-          direction="horizontal"
-          size={isMobileOrTabletPortrait ? "small" : "large"}
-          className="filter-container"
-          wrap
-        >
-          <Space direction="horizontal">
-            {/* Categories Filter */}
-            <Dropdown
-              overlay={
-                <Menu>
-                  {categories.map((category) => (
-                    <Menu.Item
-                      key={category.id}
-                      onClick={() => handleCategoryChange(category)}
-                    >
-                      <Checkbox
-                        checked={selectedCategories.includes(category.name)}
-                      >
-                        {category.name}
-                      </Checkbox>
-                    </Menu.Item>
-                  ))}
-                </Menu>
-              }
-            >
+        </section>
+
+        <section className="classes-filter-card">
+          <div className="classes-filter-toolbar">
+            <Dropdown menu={{ items: categoryMenuItems }} trigger={["click"]}>
               <Button>
-                Categories <DownOutlined />
+                Categories
+                {selectedCategories.length > 0 &&
+                  ` (${selectedCategories.length})`}
+                <DownOutlined />
               </Button>
             </Dropdown>
-          </Space>
-          <Space direction="horizontal">
-            <Dropdown
-              overlay={
-                <Menu>
-                  {ageGroups.map((ageGroup) => (
-                    <Menu.Item
-                      key={ageGroup.id}
-                      onClick={() => handleAgeGroupChange(ageGroup.name)}
-                    >
-                      <Checkbox
-                        checked={selectedAgeGroups.includes(ageGroup.name)}
-                      >
-                        {getAgeGroupLabel(ageGroup.min_age, ageGroup.max_age)}
-                      </Checkbox>
-                    </Menu.Item>
-                  ))}
-                </Menu>
-              }
-            >
+
+            <Dropdown menu={{ items: ageMenuItems }} trigger={["click"]}>
               <Button>
-                Age groups <DownOutlined />
+                Age groups
+                {selectedAgeGroups.length > 0 &&
+                  ` (${selectedAgeGroups.length})`}
+                <DownOutlined />
               </Button>
             </Dropdown>
-          </Space>
-          <Space direction="horizontal">
-            {/* Package Types Filter */}
-            {/* <Dropdown
-              overlay={
-                <Menu>
-                  {packageTypes.map((packageType) => (
-                    <Menu.Item
-                      key={packageType.id}
-                      onClick={() => handlePackageTypeChange(packageType)}
-                    >
-                      <Checkbox
-                        checked={selectedPackageTypes.includes(
-                          packageType.package_type,
-                        )}
-                      >
-                        {packageType.name}
-                      </Checkbox>
-                    </Menu.Item>
-                  ))}
-                </Menu>
-              }
-            >
-              <Button>
-                Package types <DownOutlined />
-              </Button>
-            </Dropdown> */}
 
-            {/* Toggle Between "Day of the Week" & "Specific Date" */}
-            <Space direction="horizontal">
-              <Button
-                type={!useSpecificDate ? "primary" : "default"}
-                onClick={() => {
-                  setUseSpecificDate(false);
-                  setSelectedDateTime(null); // Clear specific date filter if switching
-                }}
-              >
-                Filter by Day
-              </Button>
-
-              <Button
-                type={useSpecificDate ? "primary" : "default"}
-                onClick={() => {
-                  setUseSpecificDate(true);
-                  setSelectedDay(null); // Clear day filter if switching
-                }}
-              >
-                Filter by Specific Date
-              </Button>
-            </Space>
-
-            {/* Show "Select Day" only if "Filter by Day" is selected */}
-            {!useSpecificDate && (
-              <Dropdown
-                overlay={
-                  <Menu>
-                    {WEEKDAYS.map((day) => (
-                      <Menu.Item key={day} onClick={() => setSelectedDay(day)}>
-                        {day}
-                      </Menu.Item>
-                    ))}
-                  </Menu>
-                }
-              >
+            {packageMenuItems.length > 0 && (
+              <Dropdown menu={{ items: packageMenuItems }} trigger={["click"]}>
                 <Button>
-                  {selectedDay ? `Day: ${selectedDay}` : "Select Day"}{" "}
+                  Package
+                  {selectedPackageTypes.length > 0 &&
+                    ` (${selectedPackageTypes.length})`}
                   <DownOutlined />
                 </Button>
               </Dropdown>
             )}
 
-            {/* Show "Select Date & Time" only if "Filter by Specific Date" is selected */}
-            {useSpecificDate && (
-              <Space direction="horizontal">
+            <Segmented
+              value={useSpecificDate ? "specific" : "day"}
+              onChange={(value) => {
+                const specific = value === "specific";
+                setUseSpecificDate(specific);
+
+                if (specific) {
+                  setSelectedDay(null);
+                } else {
+                  setSelectedDateTime(null);
+                  setTempDate(null);
+                  setTempTime(null);
+                }
+              }}
+              options={[
+                { label: "Day of week", value: "day" },
+                { label: "Specific time", value: "specific" },
+              ]}
+              className="classes-date-mode"
+            />
+
+            {!useSpecificDate ? (
+              <Dropdown menu={{ items: dayMenuItems }} trigger={["click"]}>
+                <Button>
+                  {selectedDay || "Select day"} <DownOutlined />
+                </Button>
+              </Dropdown>
+            ) : (
+              <div className="classes-specific-date">
                 <DatePicker
+                  value={tempDate}
                   onChange={(date) => {
                     setTempDate(date);
-                    // Update selectedDateTime immediately if time is already selected
-                    if (date && tempTime) {
+
+                    if (!date) {
+                      setSelectedDateTime(null);
+                    } else if (tempTime) {
                       setSelectedDateTime(
                         dayjs(date)
                           .hour(tempTime.hour())
@@ -478,17 +534,20 @@ const Classes = () => {
                       );
                     }
                   }}
-                  placeholder="Select Date"
+                  placeholder="Select date"
                   allowClear
                 />
 
                 <TimePicker
+                  value={tempTime}
                   format="HH:mm"
                   minuteStep={30}
                   onChange={(time) => {
                     setTempTime(time);
-                    // Update selectedDateTime immediately if date is already selected
-                    if (tempDate && time) {
+
+                    if (!time) {
+                      setSelectedDateTime(null);
+                    } else if (tempDate) {
                       setSelectedDateTime(
                         dayjs(tempDate)
                           .hour(time.hour())
@@ -497,184 +556,262 @@ const Classes = () => {
                       );
                     }
                   }}
-                  placeholder="Select Time"
+                  placeholder="Select time"
                   allowClear
                 />
-              </Space>
+              </div>
             )}
-          </Space>
-        </Space>
-        <Space className={"clearall-container"} direction="horizontal">
-          <Button
-            block
-            onClick={() => {
-              setSelectedCategories([]);
-              setSelectedAgeGroups([]);
-              // setSelectedPackageTypes([]);
-              setSelectedDay(null);
-              setSelectedDateTime(null);
-              setUseSpecificDate(false);
-            }}
-          >
-            Clear All <CloseOutlined />
-          </Button>
-        </Space>
-        <Divider />
-        <Space className={"listingmap-container"}>
-          {(view === "list" || !isMobileOrTabletPortrait) && (
-            <div className={"listing-container"}>
-              <List
-                itemLayout="horizontal"
-                dataSource={Array.isArray(filterInput) ? filterInput : listings}
-                size="large"
-                pagination={{
-                  position: "bottom",
-                  align: "end",
-                  pageSize: 10,
-                }}
-                locale={{
-                  emptyText: "No data available. Please check back later!",
-                }}
-                renderItem={(listing, index) => (
-                  <List.Item
-                    key={index}
-                    onClick={() => {
-                      navigate(`/class/${listing?.listing_id}`, {
-                        state: {
-                          listing,
-                        },
-                      });
-                    }}
-                    onMouseEnter={() => handleListHover(listing?.listing_id)}
-                    onMouseLeave={handleListLeave}
-                  >
-                    <List.Item.Meta
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        cursor: "pointer",
-                      }}
-                      avatar={
-                        <Image
-                          src={listing?.images?.[0]}
-                          alt={`Listing ${listing?.listing_title || ""}`}
-                          width={240}
-                          height={160}
-                          style={{ objectFit: "cover" }}
-                          preview={false}
-                        />
-                      }
-                      title={
-                        <Space direction="vertical">
-                          <Space direction="horizontal">
-                            {listing?.partner_info?.categories.map(
-                              (category, index) => {
-                                return <Tag key={index}>{category}</Tag>;
-                              },
-                            )}
-                          </Space>
-                          <a href={listing?.partner_info?.website}>
-                            {listing?.listing_title}
-                          </a>
-                        </Space>
-                      }
-                      description={
-                        <Space direction="vertical">
-                          <div
-                            style={{
-                              display: "-webkit-box",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              maxHeight: "5em",
-                              lineClamp: 3,
-                              WebkitLineClamp: 3,
-                              WebkitBoxOrient: "vertical",
-                            }}
-                          >
-                            {listing?.description}
-                          </div>
 
-                          <Space>
-                            <Image
-                              src={"../../images/graduation-hat.png"}
-                              width={24}
-                              height={24}
-                              preview={false}
-                            />
-                            {listing?.age_groups
-                              .replace(/[{}]/g, "")
-                              .split(",")
-                              .join(", ")}
-                          </Space>
+            {hasActiveFilters && (
+              <Button
+                type="text"
+                icon={<CloseOutlined />}
+                onClick={clearFilters}
+                className="classes-clear-btn"
+              >
+                Clear
+              </Button>
+            )}
+          </div>
 
-                          {listing?.partner_info?.rating !== 0 && (
-                            <Rate
-                              disabled
-                              defaultValue={listing?.reviews}
-                            ></Rate>
-                          )}
-                        </Space>
-                      }
-                    ></List.Item.Meta>
-                  </List.Item>
-                )}
-              ></List>
+          {(selectedCategories.length > 0 ||
+            selectedAgeGroups.length > 0 ||
+            selectedPackageTypes.length > 0 ||
+            selectedDay ||
+            selectedDateTime) && (
+            <div className="classes-active-filters">
+              {selectedCategories.map((category) => (
+                <Tag
+                  key={category}
+                  closable
+                  onClose={() =>
+                    setSelectedCategories((current) =>
+                      current.filter((item) => item !== category),
+                    )
+                  }
+                >
+                  {category}
+                </Tag>
+              ))}
+
+              {selectedAgeGroups.map((ageGroup) => (
+                <Tag
+                  key={ageGroup}
+                  closable
+                  onClose={() =>
+                    setSelectedAgeGroups((current) =>
+                      current.filter((item) => item !== ageGroup),
+                    )
+                  }
+                >
+                  {ageGroup}
+                </Tag>
+              ))}
+
+              {selectedPackageTypes.map((packageType) => (
+                <Tag
+                  key={packageType}
+                  closable
+                  onClose={() =>
+                    setSelectedPackageTypes((current) =>
+                      current.filter((item) => item !== packageType),
+                    )
+                  }
+                >
+                  {packageType}
+                </Tag>
+              ))}
+
+              {selectedDay && (
+                <Tag closable onClose={() => setSelectedDay(null)}>
+                  {selectedDay}
+                </Tag>
+              )}
+
+              {selectedDateTime && (
+                <Tag
+                  closable
+                  onClose={() => {
+                    setSelectedDateTime(null);
+                    setTempDate(null);
+                    setTempTime(null);
+                  }}
+                >
+                  {dayjs(selectedDateTime).format("D MMM, HH:mm")}
+                </Tag>
+              )}
             </div>
           )}
+        </section>
+
+        <section className="listingmap-container">
+          {(view === "list" || !isMobileOrTabletPortrait) && (
+            <div className="listing-container">
+              {filteredListings.length === 0 ? (
+                <Empty
+                  description="No classes match your filters"
+                  className="classes-empty"
+                >
+                  {hasActiveFilters && (
+                    <Button onClick={clearFilters}>Clear filters</Button>
+                  )}
+                </Empty>
+              ) : (
+                <>
+                  <List
+                    dataSource={paginatedListings}
+                    split={false}
+                    renderItem={(listing) => (
+                      <List.Item
+                        key={listing.listing_id}
+                        className="class-listing-item"
+                        onClick={() => openClass(listing)}
+                        onMouseEnter={() => {
+                          const firstOutlet = listing?.outlets_info?.find(
+                            (outlet) =>
+                              parseOutletAddress(outlet?.outlet_address),
+                          );
+                          const address = parseOutletAddress(
+                            firstOutlet?.outlet_address,
+                          );
+
+                          if (firstOutlet && address) {
+                            setPopupInfo({
+                              listing,
+                              outlet: firstOutlet,
+                              address,
+                            });
+                          }
+                        }}
+                        onMouseLeave={() => setPopupInfo(null)}
+                      >
+                        <div className="class-listing-card">
+                          <Image
+                            src={listing?.images?.[0]}
+                            alt={listing?.listing_title || "Class"}
+                            preview={false}
+                            className="class-listing-image"
+                            fallback="/placeholder-class.png"
+                          />
+
+                          <div className="class-listing-content">
+                            <div className="class-listing-tags">
+                              {listing?.partner_info?.categories
+                                ?.slice(0, 3)
+                                .map((category) => (
+                                  <Tag key={category}>{category}</Tag>
+                                ))}
+                            </div>
+
+                            <Text strong className="class-listing-title">
+                              {listing?.listing_title}
+                            </Text>
+
+                            <Text className="class-listing-partner">
+                              By {listing?.partner_name || "Partner"}
+                            </Text>
+
+                            <Paragraph
+                              ellipsis={{ rows: 2 }}
+                              className="class-listing-description"
+                            >
+                              {listing?.description}
+                            </Paragraph>
+
+                            <div className="class-listing-footer">
+                              <span>
+                                Ages{" "}
+                                {normaliseArrayValue(listing?.age_groups).join(
+                                  ", ",
+                                ) || "All ages"}
+                              </span>
+
+                              <strong>
+                                From {listing?.credit ?? "—"} credits
+                              </strong>
+                            </div>
+                          </div>
+                        </div>
+                      </List.Item>
+                    )}
+                  />
+
+                  {filteredListings.length > pageSize && (
+                    <div className="classes-pagination">
+                      <Pagination
+                        current={currentPage}
+                        pageSize={pageSize}
+                        total={filteredListings.length}
+                        onChange={setCurrentPage}
+                        showSizeChanger={false}
+                        showLessItems
+                        responsive
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           {(view === "map" || !isMobileOrTabletPortrait) && (
             <Map
               ref={mapRef}
-              className={"map"}
+              className="map"
               initialViewState={{
                 longitude: 103.8189,
                 latitude: 1.3069,
                 zoom: 11,
               }}
-              mapStyle="mapbox://styles/mapbox/streets-v8"
+              mapStyle="mapbox://styles/mapbox/streets-v12"
               mapboxAccessToken={import.meta.env.VITE_MAPBOX_TOKEN}
               style={{
-                width: isMobileOrTabletPortrait ? "100%" : "calc(40vw - 48px)",
+                width: "100%",
                 height: "70vh",
               }}
               mapLib={import("mapbox-gl")}
+              onClick={() => setPopupInfo(null)}
             >
               <GeolocateControl position="top-left" />
               <NavigationControl position="top-left" />
               {pins}
 
-              {/* Display popups for popupInfo */}
-              {popupInfo &&
-                Array.isArray(popupInfo?.outlets_info) &&
-                popupInfo.outlets_info.map((outlet, index) => {
-                  let parsedAddress = {};
-                  try {
-                    parsedAddress = JSON.parse(outlet?.outlet_address || "{}");
-                  } catch (e) {
-                    return null;
-                  }
-                  if (!parsedAddress.LONGITUDE || !parsedAddress.LATITUDE) {
-                    return null;
-                  }
-                  return (
-                    <Popup
-                      key={`${popupInfo?.listing_id}-${index}`}
-                      longitude={parsedAddress.LONGITUDE}
-                      latitude={parsedAddress.LATITUDE}
-                      onClose={() => setPopupInfo(null)}
-                    >
-                      <Space direction="vertical">
-                        {popupInfo?.listing_title}
-                        {parsedAddress.SEARCHVAL}
-                        <img width="100%" src={popupInfo.images?.[0]} />
-                      </Space>
-                    </Popup>
-                  );
-                })}
+              {popupInfo && (
+                <Popup
+                  longitude={popupInfo.address.longitude}
+                  latitude={popupInfo.address.latitude}
+                  anchor="bottom"
+                  offset={22}
+                  closeOnClick={false}
+                  onClose={() => setPopupInfo(null)}
+                  className="class-map-popup"
+                >
+                  <button
+                    type="button"
+                    className="class-popup-card"
+                    onClick={() => openClass(popupInfo.listing)}
+                  >
+                    <img
+                      src={popupInfo.listing?.images?.[0]}
+                      alt={popupInfo.listing?.listing_title || "Class"}
+                      className="class-popup-image"
+                    />
+
+                    <div className="class-popup-content">
+                      <strong>{popupInfo.listing?.listing_title}</strong>
+                      <span>
+                        {popupInfo.address?.SEARCHVAL || "Location unavailable"}
+                      </span>
+                      <span className="class-popup-link">View class →</span>
+                    </div>
+                  </button>
+                </Popup>
+              )}
             </Map>
           )}
-        </Space>
-      </Space>
-    </div>
+        </section>
+      </div>
+    </main>
   );
 };
 
