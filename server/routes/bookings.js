@@ -80,7 +80,8 @@ router.post("/", authorization, async (req, res) => {
               sg.package_types, 
               sg.full_term_class_count, 
               sg.short_term_class_count,
-              sg.frequency
+              sg.frequency,
+              sg.is_progressive
        FROM schedules s
        JOIN schedule_groups sg 
        ON s.schedule_group_id = sg.schedule_group_id
@@ -357,7 +358,7 @@ router.get("/availability/:scheduleId", async (req, res) => {
 
     // Get schedule with slots capacity from schedule_groups
     const schedule = await pool.query(
-      `SELECT s.schedule_id, sg.slots, s.day, sg.frequency,
+      `SELECT s.schedule_id, sg.slots, s.day, sg.frequency, sg.is_progressive,
               l.listing_id, l.listing_title
        FROM schedules s
        JOIN schedule_groups sg ON s.schedule_group_id = sg.schedule_group_id
@@ -400,6 +401,7 @@ router.get("/availability/:scheduleId", async (req, res) => {
       booked_count: bookedCount,
       available_spots: availableSpots,
       is_full: isFull,
+      is_progressive: schedule.rows[0].is_progressive,
     });
   } catch (error) {
     console.error(error);
@@ -420,6 +422,7 @@ router.get("/user", authorization, async (req, res) => {
         l.images,
         p.partner_name,
         p.picture as partner_picture,
+        sg.is_progressive,
         (
           SELECT child_id
           FROM transactions
@@ -433,6 +436,8 @@ router.get("/user", authorization, async (req, res) => {
       FROM bookings b
       JOIN listings l ON b.listing_id = l.listing_id
       JOIN partners p ON l.partner_id = p.partner_id
+      JOIN schedules s ON b.schedule_id = s.schedule_id
+      JOIN schedule_groups sg ON s.schedule_group_id = sg.schedule_group_id
       WHERE b.user_id = $1
       ORDER BY b.start_date DESC
     `,
@@ -465,6 +470,11 @@ router.get("/user/occurrences", authorization, async (req, res) => {
         l.images,
         p.partner_name,
         p.picture as partner_picture,
+
+        sg.is_progressive,
+        sg.price_payg,
+        sg.price_fullterm,
+        sg.price_shortterm,
         (
           SELECT child_id
           FROM transactions
@@ -493,6 +503,8 @@ router.get("/user/occurrences", authorization, async (req, res) => {
       JOIN bookings b ON co.booking_id = b.booking_id
       JOIN listings l ON b.listing_id = l.listing_id
       JOIN partners p ON l.partner_id = p.partner_id
+      JOIN schedules s ON b.schedule_id = s.schedule_id
+      JOIN schedule_groups sg ON s.schedule_group_id = sg.schedule_group_id
       WHERE b.user_id = $1
       ORDER BY co.scheduled_date ASC
     `,
