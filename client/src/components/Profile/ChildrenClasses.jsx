@@ -209,38 +209,42 @@ const ChildrenClasses = () => {
   };
 
   const handleCancelBooking = (booking) => {
-    const hoursUntil =
-      (new Date(booking.start_date) - new Date()) / (1000 * 60 * 60);
-    if (hoursUntil < 24) {
+    const classStart = new Date(booking.start_date);
+    const now = new Date();
+
+    const hoursUntil = (classStart - now) / (1000 * 60 * 60);
+
+    const isProgressive = booking.is_progressive === true;
+
+    if (isProgressive) {
+      if (now >= classStart) {
+        Modal.error({
+          title: "Cannot Cancel Programme",
+          content:
+            "This progressive programme can no longer be cancelled because the first lesson has already started.",
+          okText: "Understood",
+          centered: true,
+        });
+
+        return;
+      }
+    } else if (hoursUntil < 24) {
       Modal.error({
         title: "Cannot Cancel Booking",
-        content: (
-          <div>
-            <p>
-              Cancellations must be made at least 24 hours before the class.
-            </p>
-            <p style={{ color: "var(--text-secondary)" }}>
-              Class starts:{" "}
-              {new Date(booking.start_date).toLocaleString("en-US", {
-                weekday: "short",
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </p>
-          </div>
-        ),
+        content:
+          "Cancellations must be made at least 24 hours before the class.",
         okText: "Understood",
         centered: true,
       });
+
       return;
     }
+
     setBookingToCancel({
       bookingId: booking.booking_id,
       bookingTitle: booking.listing_title,
     });
+
     setIsCancelModalOpen(true);
   };
 
@@ -320,7 +324,32 @@ const ChildrenClasses = () => {
     } else {
       imageUrl = booking.partner_picture;
     }
-    const isPast = new Date(booking.start_date) < new Date();
+
+    const now = new Date();
+    const classStart = new Date(booking.start_date);
+
+    const hoursUntilClass = (classStart - now) / (1000 * 60 * 60);
+
+    const isProgressive = booking.is_progressive;
+    const hasStarted = now >= classStart;
+
+    const canCancel = isProgressive ? now < classStart : hoursUntilClass >= 24;
+
+    const statusLabel = isProgressive
+      ? hasStarted
+        ? "In Progress"
+        : "Confirmed"
+      : hasStarted
+        ? "Completed"
+        : "Confirmed";
+
+    const statusColor = isProgressive
+      ? hasStarted
+        ? "blue"
+        : "green"
+      : hasStarted
+        ? "default"
+        : "green";
 
     return (
       <List.Item key={booking.booking_id} className="cc-booking-item">
@@ -340,12 +369,14 @@ const ChildrenClasses = () => {
                 </Text>
 
                 <div className="cc-booking-tags">
-                  <Tag
-                    color={isPast ? "default" : "green"}
-                    className="cc-booking-status-tag"
-                  >
-                    {isPast ? "Completed" : "Confirmed"}
+                  <Tag color={statusColor} className="cc-booking-status-tag">
+                    {statusLabel}
                   </Tag>
+                  {isProgressive && (
+                    <Tag color="gold" className="cc-booking-progressive-tag">
+                      Progressive Programme
+                    </Tag>
+                  )}
 
                   {booking.partner_name && (
                     <Tag color="purple" className="cc-booking-partner-tag">
@@ -355,7 +386,7 @@ const ChildrenClasses = () => {
                 </div>
               </div>
 
-              {!isPast && (
+              {canCancel && (
                 <Button
                   danger
                   size="small"
