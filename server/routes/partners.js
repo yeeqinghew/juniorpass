@@ -249,24 +249,57 @@ router.post("/change-password", authorization, async (req, res) => {
   const partner_id = req.user;
 
   try {
-    // Get current partner data
-    const partner = await pool.query(
-      "SELECT password, requires_password_change FROM partners WHERE partner_id = $1",
+    if (!newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "New password is required",
+      });
+    }
+
+    const result = await pool.query(
+      `SELECT password, requires_password_change
+      FROM partners
+      WHERE partner_id = $1`,
       [partner_id],
     );
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Partner not found",
+      });
+    }
+
+    // Get current partner data
+    const partner = result.rows[0];
+    if (!partner.requires_password_change) {
+      if (!currentPassword) {
+        return res.status(400).json({
+          success: false,
+          message: "Current password is required",
+        });
+      }
+    }
 
     if (partner.rows.length === 0) {
       return res.status(404).json({ message: "Partner not found" });
     }
 
-    // Only verify current password if NOT a first-time password change
-    if (!partner.rows[0].requires_password_change && currentPassword) {
+    // The temporary password was already verified during first-time login, so
+    // it is not requested again. Later password changes must verify the
+    // current password.
+    if (!partner.rows[0].requires_password_change) {
+      if (!currentPassword) {
+        return res.status(400).json({ message: "Current password is required" });
+      }
+
       const validPassword = bcrypt.compareSync(
         currentPassword,
         partner.rows[0].password,
       );
       if (!validPassword) {
-        return res.status(401).json({ message: "Current password is incorrect" });
+        return res
+          .status(401)
+          .json({ message: "Current password is incorrect" });
       }
     }
 
