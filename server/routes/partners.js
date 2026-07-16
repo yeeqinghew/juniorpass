@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const jwtGenerator = require("../utils/jwtGenerator");
 const authorization = require("../middleware/authorization");
 const etagMiddleware = require("../middleware/etagMiddleware");
@@ -27,9 +28,13 @@ router.get("/", authorization, async (req, res) => {
 });
 
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password } = req.body || {};
 
   try {
+    if (typeof email !== "string" || typeof password !== "string") {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
     const partner = await pool.query(
       `SELECT partner_id, email, password, requires_password_change, is_profile_complete
        FROM partners WHERE email = $1`,
@@ -40,10 +45,15 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid Credential" });
     }
 
-    const validPassword = bcrypt.compareSync(
-      password,
-      partner.rows[0].password,
-    );
+    // Preserve existing/temp credentials while accepting passwords set by the
+    // SHA-256 frontend flow used by VerifyOTP.
+    const transformedPassword = crypto
+      .createHash("sha256")
+      .update(password, "utf8")
+      .digest("hex");
+    const validPassword =
+      bcrypt.compareSync(password, partner.rows[0].password) ||
+      bcrypt.compareSync(transformedPassword, partner.rows[0].password);
     if (!validPassword) {
       return res
         .status(401)
@@ -245,19 +255,22 @@ router.post("/partner-form", validInfo, async (req, res) => {
 
 // Change password for partners (especially for first-time login with temp password)
 router.post("/change-password", authorization, async (req, res) => {
-  const { currentPassword, newPassword } = req.body;
+  const { newPassword } = req.body || {};
   const partner_id = req.user;
 
   try {
-    if (!newPassword) {
+    if (
+      typeof newPassword !== "string" ||
+      !/^[a-f0-9]{64}$/.test(newPassword)
+    ) {
       return res.status(400).json({
         success: false,
-        message: "New password is required",
+        message: "Invalid password format",
       });
     }
 
     const result = await pool.query(
-      `SELECT password, requires_password_change
+      `SELECT requires_password_change
       FROM partners
       WHERE partner_id = $1`,
       [partner_id],
@@ -269,38 +282,12 @@ router.post("/change-password", authorization, async (req, res) => {
       });
     }
 
-    // Get current partner data
     const partner = result.rows[0];
     if (!partner.requires_password_change) {
-      if (!currentPassword) {
-        return res.status(400).json({
-          success: false,
-          message: "Current password is required",
-        });
-      }
-    }
-
-    if (partner.rows.length === 0) {
-      return res.status(404).json({ message: "Partner not found" });
-    }
-
-    // The temporary password was already verified during first-time login, so
-    // it is not requested again. Later password changes must verify the
-    // current password.
-    if (!partner.rows[0].requires_password_change) {
-      if (!currentPassword) {
-        return res.status(400).json({ message: "Current password is required" });
-      }
-
-      const validPassword = bcrypt.compareSync(
-        currentPassword,
-        partner.rows[0].password,
-      );
-      if (!validPassword) {
-        return res
-          .status(401)
-          .json({ message: "Current password is incorrect" });
-      }
+      return res.status(409).json({
+        success: false,
+        message: "Password change is no longer required",
+      });
     }
 
     // Hash new password
@@ -320,7 +307,10 @@ router.post("/change-password", authorization, async (req, res) => {
     });
   } catch (error) {
     console.error("ERROR in /partners/change-password", error.message);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      success: false,
+      message: "Unable to change password",
+    });
   }
 });
 
