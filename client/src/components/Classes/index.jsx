@@ -467,6 +467,31 @@ const Classes = () => {
     onClick: () => setSelectedDay(day),
   }));
 
+  const focusListingOnMap = (listing) => {
+    if (!Array.isArray(listing?.outlets_info)) return;
+
+    const firstOutlet = listing.outlets_info.find((outlet) =>
+      parseOutletAddress(outlet?.outlet_address),
+    );
+    const address = parseOutletAddress(firstOutlet?.outlet_address);
+
+    if (!firstOutlet || !address) return;
+
+    setPopupInfo({
+      listing,
+      outlet: firstOutlet,
+      address,
+    });
+
+    const map = mapRef.current?.getMap?.() || mapRef.current;
+    map?.flyTo?.({
+      center: [address.longitude, address.latitude],
+      zoom: 14,
+      duration: 700,
+      essential: true,
+    });
+  };
+
   const openClass = (listing) => {
     navigate(`/class/${listing.listing_id}`, {
       state: { listing },
@@ -724,23 +749,7 @@ const Classes = () => {
                         key={listing.listing_id}
                         className="class-listing-item"
                         onClick={() => openClass(listing)}
-                        onMouseEnter={() => {
-                          const firstOutlet = listing?.outlets_info?.find(
-                            (outlet) =>
-                              parseOutletAddress(outlet?.outlet_address),
-                          );
-                          const address = parseOutletAddress(
-                            firstOutlet?.outlet_address,
-                          );
-
-                          if (firstOutlet && address) {
-                            setPopupInfo({
-                              listing,
-                              outlet: firstOutlet,
-                              address,
-                            });
-                          }
-                        }}
+                        onMouseEnter={() => focusListingOnMap(listing)}
                         onMouseLeave={() => setPopupInfo(null)}
                       >
                         <div className="class-listing-card">
@@ -766,7 +775,8 @@ const Classes = () => {
                             </Text>
 
                             <Text className="class-listing-partner">
-                              By {listing?.partner_name || "Partner"}
+                              By{" "}
+                              {listing?.partner_info?.partner_name || "Partner"}
                             </Text>
 
                             <Paragraph
