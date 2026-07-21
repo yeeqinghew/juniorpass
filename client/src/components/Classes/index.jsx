@@ -36,6 +36,11 @@ import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
 import useWindowDimensions from "../../hooks/useWindowDimensions.jsx";
 import { WEEKDAYS } from "../../constants.jsx";
 import { applyTimeToDate } from "../../utils/timeHelpers.jsx";
+import {
+  getListingPackageTypes,
+  getPackageTypeLabel,
+  normalisePackageType,
+} from "../../utils/packageTypes.js";
 import "./index.css";
 
 dayjs.extend(isBetween);
@@ -187,7 +192,7 @@ const Classes = () => {
     return listings.filter((listing) => {
       const categoriesForListing = listing?.partner_info?.categories || [];
       const agesForListing = normaliseArrayValue(listing?.age_groups);
-      const packagesForListing = normaliseArrayValue(listing?.package_types);
+      const packagesForListing = getListingPackageTypes(listing);
 
       const outletSearchValues = Array.isArray(listing?.outlets_info)
         ? listing.outlets_info
@@ -203,6 +208,7 @@ const Classes = () => {
         listing?.description,
         listing?.partner_name,
         categoriesForListing.join(" "),
+        packagesForListing.join(" "),
         outletSearchValues,
       ]
         .filter(Boolean)
@@ -386,18 +392,70 @@ const Classes = () => {
     ),
   }));
 
-  const packageMenuItems = packageTypes.map((packageType) => {
-    const value = packageType.package_type || packageType.name;
+  const packageOptions = useMemo(() => {
+    const configuredLabels = new globalThis.Map(
+      packageTypes.map((packageType) => {
+        const value = normalisePackageType(
+          packageType.package_type || packageType.name,
+        );
+
+        return [value, packageType.name || getPackageTypeLabel(value)];
+      }),
+    );
+
+    const counts = new globalThis.Map();
+    listings.forEach((listing) => {
+      getListingPackageTypes(listing).forEach((packageType) => {
+        counts.set(packageType, (counts.get(packageType) || 0) + 1);
+      });
+    });
+
+    const preferredOrder = [
+      "trial",
+      "pay-as-you-go",
+      "short-term",
+      "full-term",
+    ];
+
+    return [...counts.entries()]
+      .sort(([typeA], [typeB]) => {
+        const indexA = preferredOrder.indexOf(typeA);
+        const indexB = preferredOrder.indexOf(typeB);
+
+        if (indexA === -1 && indexB === -1) {
+          return typeA.localeCompare(typeB);
+        }
+
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+      })
+      .map(([value, count]) => {
+        const standardLabel = getPackageTypeLabel(value);
+
+        return {
+          value,
+          count,
+          label:
+            standardLabel === value
+              ? configuredLabels.get(value) || value
+              : standardLabel,
+        };
+      });
+  }, [listings, packageTypes]);
+
+  const packageMenuItems = packageOptions.map((packageType) => {
+    const { value } = packageType;
 
     return {
-      key: packageType.id || value,
+      key: value,
       label: (
         <Checkbox
           checked={selectedPackageTypes.includes(value)}
           onClick={(event) => event.stopPropagation()}
           onChange={() => toggleValue(setSelectedPackageTypes, value)}
         >
-          {packageType.name || value}
+          {packageType.label} ({packageType.count})
         </Checkbox>
       ),
     };
@@ -481,7 +539,7 @@ const Classes = () => {
             {packageMenuItems.length > 0 && (
               <Dropdown menu={{ items: packageMenuItems }} trigger={["click"]}>
                 <Button>
-                  Package
+                  Package types
                   {selectedPackageTypes.length > 0 &&
                     ` (${selectedPackageTypes.length})`}
                   <DownOutlined />
@@ -618,7 +676,7 @@ const Classes = () => {
                     )
                   }
                 >
-                  {packageType}
+                  {getPackageTypeLabel(packageType)}
                 </Tag>
               ))}
 
