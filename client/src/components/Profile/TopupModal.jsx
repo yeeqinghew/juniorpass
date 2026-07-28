@@ -204,14 +204,15 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           {
             onClose: () => {
               if (!isPollingRef.current) {
-                setIsLoading(false);
-                toast.error("Payment was cancelled.");
+                setModalStep("loading");
+                pollPaymentStatus(reference_number);
               }
             },
             onSuccess: () => {
-              isPollingRef.current = true;
               setModalStep("loading");
-              pollPaymentStatus(reference_number);
+              if (!isPollingRef.current) {
+                pollPaymentStatus(reference_number);
+              }
             },
             onError: () => {
               setIsLoading(false);
