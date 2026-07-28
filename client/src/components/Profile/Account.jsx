@@ -236,10 +236,6 @@ const Account = () => {
               <span className="ac-meta-label">Status</span>
               <span className="ac-meta-val ac-active">● Active</span>
             </div>
-            <div className="ac-meta-row">
-              <span className="ac-meta-label">User ID</span>
-              <span className="ac-meta-val ac-uid">{user?.user_id || "—"}</span>
-            </div>
           </div>
         </aside>
 
