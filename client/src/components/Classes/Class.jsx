@@ -60,13 +60,28 @@ const Class = () => {
   const dateFormat = "ddd, D MMM YYYY";
   const navigate = useNavigate();
 
+  const parseClockTime = (value) => {
+    const [hours = 0, minutes = 0, seconds = 0] = String(value)
+      .split(":")
+      .map(Number);
+    return { hours, minutes, seconds };
+  };
+
+  const formatClockTime = (value) => {
+    const { hours, minutes } = parseClockTime(value);
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  };
+
   const formatTimeslot = (startTime, endTime) => {
-    const start = dayjs(startTime, "HH:mm:ss");
-    const end = dayjs(endTime, "HH:mm:ss");
-    const duration = dayjs.duration(end.diff(start)).asMinutes();
+    const start = parseClockTime(startTime);
+    const end = parseClockTime(endTime);
+    const startSeconds =
+      start.hours * 3600 + start.minutes * 60 + start.seconds;
+    const endSeconds = end.hours * 3600 + end.minutes * 60 + end.seconds;
+    const duration = (endSeconds - startSeconds) / 60;
 
     return {
-      timeRange: `${start.format("HH:mm")} - ${end.format("HH:mm")}`,
+      timeRange: `${formatClockTime(startTime)} - ${formatClockTime(endTime)}`,
       duration: `${duration} mins`,
     };
   };
@@ -151,8 +166,8 @@ const Class = () => {
                 schedule_id,
                 day,
                 timeslot: [
-                  dayjs(start_time, "HH:mm:ss").format("HH:mm"),
-                  dayjs(end_time, "HH:mm:ss").format("HH:mm"),
+                  formatClockTime(start_time),
+                  formatClockTime(end_time),
                 ],
                 frequency,
                 nearest_mrt: outlet.nearest_mrt,
