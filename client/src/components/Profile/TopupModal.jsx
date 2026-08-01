@@ -359,29 +359,31 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
 
   const renderSuccess = () => (
     <div className="modal-success">
-      <CheckCircleOutlined />
-      <Title level={3} className="modal-success-title">
-        Top-up Successful!
-      </Title>
-      <Text className="modal-success-text">
-        ${selectedAmount} has been added to your account.
-        {getBonusAmount() > 0 && (
-          <>
-            <br />
-            <Text type="success">
-              Including ${getBonusAmount()} bonus credit!
-            </Text>
-          </>
-        )}
-      </Text>
-      <Button
-        type="primary"
-        size="large"
-        className="modal-btn"
-        onClick={handleSuccessContinue}
-      >
-        Continue
-      </Button>
+      <Space direction="vertical" size={24} style={{ width: "100%" }}>
+        <CheckCircleOutlined />
+        <Title level={3} className="modal-success-title">
+          Top-up Successful!
+        </Title>
+        <Text className="modal-success-text">
+          ${selectedAmount} has been added to your account.
+          {getBonusAmount() > 0 && (
+            <>
+              <br />
+              <Text type="success">
+                Including ${getBonusAmount()} bonus credit!
+              </Text>
+            </>
+          )}
+        </Text>
+        <Button
+          type="primary"
+          size="large"
+          className="modal-btn"
+          onClick={handleSuccessContinue}
+        >
+          Continue
+        </Button>
+      </Space>
     </div>
   );
 
