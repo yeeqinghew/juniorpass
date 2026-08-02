@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Avatar, Tabs, Tooltip } from "antd";
 import Account from "./Account";
 import Credits from "./Credits";
 import ChildrenClasses from "./ChildrenClasses";
 import Referrals from "./Referrals";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useUserContext } from "../UserContext";
 import {
   UserOutlined,
@@ -16,9 +16,23 @@ import useWindowDimensions from "../../hooks/useWindowDimensions";
 import "./index.css";
 
 const Profile = () => {
-  const { state } = useLocation();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { state } = location;
   const { user } = useUserContext();
-  const [activeTab, setActiveTab] = useState(state || "account");
+  const initialTab = typeof state === "string" ? state : state?.activeTab;
+  const openTopUpOnMount =
+    typeof state === "object" && state?.openTopUp === true;
+  const [activeTab, setActiveTab] = useState(initialTab || "account");
+
+  useEffect(() => {
+    if (!openTopUpOnMount) return;
+
+    navigate(location.pathname, {
+      replace: true,
+      state: { activeTab: initialTab || "credit" },
+    });
+  }, [initialTab, location.pathname, navigate, openTopUpOnMount]);
 
   const { isMobile, isTabletPortrait } = useWindowDimensions();
   const isMobileOrTabletPortrait = isMobile || isTabletPortrait;
@@ -65,7 +79,7 @@ const Profile = () => {
       key: "credit",
       children: (
         <div className="profile-tab-content">
-          <Credits />
+          <Credits openTopUpOnMount={openTopUpOnMount} />
         </div>
       ),
     },
@@ -150,7 +164,9 @@ const Profile = () => {
           <main className="profile-main-content">
             {activeTab === "account" && <Account />}
             {activeTab === "children-classes" && <ChildrenClasses />}
-            {activeTab === "credit" && <Credits />}
+            {activeTab === "credit" && (
+              <Credits openTopUpOnMount={openTopUpOnMount} />
+            )}
             {activeTab === "referral" && <Referrals />}
           </main>
         </div>

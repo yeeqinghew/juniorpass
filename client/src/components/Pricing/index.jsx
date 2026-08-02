@@ -14,11 +14,17 @@ import {
   RocketOutlined
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
+import { useUserContext } from "../UserContext";
 import "./index.css";
 
 const { Text, Title } = Typography;
 
-const CardComponent = ({ plan, onSelect, index }) => {
+const creditDestinationState = {
+  activeTab: "credit",
+  openTopUp: true,
+};
+
+const CardComponent = ({ plan, onSelect, authLoading }) => {
   const isPopular = plan.isPopular;
   const price = plan.price;
   const credits = plan.credits;
@@ -81,6 +87,7 @@ const CardComponent = ({ plan, onSelect, index }) => {
             type="primary"
             size="large"
             className="choose-plan-btn"
+            loading={authLoading}
             onClick={() => onSelect(plan)}
           >
             Get Started
@@ -102,6 +109,7 @@ const CardComponent = ({ plan, onSelect, index }) => {
 
 const Pricing = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, loading: authLoading } = useUserContext();
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -178,9 +186,18 @@ const Pricing = () => {
     }
   ];
 
-  const handleSelectPlan = (plan) => {
-    navigate("/pricing", { state: { selectedPlan: plan } });
-    // navigate("/register", { state: { selectedPlan: plan } });
+  const handleSelectPlan = () => {
+    if (isAuthenticated) {
+      navigate("/profile", { state: creditDestinationState });
+      return;
+    }
+
+    navigate("/login", {
+      state: {
+        from: "/profile",
+        fromState: creditDestinationState,
+      },
+    });
   };
 
   return (
@@ -211,7 +228,7 @@ const Pricing = () => {
             key={idx}
             plan={plan}
             onSelect={handleSelectPlan}
-            index={idx}
+            authLoading={authLoading}
           />
         ))}
       </Row>

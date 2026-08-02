@@ -32,11 +32,11 @@ import useWindowDimensions from "../../hooks/useWindowDimensions";
 
 const { Text, Title } = Typography;
 
-const Credits = () => {
+const Credits = ({ openTopUpOnMount = false }) => {
   const { user } = useUserContext();
   const { isMobile, isTabletPortrait } = useWindowDimensions();
   const isMobileOrTabletPortrait = isMobile || isTabletPortrait;
-  const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(false);
+  const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(openTopUpOnMount);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filterType, setFilterType] = useState("all");

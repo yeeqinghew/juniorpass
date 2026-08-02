@@ -3,11 +3,15 @@ import { fetchWithAuth, API_ENDPOINTS } from "../utils/api";
 import { useNavigate } from "react-router-dom";
 import { useUserContext } from "../components/UserContext";
 
-const useHandleLogin = ({ from, setLoading }) => {
+const useHandleLogin = ({ from, fromState, setLoading }) => {
   const navigate = useNavigate();
   const { reauthenticate, setAuth } = useUserContext();
 
-  const handleResponse = async (response, originalNavigatePath) => {
+  const handleResponse = async (
+    response,
+    originalNavigatePath,
+    originalNavigateState = fromState,
+  ) => {
     try {
       const parseRes = await response.json();
 
@@ -35,7 +39,7 @@ const useHandleLogin = ({ from, setLoading }) => {
 
         // Delay the navigation to allow the toast to stay visible
         setTimeout(() => {
-          navigate(finalNavigatePath);
+          navigate(finalNavigatePath, { state: originalNavigateState });
         }, 4000); // Wait for the toast to finish before navigating
       } else {
         setAuth(false);
@@ -50,7 +54,7 @@ const useHandleLogin = ({ from, setLoading }) => {
   const handleGoogleLogin = async (values) => {
     try {
       if (setLoading) setLoading(true);
-      const { clientId, credential, select_by } = values;
+      const { credential } = values;
       if (credential) {
         const response = await fetchWithAuth(API_ENDPOINTS.GOOGLE_LOGIN, {
           method: "POST",

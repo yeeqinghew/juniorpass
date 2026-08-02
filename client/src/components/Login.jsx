@@ -22,9 +22,11 @@ const { Title, Text } = Typography;
 const Login = () => {
   const location = useLocation();
   const from = location.state?.from || "/";
+  const fromState = location.state?.fromState;
   const [googleLoading, setGoogleLoading] = useState(false);
   const { handleResponse, handleGoogleLogin } = useHandleLogin({
     from,
+    fromState,
     setLoading: setGoogleLoading,
   });
 

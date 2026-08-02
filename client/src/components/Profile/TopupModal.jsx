@@ -50,9 +50,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
     { amount: 200, label: "200", bonus: 40, popular: false },
   ];
 
-  const handleCancel = async () => {
-    if (modalStep === "loading") return;
-    await reauthenticate();
+  const closeModal = () => {
     setIsTopUpModalOpen(false);
     setSelectedAmount(null);
     topUpForm.resetFields();
@@ -60,9 +58,15 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
     setIsLoading(false);
   };
 
-  const handleSuccessContinue = () => {
-    if (onSuccess) onSuccess();
-    handleCancel();
+  const handleCancel = () => {
+    if (modalStep === "loading") return;
+    closeModal();
+  };
+
+  const handleSuccessContinue = async () => {
+    closeModal();
+    if (onSuccess) await onSuccess();
+    await reauthenticate();
   };
 
   useEffect(() => {
