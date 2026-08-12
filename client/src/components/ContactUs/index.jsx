@@ -161,7 +161,7 @@ const ContactUs = () => {
                   Get Started Today
                 </Title>
                 <Text className="form-subtitle">
-                  Fill out the form and our team will reach out within 24 hours
+                  Fill out the form and our team will reach out within 48 hours
                 </Text>
               </div>
 
