@@ -458,7 +458,8 @@ COMMENT ON FUNCTION can_book_package_type IS 'Validate if a user can book a spec
 CREATE TABLE payment_requests (
     request_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
-    amount INTEGER NOT NULL,
+    amount NUMERIC(10, 2) NOT NULL,
+    credits INTEGER NOT NULL CHECK (credits > 0),
     reference_number VARCHAR(255) NOT NULL,
     hitpay_payment_id VARCHAR(255) NOT NULL,
     status payment_status DEFAULT 'PENDING',

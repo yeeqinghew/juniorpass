@@ -1,59 +1,45 @@
 import { useEffect, useState, useRef } from "react";
 import {
   Button,
-  Card,
-  Col,
-  Form,
-  Input,
+  InputNumber,
   Modal,
-  Row,
   Space,
   Spin,
   Typography,
-  Divider,
 } from "antd";
 import {
   CreditCardOutlined,
-  DollarOutlined,
-  GiftOutlined,
+  WalletOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  CheckOutlined,
+  LockOutlined,
 } from "@ant-design/icons";
 import toast from "react-hot-toast";
 import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
 import { useUserContext } from "../UserContext";
+import {
+  calculateCreditPrice,
+  CREDIT_PRICING_TIERS,
+  getCreditPricingTier,
+} from "../../utils/creditPricing";
 import "./TopupModal.css";
 
 const { Title, Text } = Typography;
 
 const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [_modalStep, _setModalStep] = useState("form");
-  const [topUpForm] = Form.useForm();
-  const [selectedAmount, setSelectedAmount] = useState(null);
+  const [modalStep, setModalStep] = useState("form");
+  const [selectedCredits, setSelectedCredits] = useState(null);
   const { user, reauthenticate } = useUserContext();
   const isPollingRef = useRef(false);
 
-  // Wrapper to log all modalStep changes
-  const setModalStep = (newStep) => {
-    console.trace(); // Show call stack
-    _setModalStep(newStep);
-  };
-
-  const modalStep = _modalStep;
-
-  // Predefined top-up packages
-  const topupPackages = [
-    { amount: 20, label: "20", bonus: 0, popular: false },
-    { amount: 50, label: "50", bonus: 5, popular: true },
-    { amount: 100, label: "100", bonus: 15, popular: false },
-    { amount: 200, label: "200", bonus: 40, popular: false },
-  ];
+  const selectedTier = getCreditPricingTier(selectedCredits);
+  const paymentAmount = calculateCreditPrice(selectedCredits);
 
   const closeModal = () => {
     setIsTopUpModalOpen(false);
-    setSelectedAmount(null);
-    topUpForm.resetFields();
+    setSelectedCredits(null);
     setModalStep("form");
     setIsLoading(false);
   };
@@ -179,24 +165,20 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
     };
   };
 
-  const getBonusAmount = () => {
-    const package1 = topupPackages.find((pkg) => pkg.amount === selectedAmount);
-    return package1?.bonus || 0;
-  };
-
   const onHandleTopUp = async () => {
     try {
-      const amount = selectedAmount;
+      if (!selectedTier) return;
       setIsLoading(true);
       const response = await fetchWithAuth(API_ENDPOINTS.INIT_PAYMENT, {
         method: "POST",
-        body: JSON.stringify({
-          amount,
-          user,
-        }),
+        body: JSON.stringify({ credits: selectedCredits }),
       });
 
-      const { id, url, reference_number } = await response.json();
+      const payment = await response.json();
+      if (!response.ok) {
+        throw new Error(payment.error || "Unable to initialise payment");
+      }
+      const { id, url, reference_number } = payment;
 
       if (window.HitPay) {
         window.HitPay.init(
@@ -239,112 +221,147 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
     }
   };
 
-  const selectPackage = (amount) => {
-    setSelectedAmount(amount);
-    topUpForm.setFieldsValue({ amount: "" });
-  };
-
   const renderForm = () => (
-    <Space direction="vertical" size={16} style={{ width: "100%" }}>
-      {/* Header */}
-      <div className="modal-header-centered">
-        <div className="modal-icon-wrapper info">
-          <CreditCardOutlined />
+    <div className="topup-modal-shell">
+      <header className="topup-modal-header">
+        <div className="topup-header-icon">
+          <WalletOutlined />
         </div>
-        <Title level={3} className="modal-title">
-          Top Up Credits
-        </Title>
-        <Text className="modal-subtitle">
-          Add credits to your account for class bookings
-        </Text>
-      </div>
-
-      {/* Package Selection */}
-      <div className="topup-packages">
-        <Text strong className="topup-section-label">
-          Choose Package
-        </Text>
-        <Row gutter={[12, 12]}>
-          {topupPackages.map((pkg) => (
-            <Col span={12} key={pkg.amount}>
-              <Card
-                hoverable
-                className={`topup-package-card ${selectedAmount === pkg.amount ? "selected" : ""}`}
-                onClick={() => selectPackage(pkg.amount)}
-              >
-                {pkg.popular && (
-                  <div className="topup-popular-badge">POPULAR</div>
-                )}
-                <div className="topup-package-amount">{pkg.label}</div>
-                <div className="topup-package-bonus">
-                  {pkg.bonus > 0 ? (
-                    <>
-                      <Text type="success" strong>
-                        + {pkg.bonus} credits
-                      </Text>
-                      <br />
-                      <Text type="secondary" className="topup-package-total">
-                        Total: {pkg.amount + pkg.bonus} credits
-                      </Text>
-                    </>
-                  ) : (
-                    <Text type="secondary" className="topup-package-total">
-                      {pkg.amount} credits
-                    </Text>
-                  )}
-                </div>
-              </Card>
-            </Col>
-          ))}
-        </Row>
-      </div>
-
-      {/* Summary Card */}
-      {selectedAmount && (
-        <Card className="topup-summary-card" bordered={false}>
-          <div className="topup-summary-content">
-            <div>
-              <Text strong>Amount to pay:</Text>
-              <br />
-              <Text className="topup-summary-amount">${selectedAmount}</Text>
-              {getBonusAmount() > 0 && (
-                <Text className="topup-summary-bonus">
-                  (+ {getBonusAmount()} credits bonus)
-                </Text>
-              )}
-            </div>
-            <GiftOutlined className="topup-summary-icon" />
+        <div className="topup-header-copy">
+          <Text className="topup-eyebrow">JuniorPASS wallet</Text>
+          <Title level={3}>Top up your credits</Title>
+          <Text>
+            Pick an amount and we will automatically apply the best rate.
+          </Text>
+        </div>
+        <div className="topup-current-balance">
+          <span>Current balance</span>
+          <div>
+            <strong>{user?.credit ?? 0}</strong>
+            <small>credits</small>
           </div>
-        </Card>
-      )}
+        </div>
+      </header>
 
-      {/* Action Buttons */}
-      <Row gutter={12} className="modal-actions">
-        <Col span={12}>
-          <Button
-            block
+      <div className="topup-modal-body">
+        <section className="topup-selection-panel">
+          <div className="topup-section-heading">
+            <span className="topup-step-number">1</span>
+            <div>
+              <Text strong>Choose your amount</Text>
+              <Text>Enter any whole number of credits.</Text>
+            </div>
+          </div>
+
+          <label className="topup-input-label" htmlFor="topup-credit-amount">
+            Number of credits
+          </label>
+          <InputNumber
+            id="topup-credit-amount"
+            min={1}
+            precision={0}
+            value={selectedCredits}
+            onChange={setSelectedCredits}
+            placeholder="e.g. 20"
+            addonAfter="credits"
             size="large"
-            className="modal-btn"
+            className="topup-credit-input"
+          />
+
+          <Text className="topup-tier-helper">Or start from a pricing tier</Text>
+          <div className="topup-tier-list">
+            {CREDIT_PRICING_TIERS.map((tier) => {
+              const isSelected = selectedTier?.min === tier.min;
+
+              return (
+                <button
+                  type="button"
+                  key={tier.min}
+                  className={`topup-tier-option ${isSelected ? "selected" : ""}`}
+                  onClick={() => setSelectedCredits(tier.min)}
+                  aria-pressed={isSelected}
+                >
+                  <span className="topup-tier-range">{tier.label}</span>
+                  <span className="topup-tier-price">
+                    <strong>SGD {tier.rate.toFixed(2)}</strong>
+                    <small>per credit</small>
+                  </span>
+                  {tier.max === null && (
+                    <span className="topup-best-rate">Best rate</span>
+                  )}
+                  <CheckOutlined className="topup-tier-check" />
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <aside className={`topup-order-card ${selectedTier ? "ready" : ""}`}>
+          <div className="topup-order-heading">
+            <div>
+              <Text className="topup-order-eyebrow">Your purchase</Text>
+              <Title level={5}>Order summary</Title>
+            </div>
+            <WalletOutlined />
+          </div>
+
+          <div className="topup-order-details">
+            <div>
+              <span>Credits</span>
+              <strong>{selectedCredits || "—"}</strong>
+            </div>
+            <div>
+              <span>Rate</span>
+              <strong>
+                {selectedTier ? `SGD ${selectedTier.rate.toFixed(2)}` : "—"}
+              </strong>
+            </div>
+          </div>
+
+          <div className="topup-order-total">
+            <span>Total</span>
+            <strong>
+              {selectedTier ? `SGD ${paymentAmount.toFixed(2)}` : "SGD —"}
+            </strong>
+          </div>
+
+          <Text className="topup-order-note">
+            {selectedTier
+              ? "Your tier rate has been applied automatically."
+              : "Choose an amount to see your total."}
+          </Text>
+        </aside>
+      </div>
+
+      <footer className="topup-modal-footer">
+        <div className="topup-secure-note">
+          <LockOutlined />
+          <span>Secure checkout via HitPay</span>
+        </div>
+        <div className="topup-modal-actions">
+          <Button
+            size="large"
+            className="topup-cancel-btn"
             onClick={handleCancel}
           >
             Cancel
           </Button>
-        </Col>
-        <Col span={12}>
           <Button
-            block
             type="primary"
             size="large"
+            icon={<CreditCardOutlined />}
             loading={isLoading}
-            className="modal-btn modal-btn-primary"
+            className="topup-pay-btn"
             onClick={onHandleTopUp}
-            disabled={!selectedAmount}
+            disabled={!selectedTier}
           >
-            Pay Now
+            {selectedTier
+              ? `Pay SGD ${paymentAmount.toFixed(2)}`
+              : "Choose credits"}
           </Button>
-        </Col>
-      </Row>
-    </Space>
+        </div>
+      </footer>
+    </div>
   );
 
   const renderLoading = () => (
@@ -369,15 +386,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           Top-up Successful!
         </Title>
         <Text className="modal-success-text">
-          ${selectedAmount} has been added to your account.
-          {getBonusAmount() > 0 && (
-            <>
-              <br />
-              <Text type="success">
-                Including ${getBonusAmount()} bonus credit!
-              </Text>
-            </>
-          )}
+          {selectedCredits} credits have been added to your account.
         </Text>
         <Button
           type="primary"
@@ -423,7 +432,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
       title={null}
       open={isTopUpModalOpen}
       onCancel={handleCancel}
-      width={520}
+      width={680}
       centered
       closable={modalStep !== "loading"}
       maskClosable={false}

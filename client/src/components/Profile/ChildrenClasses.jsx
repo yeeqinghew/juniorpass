@@ -82,7 +82,8 @@ const ChildrenClasses = () => {
       (o) =>
         o.listing_title?.toLowerCase().includes(term) ||
         o.partner_name?.toLowerCase().includes(term) ||
-        o.child_name?.toLowerCase().includes(term),
+        o.child_name?.toLowerCase().includes(term) ||
+        o.outlet_address?.toLowerCase().includes(term),
     );
   }, [occurrences, searchTerm]);
 
@@ -587,8 +588,8 @@ const ChildrenClasses = () => {
         />
         {searchTerm && (
           <span className="cc-search-count">
-            Found {filteredBookings.length} result
-            {filteredBookings.length !== 1 ? "s" : ""}
+            Found {activeTab === "calendar" ? filteredOccurrences.length : filteredBookings.length} result
+            {(activeTab === "calendar" ? filteredOccurrences.length : filteredBookings.length) !== 1 ? "s" : ""}
           </span>
         )}
       </div>

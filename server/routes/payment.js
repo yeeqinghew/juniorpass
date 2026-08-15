@@ -5,6 +5,8 @@ const pool = require("../db");
 const { v4: uuidv4 } = require("uuid");
 const crypto = require("crypto");
 const querystring = require("querystring");
+const authorization = require("../middleware/authorization");
+const { calculateCreditPrice } = require("../utils/creditPricing");
 
 function formatSGDateTime(date) {
   // Convert to Singapore time (GMT+8)
@@ -27,10 +29,21 @@ function formatSGDateTime(date) {
 }
 
 // initiates payment and stores it.
-router.post("/init", async (req, res) => {
-  // sandbox env
-  const { amount, user } = req.body;
-  const { user_id, email, name } = user;
+router.post("/init", authorization, async (req, res) => {
+  const credits = Number(req.body.credits);
+  const amount = calculateCreditPrice(credits);
+  if (!amount) {
+    return res.status(400).json({ error: "Credits must be a positive whole number" });
+  }
+
+  const userResult = await pool.query(
+    "SELECT user_id, email, name FROM users WHERE user_id = $1",
+    [req.user],
+  );
+  if (userResult.rowCount === 0) {
+    return res.status(404).json({ error: "User not found" });
+  }
+  const { user_id, email, name } = userResult.rows[0];
 
   const ref_num = uuidv4(); // Generate a unique reference number
   // Generate expiry 10 minutes from now
@@ -114,15 +127,17 @@ router.post("/init", async (req, res) => {
 
   await pool.query(
     `INSERT INTO payment_requests
-      (user_id, amount, reference_number, hitpay_payment_id)
-      VALUES ($1, $2, $3, $4)`,
-    [user_id, amount, reference_number, response.id],
+      (user_id, amount, credits, reference_number, hitpay_payment_id)
+      VALUES ($1, $2, $3, $4, $5)`,
+    [user_id, amount, credits, reference_number, response.id],
   );
 
   res.status(200).json({
     id: response.id,
     url: response.url,
     reference_number,
+    amount,
+    credits,
   });
 });
 
@@ -173,7 +188,7 @@ router.post("/webhook", async (req, res) => {
     if (status === "completed") {
       // Get user_id from the database using reference_number
       const paymentResult = await pool.query(
-        `SELECT user_id FROM payment_requests WHERE reference_number = $1`,
+        `SELECT user_id, amount, credits FROM payment_requests WHERE reference_number = $1`,
         [reference_number],
       );
 
@@ -185,12 +200,17 @@ router.post("/webhook", async (req, res) => {
         return res.status(200).send("OK");
       }
 
-      const { user_id } = paymentResult.rows[0];
+      const { user_id, amount: expectedAmount, credits } = paymentResult.rows[0];
+
+      if (Number(amount).toFixed(2) !== Number(expectedAmount).toFixed(2)) {
+        console.error(`Payment amount mismatch for reference: ${reference_number}`);
+        return res.status(200).send("OK");
+      }
 
       await markPaymentCompleted({
         hitpayPaymentId: payment_request_id, // Use payment_request_id, not payment_id
         reference_number,
-        amount: parseFloat(amount),
+        credits,
         user_id,
       });
     }
@@ -203,7 +223,7 @@ router.post("/webhook", async (req, res) => {
 });
 
 // polls for frontend status checking.
-router.get("/status/:reference_number", async (req, res) => {
+router.get("/status/:reference_number", authorization, async (req, res) => {
   const { reference_number } = req.params;
   const checkTime = new Date().toISOString();
 
@@ -211,8 +231,8 @@ router.get("/status/:reference_number", async (req, res) => {
     const result = await pool.query(
       `SELECT status, webhook_received, updated_at
        FROM payment_requests
-       WHERE reference_number = $1`,
-      [reference_number],
+       WHERE reference_number = $1 AND user_id = $2`,
+      [reference_number, req.user],
     );
 
     if (result.rowCount === 0) {
@@ -229,15 +249,15 @@ router.get("/status/:reference_number", async (req, res) => {
 });
 
 // fallback when webhook fails (manual confirmation).
-router.get("/verify/:reference_number", async (req, res) => {
+router.get("/verify/:reference_number", authorization, async (req, res) => {
   const { reference_number } = req.params;
 
   try {
     // Get payment request ID from DB
     const result = await pool.query(
-      `SELECT user_id, hitpay_payment_id, amount, status, webhook_received FROM payment_requests
-       WHERE reference_number = $1`,
-      [reference_number],
+      `SELECT user_id, hitpay_payment_id, amount, credits, status, webhook_received FROM payment_requests
+       WHERE reference_number = $1 AND user_id = $2`,
+      [reference_number, req.user],
     );
 
     if (result.rowCount === 0) {
@@ -247,7 +267,7 @@ router.get("/verify/:reference_number", async (req, res) => {
       return res.status(404).json({ error: "Payment request not found" });
     }
 
-    const { user_id, hitpay_payment_id, amount, status, webhook_received } =
+    const { user_id, hitpay_payment_id, credits, status, webhook_received } =
       result.rows[0];
 
     // If webhook already processed it, return completed (case-insensitive check)
@@ -282,7 +302,7 @@ router.get("/verify/:reference_number", async (req, res) => {
         await markPaymentCompleted({
           hitpayPaymentId: data.id,
           reference_number,
-          amount,
+          credits,
           user_id,
         });
         return res.status(200).json({ status: "COMPLETED" });
@@ -309,47 +329,35 @@ router.get("/verify/:reference_number", async (req, res) => {
 async function markPaymentCompleted({
   hitpayPaymentId,
   reference_number,
-  amount,
+  credits,
   user_id,
 }) {
-  const existing = await pool.query(
-    `SELECT status FROM payment_requests
-     WHERE hitpay_payment_id = $1 AND
-      reference_number = $2`,
-    [hitpayPaymentId, reference_number],
-  );
-
   const updateResult = await pool.query(
     `UPDATE payment_requests
      SET status = $1, webhook_received = true, updated_at = NOW()
-     WHERE hitpay_payment_id = $2 AND reference_number = $3`,
+     WHERE hitpay_payment_id = $2 AND reference_number = $3
+       AND status <> 'COMPLETED'`,
     ["COMPLETED", hitpayPaymentId, reference_number],
   );
 
   if (updateResult.rowCount === 0) {
-    console.error(
-      `❌ UPDATE FAILED - No rows matched! hitpay_payment_id=${hitpayPaymentId}, reference=${reference_number}`,
-    );
-    // Query to see what's actually in the DB
-    const debugQuery = await pool.query(
-      `SELECT * FROM payment_requests WHERE reference_number = $1`,
-      [reference_number],
-    );
-    console.error(`❌ Debug - DB record:`, debugQuery.rows[0]);
+    // The webhook and fallback verifier can finish at the same time.
+    // A completed request must never award credits twice.
+    return;
   }
 
   await pool.query(
     `UPDATE users
      SET credit = credit + $1
      WHERE user_id = $2`,
-    [amount, user_id],
+    [credits, user_id],
   );
 
   // Record top-up transaction
   await pool.query(
     `INSERT INTO transactions (parent_id, listing_id, used_credit, transaction_type)
      VALUES ($1, NULL, $2, 'CREDIT')`,
-    [user_id, amount],
+    [user_id, credits],
   );
 
   const REFERRAL_REWARD = 50;

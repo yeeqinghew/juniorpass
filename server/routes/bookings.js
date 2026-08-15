@@ -422,6 +422,8 @@ router.get("/user", authorization, async (req, res) => {
         l.images,
         p.partner_name,
         p.picture as partner_picture,
+        o.address as outlet_address,
+        o.nearest_mrt,
         sg.is_progressive,
         (
           SELECT child_id
@@ -437,6 +439,8 @@ router.get("/user", authorization, async (req, res) => {
       JOIN listings l ON b.listing_id = l.listing_id
       JOIN partners p ON l.partner_id = p.partner_id
       JOIN schedules s ON b.schedule_id = s.schedule_id
+      JOIN listingOutlets lo ON s.listing_outlet_id = lo.listing_outlet_id
+      JOIN outlets o ON lo.outlet_id = o.outlet_id
       JOIN schedule_groups sg ON s.schedule_group_id = sg.schedule_group_id
       WHERE b.user_id = $1
       ORDER BY b.start_date DESC
@@ -499,6 +503,20 @@ router.get("/user/occurrences", authorization, async (req, res) => {
             LIMIT 1
           )
         ) as child_name
+        ,(
+          SELECT gender
+          FROM children
+          WHERE child_id = (
+            SELECT child_id
+            FROM transactions
+            WHERE parent_id = b.user_id
+              AND listing_id = b.listing_id
+              AND transaction_type = 'DEBIT'
+              AND created_at >= b.created_at
+            ORDER BY created_at ASC
+            LIMIT 1
+          )
+        ) as child_gender
       FROM class_occurrences co
       JOIN bookings b ON co.booking_id = b.booking_id
       JOIN listings l ON b.listing_id = l.listing_id
