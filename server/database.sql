@@ -17,6 +17,7 @@ DROP TABLE IF EXISTS outlets CASCADE;
 DROP TABLE IF EXISTS listingOutlets CASCADE;
 DROP TABLE IF EXISTS schedules CASCADE;
 DROP TABLE IF EXISTS partnerForms CASCADE;
+DROP TABLE IF EXISTS password_resets CASCADE;
 DROP TABLE IF EXISTS passwordResets CASCADE;
 DROP TABLE IF EXISTS otpRequests CASCADE;
 DROP TABLE IF EXISTS bookings CASCADE;
@@ -563,13 +564,16 @@ CREATE TRIGGER set_timestamp_partner_forms
     FOR EACH ROW
     EXECUTE FUNCTION trigger_set_timestamp();
 
-CREATE TABLE passwordResets (
+CREATE TABLE password_resets (
     reset_id SERIAL PRIMARY KEY,
     user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
     token VARCHAR(255) NOT NULL,
     created_at TIMESTAMP DEFAULT NOW(),
     expires_at TIMESTAMP NOT NULL
 );
+
+CREATE INDEX idx_password_resets_token ON password_resets(token);
+CREATE INDEX idx_password_resets_user ON password_resets(user_id);
 
 CREATE TABLE otpRequests (
     otp_id SERIAL PRIMARY KEY,

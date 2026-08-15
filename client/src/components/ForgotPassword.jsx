@@ -3,6 +3,7 @@ import { Form, Input, Button, Typography, Image } from "antd";
 import { fetchWithAuth, API_ENDPOINTS } from "../utils/api";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
+import successGif from "../images/success.gif";
 
 const { Title, Text } = Typography;
 
@@ -22,13 +23,13 @@ const ForgotPassword = () => {
 
       const parseRes = await response.json();
 
-      if (response.status === 400 && parseRes.message) {
-        toast.error(parseRes.message);
-      } else if (response.status === 200) {
-        toast.success("Password reset email sent!");
+      if (response.ok) {
+        toast.success("Check your inbox for reset instructions.");
         setEmailSent(true); // Show success message
       } else {
-        toast.error("An unexpected error occurred.");
+        toast.error(
+          parseRes.message || "We couldn't send the reset email. Please try again.",
+        );
       }
     } catch (error) {
       toast.error(error.message || "Error occurred during the request.");
@@ -51,23 +52,24 @@ const ForgotPassword = () => {
       {emailSent ? (
         <div style={{ textAlign: "center" }}>
           <Image
-            src={"../images/success.gif"}
+            src={successGif}
             alt="Success"
             style={{ width: "100px", marginBottom: "20px" }}
             preview={false}
           />
           <Title level={4}>
-            A reset password email has been sent to{" "}
-            <strong>{submittedEmail}</strong>.
+            If an email and password account exists for{" "}
+            <strong>{submittedEmail}</strong>, a reset link is on its way.
           </Title>
           <Text>
-            If you did not receive the email, please check your spam folder or{" "}
-            <Link
-              to="mailto:admin@juniorpass.sg"
+            Check your spam folder if it does not arrive. Accounts created with
+            Google should continue with Google instead, or{" "}
+            <a
+              href="mailto:admin@juniorpass.sg"
               style={{ color: "#98BDD2", fontWeight: "bold" }}
             >
               contact us
-            </Link>{" "}
+            </a>{" "}
             for help.
           </Text>
         </div>

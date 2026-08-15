@@ -49,8 +49,10 @@ const ResetPassword = () => {
       style={{
         padding: "30px 40px",
         borderRadius: "10px",
-        maxWidth: "600px",
+        width: "calc(100% - 32px)",
+        maxWidth: "400px",
         margin: "50px auto",
+        boxSizing: "border-box",
         boxShadow: "0 6px 20px rgba(0, 0, 0, 0.1)",
         background: "#ffffff",
         display: "flex",
@@ -64,7 +66,13 @@ const ResetPassword = () => {
       <Form
         onFinish={onFinish}
         layout="vertical"
-        style={{ display: "flex", flexDirection: "column", gap: "15px" }}
+        style={{
+          display: "flex",
+          width: "100%",
+          minWidth: 0,
+          flexDirection: "column",
+          gap: "15px",
+        }}
       >
         <Form.Item
           name="password"
@@ -75,8 +83,9 @@ const ResetPassword = () => {
               message: "Please enter your new password!",
             },
             {
-              min: 6,
-              message: "Password must be at least 6 characters long!",
+              pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/,
+              message:
+                "Use at least 8 characters with uppercase, lowercase, and a number.",
             },
           ]}
         >

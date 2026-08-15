@@ -2,7 +2,6 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const bcrypt = require("bcryptjs");
-const crypto = require("crypto");
 const jwtGenerator = require("../utils/jwtGenerator");
 const validInfo = require("../middleware/validInfo");
 const authorization = require("../middleware/authorization");
@@ -58,17 +57,26 @@ const sendEmail = require("../utils/emailSender");
 const {
   resetPasswordHtmlTemplate,
 } = require("../utils/resetPasswordHtmlTemplate");
+const {
+  buildResetPasswordUrl,
+  createResetToken,
+  hashResetToken,
+  resolvePasswordResetTable,
+} = require("../utils/passwordReset");
 const { otpHtmlTemplate } = require("../utils/otpHtmlTemplate");
 const client = new OAuth2Client(process.env.googleClientID);
 
-// function isStrongPassword(pw) {
-//   if (typeof pw !== "string") return false;
-//   const lengthOK = pw.length >= 8;
-//   const lower = /[a-z]/.test(pw);
-//   const upper = /[A-Z]/.test(pw);
-//   const digit = /[0-9]/.test(pw);
-//   return lengthOK && lower && upper && digit;
-// }
+function isStrongPassword(pw) {
+  if (typeof pw !== "string") return false;
+  // The current clients submit a SHA-256 digest after validating the raw
+  // password in the form. Accept that established payload format here.
+  if (/^[a-f0-9]{64}$/i.test(pw)) return true;
+  const lengthOK = pw.length >= 8;
+  const lower = /[a-z]/.test(pw);
+  const upper = /[A-Z]/.test(pw);
+  const digit = /[0-9]/.test(pw);
+  return lengthOK && lower && upper && digit;
+}
 router.use(etagMiddleware);
 
 router.get("/", authorization, async (req, res) => {
@@ -86,11 +94,11 @@ router.get("/", authorization, async (req, res) => {
 
 router.post("/register", registerLimiter, validInfo, async (req, res) => {
   const { name, phoneNumber, email, password } = req.body;
-  // if (!isStrongPassword(password)) {
-  //   return res
-  //     .status(400)
-  //     .json({ message: "Password does not meet complexity requirements" });
-  // }
+  if (!isStrongPassword(password)) {
+    return res
+      .status(400)
+      .json({ message: "Password does not meet complexity requirements" });
+  }
 
   try {
     // check if user exists
@@ -269,7 +277,12 @@ router.post("/login/google", async (req, res) => {
 });
 
 router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
-  const { email } = req.body;
+  const email = req.body?.email?.trim();
+  const genericMessage = "If that account exists, we've sent a reset email";
+
+  if (!email) {
+    return res.status(400).json({ message: "Email is required" });
+  }
 
   try {
     const userResult = await pool.query(
@@ -278,74 +291,109 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
     );
 
     if (userResult.rowCount === 0)
-      return res.status(200).json({
-        message: "If that account exists, we've sent a reset email",
-      });
+      return res.status(200).json({ message: genericMessage });
 
-    const userId = userResult.rows[0].user_id;
+    const user = userResult.rows[0];
+    const userId = user.user_id;
 
-    // check if user is using google or email
-    const user = await pool.query("SELECT * FROM users WHERE user_id = $1", [
-      userId,
-    ]);
+    if (user.method === LOGIN_METHODS.GOOGLE) {
+      return res.status(200).json({ message: genericMessage });
+    }
 
-    if (user && user.rows[0].method === "gmail")
-      return res.status(200).json({
-        message: "If that account exists, we've sent a reset email",
-      });
-
-    const token = crypto.randomBytes(32).toString("hex");
-    const hashedToken = bcrypt.hashSync(token, 10);
+    const token = createResetToken();
+    const hashedToken = hashResetToken(token);
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    const resetTable = await resolvePasswordResetTable(pool);
 
-    await pool.query(
-      `INSERT INTO password_resets (user_id, token, expires_at) VALUES ($1, $2, $3)`,
+    await pool.query(`DELETE FROM ${resetTable} WHERE user_id = $1`, [userId]);
+
+    const resetRequest = await pool.query(
+      `INSERT INTO ${resetTable} (user_id, token, expires_at)
+       VALUES ($1, $2, $3)
+       RETURNING reset_id`,
       [userId, hashedToken, expiresAt],
     );
 
-    const resetURL = `https://www.juniorpass.sg/reset-password?token=${hashedToken}`;
+    const resetURL = buildResetPasswordUrl(req, token);
     const emailContent = resetPasswordHtmlTemplate(resetURL);
 
-    await sendEmail(email, "Password Reset Request", emailContent);
-    res.status(200).json({ message: "Password reset email sent" });
+    try {
+      await sendEmail(email, "Password Reset Request", emailContent);
+    } catch (emailError) {
+      await pool.query(`DELETE FROM ${resetTable} WHERE reset_id = $1`, [
+        resetRequest.rows[0].reset_id,
+      ]);
+      throw emailError;
+    }
+
+    res.status(200).json({ message: genericMessage });
   } catch (err) {
-    console.error("Error in forgot-password route:", err);
-    res.status(500).json({ error: err });
+    console.error("Error in forgot-password route:", err.message);
+    res.status(500).json({
+      message: "We couldn't send the reset email. Please try again shortly.",
+    });
   }
 });
 
 router.post("/reset-password", resetPasswordLimiter, async (req, res) => {
   const { token, newPassword } = req.body;
-  // if (!isStrongPassword(newPassword)) {
-  //   return res.status(400).json({ message: "Password does not meet complexity requirements" });
-  // }
+
+  if (!token || !newPassword) {
+    return res
+      .status(400)
+      .json({ message: "Reset token and password are required" });
+  }
+
+  if (!isStrongPassword(newPassword)) {
+    return res
+      .status(400)
+      .json({ message: "Password does not meet complexity requirements" });
+  }
 
   try {
+    const hashedToken = hashResetToken(token);
+    const resetTable = await resolvePasswordResetTable(pool);
     const resetResult = await pool.query(
-      `SELECT user_id, expires_at FROM password_resets WHERE token = $1`,
-      [token],
+      `SELECT reset_id, user_id, expires_at
+       FROM ${resetTable}
+       WHERE token IN ($1, $2)
+       ORDER BY CASE WHEN token = $1 THEN 0 ELSE 1 END
+       LIMIT 1`,
+      [hashedToken, token],
     );
 
     if (resetResult.rows.length === 0)
       return res.status(400).json({ message: "Invalid or expired token" });
 
-    const { user_id, expires_at } = resetResult.rows[0];
+    const { reset_id, user_id, expires_at } = resetResult.rows[0];
 
     if (new Date() > new Date(expires_at)) {
+      await pool.query(`DELETE FROM ${resetTable} WHERE reset_id = $1`, [
+        reset_id,
+      ]);
       return res.status(400).json({ message: "Token expired" });
     }
 
     const saltRound = 10;
     const bcryptedPassword = bcrypt.hashSync(newPassword, saltRound);
 
-    await pool.query(`UPDATE users SET password = $1 WHERE user_id = $2`, [
-      bcryptedPassword,
-      user_id,
-    ]);
-
-    await pool.query(`DELETE FROM password_resets WHERE user_id = $1`, [
-      user_id,
-    ]);
+    const dbClient = await pool.connect();
+    try {
+      await dbClient.query("BEGIN");
+      await dbClient.query(
+        `UPDATE users SET password = $1 WHERE user_id = $2`,
+        [bcryptedPassword, user_id],
+      );
+      await dbClient.query(`DELETE FROM ${resetTable} WHERE user_id = $1`, [
+        user_id,
+      ]);
+      await dbClient.query("COMMIT");
+    } catch (transactionError) {
+      await dbClient.query("ROLLBACK");
+      throw transactionError;
+    } finally {
+      dbClient.release();
+    }
 
     res.status(200).json({ message: "Password updated successfully" });
   } catch (err) {
@@ -357,9 +405,11 @@ router.post("/reset-password", resetPasswordLimiter, async (req, res) => {
 router.post("/change-password", authorization, async (req, res) => {
   const userId = req.user;
   const { oldPassword, newPassword } = req.body;
-  // if (!isStrongPassword(newPassword)) {
-  //   return res.status(400).json({ message: "Password does not meet complexity requirements" });
-  // }
+  if (!isStrongPassword(newPassword)) {
+    return res
+      .status(400)
+      .json({ message: "Password does not meet complexity requirements" });
+  }
 
   try {
     const userResult = await pool.query(
@@ -373,7 +423,9 @@ router.post("/change-password", authorization, async (req, res) => {
 
     // Prevent Gmail users from changing password
     if (userResult.rows[0].method === "gmail") {
-      return res.status(403).json({ message: "Cannot change password for Google-authenticated accounts" });
+      return res.status(403).json({
+        message: "Cannot change password for Google-authenticated accounts",
+      });
     }
 
     const validPassword = bcrypt.compareSync(
