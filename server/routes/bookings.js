@@ -1,6 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const {
+  getPackageClassCount,
+  getPackageCreditCost,
+} = require("../utils/packageCredits");
 const authorization = require("../middleware/authorization");
 
 router.post("/", authorization, async (req, res) => {
@@ -73,7 +77,7 @@ router.post("/", authorization, async (req, res) => {
     // Get schedule capacity, credit, and package info from schedule_groups
     const schedule = await pool.query(
       `SELECT sg.slots, 
-              sg.price_payg as credit,
+              sg.price_payg,
               sg.price_fullterm, 
               sg.price_shortterm,
               sg.schedule_group_id,
@@ -119,29 +123,20 @@ router.post("/", authorization, async (req, res) => {
       return res.status(400).json({ error: "Package type is not available" });
     }
 
-    // Calculate credits + number of classes
-    let classes_total;
-    let creditCost;
-    switch (enrolledPackageType) {
-      case "pay-as-you-go":
-        classes_total = 1;
-        creditCost = Number(scheduleGroup.price_payg);
-        break;
+    // Calculate credits + number of classes using the same fallbacks as the UI.
+    const classes_total = getPackageClassCount(
+      scheduleGroup,
+      enrolledPackageType,
+    );
+    const creditCost = getPackageCreditCost(
+      scheduleGroup,
+      enrolledPackageType,
+    );
 
-      case "short-term":
-        classes_total = Number(scheduleGroup.short_term_class_count);
-        creditCost = Number(scheduleGroup.price_shortterm);
-        break;
-
-      case "full-term":
-        classes_total = Number(scheduleGroup.full_term_class_count);
-        creditCost = Number(scheduleGroup.price_fullterm);
-        break;
-
-      default:
-        return res.status(400).json({
-          error: "Invalid package type",
-        });
+    if (!creditCost || !Number.isInteger(classes_total) || classes_total < 1) {
+      return res.status(400).json({
+        error: "This package's credit cost is unavailable",
+      });
     }
 
     const userCredits = Number(user.rows[0].credit);
@@ -193,11 +188,20 @@ router.post("/", authorization, async (req, res) => {
     try {
       await client.query("BEGIN");
 
-      // Deduct credits from user balance
-      await client.query(
-        "UPDATE users SET credit = credit - $1 WHERE user_id = $2",
+      // Deduct credits only if the balance still covers the package. This
+      // prevents concurrent booking requests from taking the balance negative.
+      const debitResult = await client.query(
+        `UPDATE users
+         SET credit = credit - $1
+         WHERE user_id = $2 AND credit >= $1
+         RETURNING credit`,
         [creditCost, user_id],
       );
+
+      if (debitResult.rowCount === 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "Insufficient credits" });
+      }
 
       // Credit partner balance
       await client.query(
@@ -332,7 +336,7 @@ router.post("/", authorization, async (req, res) => {
       res.status(201).json({
         message: "Booking created successfully",
         booking: newBooking.rows[0],
-        updated_credit: userCredits - creditCost,
+        updated_credit: Number(debitResult.rows[0].credit),
       });
     } catch (e) {
       await client.query("ROLLBACK");

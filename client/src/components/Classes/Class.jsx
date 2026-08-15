@@ -329,11 +329,6 @@ const Class = () => {
       return;
     }
 
-    if (user.credit < listing.credit) {
-      toast.error("Insufficient credits to book this class.");
-      return;
-    }
-
     try {
       const response = await fetchWithAuth(
         API_ENDPOINTS.GET_CHILDREN(user.user_id),
