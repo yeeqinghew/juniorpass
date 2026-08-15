@@ -19,7 +19,9 @@ const Pricing = () => {
   const navigate = useNavigate();
   const { isAuthenticated, loading: authLoading } = useUserContext();
 
-  useEffect(() => window.scrollTo(0, 0), []);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   const openCreditTopUp = () => {
     if (isAuthenticated) {
@@ -73,7 +75,6 @@ const Pricing = () => {
         <div className="tier-pricing-heading">
           <span className="tier-heading-icon">★</span>
           <Text className="tier-eyebrow">Pick what works for your family</Text>
-          <Title level={3}>More credits, more happy moments</Title>
           <Text className="tier-pricing-hint">
             Choose how many credits you would like and we will apply the best
             rate automatically.
@@ -96,14 +97,14 @@ const Pricing = () => {
               </div>
               <div className="tier-credit-range">{tier.label}</div>
               <div className="tier-rate">
-                <span className="tier-currency">SGD</span>
+                <span className="tier-currency">S$</span>
                 <strong>{tier.rate.toFixed(2)}</strong>
               </div>
               <Text className="tier-rate-caption">for each credit</Text>
               <Text className="tier-saving-label">
                 {index === 0
                   ? "A lovely place to start"
-                  : `Save SGD ${(10 - tier.rate).toFixed(2)} on every credit`}
+                  : `Save S$ ${(10 - tier.rate).toFixed(2)}/credit`}
               </Text>
             </div>
           ))}

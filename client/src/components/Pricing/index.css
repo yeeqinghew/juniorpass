@@ -6,6 +6,7 @@
         opacity: 0;
         transform: translateY(20px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -21,14 +22,14 @@
 }
 
 .pricing-header {
-    margin-bottom: var(--spacing-3xl);
+    margin-bottom: var(--spacing-xl);
     text-align: center;
     animation: fadeIn 0.6s ease-out;
 }
 
 .pricing-hero-title {
     color: var(--text-primary) !important;
-    font-size: var(--font-size-5xl) !important;
+    font-size: var(--font-size-4xl) !important;
     margin-top: 0 !important;
     margin-bottom: var(--spacing-md) !important;
     font-weight: var(--font-weight-bold) !important;
@@ -37,7 +38,7 @@
 
 .pricing-hero-subtitle {
     color: var(--text-secondary) !important;
-    font-size: var(--font-size-lg) !important;
+    font-size: var(--font-size-base) !important;
     max-width: 800px;
     margin: 0 auto !important;
     line-height: var(--line-height-relaxed);
@@ -98,7 +99,7 @@
     align-items: flex-end;
     justify-content: space-between;
     gap: var(--spacing-xl);
-    padding: var(--spacing-xl) var(--spacing-2xl);
+    padding: var(--spacing-xl) var(--spacing-xl);
     border-bottom: 1px solid var(--border-light);
 }
 
@@ -130,7 +131,7 @@
 .tier-pricing-item {
     position: relative;
     min-width: 0;
-    padding: var(--spacing-xl);
+    padding: var(--spacing-md);
     border-right: 1px solid var(--border-light);
     transition: var(--transition-base);
 }
@@ -250,6 +251,7 @@
 }
 
 @media screen and (max-width: 600px) {
+
     .tier-pricing-heading,
     .tier-pricing-action {
         align-items: stretch;
@@ -321,7 +323,7 @@
 .tier-pricing-heading h3.ant-typography {
     margin-bottom: var(--spacing-sm) !important;
     color: var(--text-dark);
-    font-size: var(--font-size-3xl);
+    font-size: var(--font-size-2xl);
 }
 
 .tier-pricing-hint {
@@ -340,7 +342,7 @@
 .tier-pricing-item:last-child,
 .tier-pricing-item.best-tier {
     min-height: 270px;
-    padding: var(--spacing-xl);
+    padding: var(--spacing-lg);
     overflow: hidden;
     background: rgba(255, 255, 255, .92);
     border: 1px solid var(--border-light);
@@ -367,18 +369,18 @@
 
 .tier-card-icon {
     color: var(--accent-pink);
-    font-size: 28px;
+    font-size: var(--font-size-3xl);
     font-weight: var(--font-weight-bold);
     line-height: 1;
 }
 
 .tier-credit-range {
     margin-bottom: var(--spacing-lg);
-    font-size: var(--font-size-xl);
+    font-size: var(--font-size-lg);
 }
 
 .tier-rate strong {
-    font-size: clamp(2.5rem, 4vw, 3.5rem);
+    font-size: clamp(2.1rem, 3vw, 2.8rem);
 }
 
 .tier-rate-caption {
@@ -387,7 +389,7 @@
 
 .tier-saving-label {
     display: inline-block;
-    margin-top: var(--spacing-xl);
+    margin-top: var(--spacing-lg);
     padding: 7px 11px;
     color: var(--text-secondary);
     background: var(--bg-light-blue);
@@ -402,9 +404,9 @@
     border-radius: var(--radius-xl);
 }
 
-.tier-pricing-action > div .ant-typography:first-child {
+.tier-pricing-action>div .ant-typography:first-child {
     color: var(--text-dark);
-    font-size: var(--font-size-lg);
+    font-size: var(--font-size-base);
 }
 
 .tier-pricing-action .pricing-main-cta {
@@ -414,6 +416,7 @@
 }
 
 @media screen and (max-width: 900px) {
+
     .tier-pricing-item,
     .tier-pricing-item:nth-child(2) {
         border: 1px solid var(--border-light);
@@ -435,7 +438,7 @@
     }
 
     .tier-pricing-heading h3.ant-typography {
-        font-size: var(--font-size-2xl);
+        font-size: var(--font-size-xl);
     }
 
     .tier-pricing-item {
