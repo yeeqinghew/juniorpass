@@ -24,7 +24,7 @@ import {
   ShopOutlined,
   PhoneOutlined,
 } from "@ant-design/icons";
-import dayjs from "dayjs";
+import dayjs from "../../utils/dayjs";
 import duration from "dayjs/plugin/duration";
 import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
 import { useUserContext } from "../UserContext";

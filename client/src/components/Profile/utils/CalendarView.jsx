@@ -8,7 +8,7 @@ import {
   RightOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
-import dayjs from "dayjs";
+import dayjs from "../../../utils/dayjs";
 import boy from "../../../images/profile/boys/boy0.png";
 import girl from "../../../images/profile/girls/girl0.png";
 import "./CalendarView.css";

@@ -916,7 +916,7 @@ html {
         display: none !important;
     }
 
-    .ant-card {
+    .partner-splide-card {
         display: flex !important;
         height: auto !important;
     }
@@ -1273,7 +1273,7 @@ html {
         padding: 0;
     }
 
-    .ant-card {
+    .partner-splide-card {
         display: flex !important;
         height: auto !important;
         width: 100% !important;
@@ -1439,7 +1439,7 @@ html {
         padding: 0;
     }
 
-    .ant-card {
+    .partner-splide-card {
         display: flex !important;
         height: auto !important;
     }

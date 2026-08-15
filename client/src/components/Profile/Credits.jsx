@@ -1,41 +1,30 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Button, Pagination, Spin, Tag, Typography } from "antd";
 import {
-  Button,
-  Card,
-  Empty,
-  Space,
-  Spin,
-  Tag,
-  Typography,
-  Segmented,
-  Tooltip,
-  Pagination,
-} from "antd";
-import {
-  PlusOutlined,
-  WalletOutlined,
-  HistoryOutlined,
-  ArrowUpOutlined,
   ArrowDownOutlined,
-  GiftOutlined,
-  ShoppingCartOutlined,
+  ArrowUpOutlined,
   CalendarOutlined,
+  GiftOutlined,
+  HistoryOutlined,
+  PlusOutlined,
+  ShoppingCartOutlined,
   UserOutlined,
-  InfoCircleOutlined,
+  WalletOutlined,
 } from "@ant-design/icons";
-import { useUserContext } from "../UserContext";
-import TopupModal from "./TopupModal";
 import toast from "react-hot-toast";
-import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
-import "./Credits.css";
+import { useUserContext } from "../UserContext";
 import useWindowDimensions from "../../hooks/useWindowDimensions";
+import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
+import TopupModal from "./TopupModal";
+import "./Credits.css";
 
-const { Text, Title } = Typography;
+const { Title } = Typography;
 
 const Credits = ({ openTopUpOnMount = false }) => {
   const { user } = useUserContext();
   const { isMobile, isTabletPortrait } = useWindowDimensions();
   const isMobileOrTabletPortrait = isMobile || isTabletPortrait;
+  const balance = user?.credit ?? 0;
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(openTopUpOnMount);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -43,7 +32,7 @@ const Credits = ({ openTopUpOnMount = false }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(isMobileOrTabletPortrait ? 5 : 10);
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetchWithAuth(API_ENDPOINTS.GET_TRANSACTIONS, {
@@ -57,38 +46,43 @@ const Credits = ({ openTopUpOnMount = false }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    if (user) fetchTransactions();
-  }, [user]);
+    if (!user) return undefined;
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filterType]);
+    const requestId = window.setTimeout(fetchTransactions, 0);
+    return () => window.clearTimeout(requestId);
+  }, [fetchTransactions, user]);
 
-  const calculateStats = () => {
-    const totalSpent = transactions
-      .filter((t) => t.transaction_type === "DEBIT")
-      .reduce((s, t) => s + t.used_credit, 0);
-    const totalRefunded = transactions
-      .filter((t) => t.transaction_type === "CREDIT")
-      .reduce((s, t) => s + t.used_credit, 0);
-    const debitCount = transactions.filter(
-      (t) => t.transaction_type === "DEBIT",
-    ).length;
-    const creditCount = transactions.filter(
-      (t) => t.transaction_type === "CREDIT",
-    ).length;
-    return { totalSpent, totalRefunded, debitCount, creditCount };
-  };
-  const stats = calculateStats();
+  const totalSpent = transactions
+    .filter((transaction) => transaction.transaction_type === "DEBIT")
+    .reduce(
+      (sum, transaction) => sum + (Number(transaction.used_credit) || 0),
+      0,
+    );
+  const totalAdded = transactions
+    .filter((transaction) => transaction.transaction_type === "CREDIT")
+    .reduce(
+      (sum, transaction) => sum + (Number(transaction.used_credit) || 0),
+      0,
+    );
+  const debitCount = transactions.filter(
+    (transaction) => transaction.transaction_type === "DEBIT",
+  ).length;
+  const creditCount = transactions.filter(
+    (transaction) => transaction.transaction_type === "CREDIT",
+  ).length;
 
   const filteredTransactions =
     filterType === "spent"
-      ? transactions.filter((t) => t.transaction_type === "DEBIT")
-      : filterType === "refunded"
-        ? transactions.filter((t) => t.transaction_type === "CREDIT")
+      ? transactions.filter(
+          (transaction) => transaction.transaction_type === "DEBIT",
+        )
+      : filterType === "added"
+        ? transactions.filter(
+            (transaction) => transaction.transaction_type === "CREDIT",
+          )
         : transactions;
 
   const paginatedTransactions = filteredTransactions.slice(
@@ -96,20 +90,69 @@ const Credits = ({ openTopUpOnMount = false }) => {
     currentPage * pageSize,
   );
 
-  const formatDate = (s) => {
-    const date = new Date(s),
-      now = new Date();
+  const statItems = [
+    {
+      key: "spent",
+      icon: <ArrowUpOutlined />,
+      value: totalSpent,
+      label: "Credits spent",
+      color: "spent",
+    },
+    {
+      key: "added",
+      icon: <ArrowDownOutlined />,
+      value: totalAdded,
+      label: "Credits added",
+      color: "added",
+    },
+    {
+      key: "bookings",
+      icon: <ShoppingCartOutlined />,
+      value: debitCount,
+      label: "Class bookings",
+      color: "primary",
+    },
+    {
+      key: "transactions",
+      icon: <HistoryOutlined />,
+      value: transactions.length,
+      label: "Transactions",
+      color: "reward",
+    },
+  ];
+
+  const handleFilterChange = (value) => {
+    setFilterType(value);
+    setCurrentPage(1);
+  };
+
+  const formatDate = (value) => {
+    const date = new Date(value);
+    const now = new Date();
     const days = Math.floor(Math.abs(now - date) / (1000 * 60 * 60 * 24));
-    if (days === 0)
-      return `Today, ${date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`;
-    if (days === 1)
-      return `Yesterday, ${date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}`;
-    if (days < 7)
+
+    if (days === 0) {
+      return `Today, ${date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`;
+    }
+
+    if (days === 1) {
+      return `Yesterday, ${date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`;
+    }
+
+    if (days < 7) {
       return date.toLocaleDateString("en-US", {
         weekday: "short",
         hour: "2-digit",
         minute: "2-digit",
       });
+    }
+
     return date.toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -117,193 +160,167 @@ const Credits = ({ openTopUpOnMount = false }) => {
     });
   };
 
-  const renderTxn = (item) => {
+  const renderTransaction = (item) => {
     const isDebit = item.transaction_type === "DEBIT";
     const displayTitle =
-      item.listing_title || (isDebit ? "Transaction" : "Credit Top-up");
+      item.listing_title || (isDebit ? "Class booking" : "Credits added");
 
     return (
-      <div className="cr-txn-item" key={item.transaction_id}>
-        <div className={`cr-txn-icon ${isDebit ? "debit" : "credit"}`}>
+      <article className="cr-txn-item" key={item.transaction_id}>
+        <span className={`cr-txn-icon ${isDebit ? "debit" : "credit"}`}>
           {isDebit ? <ShoppingCartOutlined /> : <GiftOutlined />}
-        </div>
+        </span>
         <div className="cr-txn-details">
           <div className="cr-txn-row">
             <span className="cr-txn-name">{displayTitle}</span>
-            <span className={`cr-txn-amount ${isDebit ? "debit" : "credit"}`}>
+            <strong className={`cr-txn-amount ${isDebit ? "debit" : "credit"}`}>
               {isDebit ? "−" : "+"}
               {item.used_credit}
-            </span>
+            </strong>
           </div>
-          <div className="cr-txn-tags">
-            {item.child_name && (
-              <Tag icon={<UserOutlined />} className="cr-tag child-tag">
-                {item.child_name}
-              </Tag>
-            )}
-            {item.partner_name && (
-              <Tag className="cr-tag partner-tag">{item.partner_name}</Tag>
-            )}
-          </div>
+          {(item.child_name || item.partner_name) && (
+            <div className="cr-txn-tags">
+              {item.child_name && (
+                <Tag icon={<UserOutlined />} className="cr-tag child-tag">
+                  {item.child_name}
+                </Tag>
+              )}
+              {item.partner_name && (
+                <Tag className="cr-tag partner-tag">{item.partner_name}</Tag>
+              )}
+            </div>
+          )}
           <span className="cr-txn-date">
             <CalendarOutlined /> {formatDate(item.created_at)}
           </span>
         </div>
-      </div>
+      </article>
     );
   };
 
   return (
     <div className="cr-page fade-in">
-      {/* Header */}
-      <div style={{ marginBottom: 24 }}>
+      <div className="cr-page-header">
         <Title level={3} className="cr-page-title">
           <WalletOutlined /> My Credits
         </Title>
-        <Text className="cr-page-sub">
-          Manage your credits and view transaction history
-        </Text>
       </div>
 
-      {/* ── Balance hero — plain flex, NO Row/Col ── */}
-      <Card className="cr-balance-card" bordered={false}>
-        <div className="cr-balance-inner">
-          <div className="cr-balance-left">
-            <div className="cr-balance-eyebrow">
-              <WalletOutlined /> Available Balance
-            </div>
+      <section className="cr-balance-summary">
+        <div className="cr-balance-overview">
+          <span className="cr-balance-icon">
+            <WalletOutlined />
+          </span>
+          <div>
+            <div className="cr-balance-label">Available balance</div>
             <div className="cr-balance-amount-row">
-              <span className="cr-balance-number">{user?.credit || 0}</span>
+              <strong className="cr-balance-number">{balance}</strong>
               <span className="cr-balance-unit">credits</span>
             </div>
-            <Tooltip title="Credits can be used to book classes for your children">
-              <span className="cr-balance-hint">
-                <InfoCircleOutlined /> Use credits to book enrichment classes
-              </span>
-            </Tooltip>
-          </div>
-          <div className="cr-balance-right">
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => setIsTopUpModalOpen(true)}
-              className="profile-action-btn cr-topup-btn"
-            >
-              Top Up Credits
-            </Button>
           </div>
         </div>
-      </Card>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={() => setIsTopUpModalOpen(true)}
+          className="profile-action-btn cr-topup-btn"
+        >
+          Top up credits
+        </Button>
+      </section>
 
-      {/* ── Stats — CSS grid, NO Row/Col ── */}
       <div className="cr-stats-grid">
-        <div className="cr-stat-card">
-          <div className="cr-stat-icon error">
-            <ArrowUpOutlined />
+        {statItems.map((item) => (
+          <div className="cr-stat-card" key={item.key}>
+            <div className={`cr-stat-icon ${item.color}`}>{item.icon}</div>
+            <div>
+              <span className="cr-stat-value">{item.value}</span>
+              <span className="cr-stat-label">{item.label}</span>
+            </div>
           </div>
-          <div>
-            <span className="cr-stat-value">{stats.totalSpent}</span>
-            <span className="cr-stat-label">Total Spent</span>
-          </div>
-        </div>
-        <div className="cr-stat-card">
-          <div className="cr-stat-icon success">
-            <ArrowDownOutlined />
-          </div>
-          <div>
-            <span className="cr-stat-value">{stats.totalRefunded}</span>
-            <span className="cr-stat-label">Refunded</span>
-          </div>
-        </div>
-        <div className="cr-stat-card">
-          <div className="cr-stat-icon primary">
-            <ShoppingCartOutlined />
-          </div>
-          <div>
-            <span className="cr-stat-value">{stats.debitCount}</span>
-            <span className="cr-stat-label">Bookings</span>
-          </div>
-        </div>
-        <div className="cr-stat-card">
-          <div className="cr-stat-icon muted">
-            <HistoryOutlined />
-          </div>
-          <div>
-            <span className="cr-stat-value">{transactions.length}</span>
-            <span className="cr-stat-label">Transactions</span>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* ── Transaction history ── */}
-      <Card className="cr-txn-card" bordered={false}>
-        <div className="cr-txn-head">
-          <Title level={5} className="cr-txn-title">
-            <HistoryOutlined /> Transaction History
-          </Title>
-          <div className="cr-filter">
-            <Segmented
-              value={filterType}
-              onChange={setFilterType}
-              options={[
-                { label: `All (${transactions.length})`, value: "all" },
-                { label: `Spent (${stats.debitCount})`, value: "spent" },
-                { label: `Refunded (${stats.creditCount})`, value: "refunded" },
-              ]}
-            />
+      <div className="cr-content-grid">
+        <section className="cr-panel cr-transactions-panel">
+          <div className="cr-panel-header">
+            <div>
+              <span className="cr-panel-eyebrow">Wallet activity</span>
+              <h4>Transaction history</h4>
+            </div>
+            <span className="cr-count-pill">{transactions.length} total</span>
           </div>
-        </div>
 
-        <Spin spinning={loading}>
-          {filteredTransactions.length === 0 ? (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={
-                <Space direction="vertical" size={6}>
-                  <Text type="secondary">No transactions found</Text>
-                  {filterType === "all" && (
-                    <Text type="secondary" style={{ fontSize: 13 }}>
-                      Start by topping up your credits!
-                    </Text>
-                  )}
-                </Space>
-              }
-              style={{ padding: "40px 0" }}
-            >
-              {filterType === "all" && (
-                <Button
-                  type="primary"
-                  onClick={() => setIsTopUpModalOpen(true)}
-                  icon={<PlusOutlined />}
-                >
-                  Top Up Now
-                </Button>
-              )}
-            </Empty>
-          ) : (
-            <>
-              <div className="cr-txn-list">
-                {paginatedTransactions.map(renderTxn)}
+          <div className="cr-filter" role="tablist" aria-label="Transactions">
+            {[
+              { label: "All", value: "all", count: transactions.length },
+              { label: "Spent", value: "spent", count: debitCount },
+              { label: "Added", value: "added", count: creditCount },
+            ].map((option) => (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={filterType === option.value}
+                className={`cr-filter-tab ${
+                  filterType === option.value ? "active" : ""
+                }`}
+                key={option.value}
+                onClick={() => handleFilterChange(option.value)}
+              >
+                <span>{option.label}</span>
+                <small>{option.count}</small>
+              </button>
+            ))}
+          </div>
+
+          <Spin spinning={loading}>
+            {filteredTransactions.length === 0 ? (
+              <div className="cr-empty">
+                <span className="cr-empty-icon">
+                  <HistoryOutlined />
+                </span>
+                <h5>
+                  {filterType === "all"
+                    ? "Your wallet history starts here"
+                    : `No ${filterType} transactions`}
+                </h5>
+                <p>
+                  {filterType === "all"
+                    ? "Top up your wallet to prepare for your next class booking."
+                    : "Try another filter to see more wallet activity."}
+                </p>
+                {filterType === "all" && (
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    className="profile-action-btn cr-empty-action"
+                    onClick={() => setIsTopUpModalOpen(true)}
+                  >
+                    Top up now
+                  </Button>
+                )}
               </div>
+            ) : (
+              <>
+                <div className="cr-txn-list">
+                  {paginatedTransactions.map(renderTransaction)}
+                </div>
 
-              {filteredTransactions.length > 0 && (
                 <div className="cr-pagination-section">
-                  <div className="cr-pagination-summary">
+                  <span className="cr-pagination-summary">
                     Showing {(currentPage - 1) * pageSize + 1}–
                     {Math.min(
                       currentPage * pageSize,
                       filteredTransactions.length,
                     )}{" "}
                     of {filteredTransactions.length}
-                  </div>
-
+                  </span>
                   <Pagination
                     current={currentPage}
                     pageSize={pageSize}
                     total={filteredTransactions.length}
                     onChange={(page, size) => {
                       setCurrentPage(page);
-
                       if (size !== pageSize) {
                         setPageSize(size);
                         setCurrentPage(1);
@@ -315,11 +332,11 @@ const Credits = ({ openTopUpOnMount = false }) => {
                     responsive
                   />
                 </div>
-              )}
-            </>
-          )}
-        </Spin>
-      </Card>
+              </>
+            )}
+          </Spin>
+        </section>
+      </div>
 
       <TopupModal
         isTopUpModalOpen={isTopUpModalOpen}

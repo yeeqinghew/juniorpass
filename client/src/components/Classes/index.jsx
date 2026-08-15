@@ -28,7 +28,7 @@ import Map, {
 } from "react-map-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useNavigate } from "react-router-dom";
-import dayjs from "dayjs";
+import dayjs from "../../utils/dayjs";
 import isBetween from "dayjs/plugin/isBetween";
 import toast from "react-hot-toast";
 

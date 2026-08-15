@@ -35,21 +35,35 @@ const Referrals = () => {
   const [copied, setCopied] = useState(false);
   const [form] = Form.useForm();
 
-  const fetchReferralData = async () => {
-    setLoading(true);
-    try {
-      const res = await fetchWithAuth(API_ENDPOINTS.MY_REFERRAL);
-      if (res.ok) setReferralData(await res.json());
-      else toast.error("Failed to fetch referral data");
-    } catch {
-      toast.error("Error fetching referral data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    if (user) fetchReferralData();
+    if (!user) return undefined;
+
+    let cancelled = false;
+
+    const fetchReferralData = async () => {
+      await Promise.resolve();
+      if (cancelled) return;
+
+      setLoading(true);
+      try {
+        const res = await fetchWithAuth(API_ENDPOINTS.MY_REFERRAL);
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled) setReferralData(data);
+        } else if (!cancelled) {
+          toast.error("Failed to fetch referral data");
+        }
+      } catch {
+        if (!cancelled) toast.error("Error fetching referral data");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    fetchReferralData();
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   const copyToClipboard = async (text, message) => {

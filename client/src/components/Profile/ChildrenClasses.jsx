@@ -30,7 +30,7 @@ import {
   TeamOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
-import dayjs from "dayjs";
+import dayjs from "../../utils/dayjs";
 import toast from "react-hot-toast";
 import { useUserContext } from "../UserContext";
 import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
@@ -508,25 +508,19 @@ const ChildrenClasses = () => {
     );
   };
 
-  const upcomingCount = filteredBookings.filter(
-    (b) => new Date(b.start_date) >= new Date(),
-  ).length;
-  const pastCount = filteredBookings.filter(
-    (b) => new Date(b.start_date) < new Date(),
-  ).length;
+  const visibleBookingCount = filteredBookings.filter((booking) => {
+    const startDate = new Date(booking.start_date);
+    if (filterType === "upcoming") return startDate >= new Date();
+    if (filterType === "past") return startDate < new Date();
+    return true;
+  }).length;
 
   return (
     <div className="cc-page fade-in">
-      {/* Header row */}
-      <div className="cc-header-row">
-        <div>
-          <h2 className="cc-page-title">
-            <TeamOutlined /> Children &amp; Classes
-          </h2>
-          <p className="cc-page-sub">
-            Manage your children and view their booked classes
-          </p>
-        </div>
+      <div className="cc-page-header">
+        <h2 className="cc-page-title">
+          <TeamOutlined /> Children &amp; Classes
+        </h2>
         <Button
           type="primary"
           icon={<PlusOutlined />}
@@ -537,96 +531,83 @@ const ChildrenClasses = () => {
         </Button>
       </div>
 
-      {/* Stats — CSS grid, NO Row/Col */}
-      {!loading && children.length > 0 && (
-        <div className="cc-stats-grid">
-          <div className="cc-stat-card">
-            <div className="cc-stat-icon primary">
-              <TeamOutlined />
-            </div>
-            <div>
-              <span className="cc-stat-value">{children.length}</span>
-              <span className="cc-stat-label">
-                {children.length === 1 ? "Child" : "Children"}
-              </span>
-            </div>
+      <section className="cc-panel cc-controls-panel">
+        <div className="cc-panel-header">
+          <div>
+            <span className="cc-panel-eyebrow">Schedule workspace</span>
+            <h4>Classes and children</h4>
           </div>
-          <div className="cc-stat-card">
-            <div className="cc-stat-icon success">
-              <CalendarOutlined />
-            </div>
-            <div>
-              <span className="cc-stat-value">{upcomingCount}</span>
-              <span className="cc-stat-label">Upcoming</span>
-            </div>
-          </div>
-          <div className="cc-stat-card">
-            <div className="cc-stat-icon muted">
-              <BookOutlined />
-            </div>
-            <div>
-              <span className="cc-stat-value">{pastCount}</span>
-              <span className="cc-stat-label">Completed</span>
-            </div>
-          </div>
-          <div className="cc-stat-card">
-            <div className="cc-stat-icon warning">
-              <UserOutlined />
-            </div>
-            <div>
-              <span className="cc-stat-value">{user?.credit || 0}</span>
-              <span className="cc-stat-label">Credits</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Search */}
-      <div className="cc-search">
-        <Input
-          placeholder="Search class name, partner, child, or location…"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          prefix={<SearchOutlined />}
-          allowClear
-          size="large"
-        />
-        {searchTerm && (
-          <span className="cc-search-count">
-            Found {activeTab === "calendar" ? filteredOccurrences.length : filteredBookings.length} result
-            {(activeTab === "calendar" ? filteredOccurrences.length : filteredBookings.length) !== 1 ? "s" : ""}
+          <span className="cc-count-pill">
+            {activeTab === "calendar"
+              ? `${filteredOccurrences.length} calendar items`
+              : `${visibleBookingCount} bookings`}
           </span>
-        )}
-      </div>
-
-      {/* View toggle */}
-      <div className="cc-filter-block">
-        <Segmented
-          value={activeTab}
-          onChange={setActiveTab}
-          options={[
-            { label: "📋 List View", value: "list" },
-            { label: "📅 Calendar View", value: "calendar" },
-          ]}
-          block
-        />
-      </div>
-
-      {/* Filter */}
-      {activeTab !== "calendar" && (
-        <div className="cc-filter-block">
-          <Segmented
-            value={filterType}
-            onChange={setFilterType}
-            options={[
-              { label: `Upcoming (${upcomingCount})`, value: "upcoming" },
-              { label: `Past (${pastCount})`, value: "past" },
-              { label: `All (${filteredBookings.length})`, value: "all" },
-            ]}
-            block
-          />
         </div>
-      )}
+
+        <div className="cc-controls-body">
+          <div className="cc-search">
+            <Input
+              placeholder="Search class, partner, child, or location…"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              prefix={<SearchOutlined />}
+              allowClear
+              size="large"
+            />
+            {searchTerm && (
+              <span className="cc-search-count">
+                Found{" "}
+                {activeTab === "calendar"
+                  ? filteredOccurrences.length
+                  : filteredBookings.length}{" "}
+                result
+                {(activeTab === "calendar"
+                  ? filteredOccurrences.length
+                  : filteredBookings.length) !== 1
+                  ? "s"
+                  : ""}
+              </span>
+            )}
+          </div>
+
+          <div className="cc-toggle-grid">
+            <div className="cc-filter-block cc-view-filter">
+              <span className="cc-filter-label">View</span>
+              <Segmented
+                value={activeTab}
+                onChange={setActiveTab}
+                options={[
+                  {
+                    label: "List view",
+                    value: "list",
+                    icon: <BookOutlined />,
+                  },
+                  {
+                    label: "Calendar",
+                    value: "calendar",
+                    icon: <CalendarOutlined />,
+                  },
+                ]}
+              />
+            </div>
+
+            {activeTab !== "calendar" && (
+              <div className="cc-filter-block cc-status-filter">
+                <span className="cc-filter-label">Status</span>
+                <Segmented
+                  value={filterType}
+                  onChange={setFilterType}
+                  options={[
+                    { label: "Upcoming", value: "upcoming" },
+                    { label: "Past", value: "past" },
+                    { label: "All", value: "all" },
+                  ]}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
 
       {activeTab === "calendar" && (
         <CalendarView
@@ -636,25 +617,25 @@ const ChildrenClasses = () => {
       )}
 
       {activeTab === "list" && (
-        <Spin spinning={loading}>
+        <Spin spinning={loading} className="cc-list-spin">
           {children.length === 0 ? (
-            <div className="cc-empty-card">
-              <Empty
-                description="No children profiles yet"
-                image={
-                  <UserOutlined
-                    style={{ fontSize: 40, color: "var(--text-light)" }}
-                  />
-                }
+            <div className="cc-panel cc-empty-card">
+              <span className="cc-empty-icon">
+                <UserOutlined />
+              </span>
+              <h5>Add your first child profile</h5>
+              <p>
+                Add a child to start booking activities and tracking their
+                class schedule here.
+              </p>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={handleAddChild}
+                className="profile-action-btn cc-empty-action"
               >
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={handleAddChild}
-                >
-                  Add Your First Child
-                </Button>
-              </Empty>
+                Add Your First Child
+              </Button>
             </div>
           ) : (
             <Collapse

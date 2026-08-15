@@ -16,7 +16,7 @@ import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
 import CryptoJS from "crypto-js";
 import "./Account.css";
 
-const { Title, Text } = Typography;
+const { Title } = Typography;
 
 const Account = () => {
   const { user, reauthenticate } = useUserContext();
@@ -130,7 +130,6 @@ const Account = () => {
     }
     try {
       setUploadLoading(true);
-      const oldDP = user?.display_picture;
 
       const sigRes = await fetchWithAuth(API_ENDPOINTS.UPLOAD_USER_DP, {
         method: "POST",
@@ -185,86 +184,149 @@ const Account = () => {
 
   return (
     <div className="ac-page fade-in">
-      {/* Page heading */}
       <div className="ac-page-header">
         <Title level={3} className="ac-page-title">
           <UserOutlined /> My Account
         </Title>
-        <Text className="ac-page-sub">
-          Manage your profile and security settings
-        </Text>
       </div>
 
-      <div className="ac-layout">
-        {/* ── Sidebar ── */}
-        <aside className="ac-sidebar">
+      <section className="ac-panel">
+        <div className="ac-photo-row">
           <div className="ac-avatar-wrap">
             <Avatar
-              size={88}
+              size={72}
               src={user?.display_picture}
               icon={<UserOutlined />}
               className="ac-avatar"
             />
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              style={{ display: "none" }}
-              onChange={handleFileChange}
-            />
-            <button
-              className="ac-camera-btn"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadLoading}
-              title="Change photo"
-            >
-              <CameraOutlined />
-            </button>
           </div>
 
-          <p className="ac-sidebar-name">{user?.name || "—"}</p>
-          <p className="ac-sidebar-email">{user?.email || "—"}</p>
-
-          <div className="ac-meta">
-            <div className="ac-meta-row">
-              <span className="ac-meta-label">Member since</span>
-              <span className="ac-meta-val">
-                {formatDate(user?.created_at)}
-              </span>
-            </div>
-            <div className="ac-meta-row">
-              <span className="ac-meta-label">Status</span>
-              <span className="ac-meta-val ac-active">● Active</span>
+          <div className="ac-photo-copy">
+            <span className="ac-photo-label">Profile photo</span>
+            <h3>{user?.name || "Your profile"}</h3>
+            <p>{user?.email || "—"}</p>
+            <div className="ac-account-meta">
+              <span className="ac-active">● Active</span>
+              <span>Member since {formatDate(user?.created_at)}</span>
             </div>
           </div>
-        </aside>
 
-        {/* ── Main sections ── */}
-        <main className="ac-main">
-          {/* Profile section */}
-          <div className="ac-section">
-            <div className="ac-section-top">
-              <div className="ac-section-info">
-                <h3 className="ac-section-title">Personal Information</h3>
-                <p className="ac-section-desc">
-                  Update your name and contact details
-                </p>
-              </div>
-              <div className="ac-section-actions">
-                {!isEditingProfile ? (
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={handleFileChange}
+          />
+          <Button
+            icon={<CameraOutlined />}
+            onClick={() => fileInputRef.current?.click()}
+            loading={uploadLoading}
+            className="profile-action-btn ac-photo-action"
+          >
+            Change photo
+          </Button>
+        </div>
+
+        <div className="ac-settings-section">
+          <div className="ac-section-top">
+            <h3 className="ac-section-title">Personal Information</h3>
+            <div className="ac-section-actions">
+              {!isEditingProfile ? (
+                <Button
+                  type="primary"
+                  icon={<EditOutlined />}
+                  onClick={() => setIsEditingProfile(true)}
+                  className="profile-action-btn"
+                >
+                  Edit
+                </Button>
+              ) : (
+                <>
                   <Button
-                    type="primary"
-                    icon={<EditOutlined />}
-                    onClick={() => setIsEditingProfile(true)}
+                    icon={<CloseOutlined />}
+                    onClick={handleCancelProfile}
                     className="profile-action-btn"
                   >
-                    Edit
+                    Cancel
+                  </Button>
+                  <Button
+                    type="primary"
+                    icon={<SaveOutlined />}
+                    loading={saveLoading}
+                    onClick={handleSaveProfile}
+                    className="profile-action-btn"
+                  >
+                    Save
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          <Form
+            form={profileForm}
+            layout="vertical"
+            disabled={!isEditingProfile}
+            className="ac-form"
+          >
+            <div className="ac-form-grid">
+              <Form.Item
+                name="name"
+                label="Full Name"
+                rules={[
+                  { required: true, message: "Name is required" },
+                  { min: 2, message: "At least 2 characters" },
+                ]}
+              >
+                <Input
+                  prefix={<UserOutlined />}
+                  placeholder="Your full name"
+                />
+              </Form.Item>
+
+              <Form.Item name="email" label="Email Address">
+                <Input prefix={<MailOutlined />} disabled />
+              </Form.Item>
+
+              <Form.Item
+                name="phone_number"
+                label="Phone Number"
+                rules={[
+                  {
+                    pattern: /^[0-9+\-\s()]*$/,
+                    message: "Invalid phone number",
+                  },
+                ]}
+              >
+                <Input
+                  prefix={<PhoneOutlined />}
+                  placeholder="Your phone number"
+                />
+              </Form.Item>
+            </div>
+          </Form>
+        </div>
+
+        {user?.method === "email" && (
+          <div className="ac-settings-section">
+            <div className="ac-section-top">
+              <h3 className="ac-section-title">Security</h3>
+              <div className="ac-section-actions">
+                {!isChangingPassword ? (
+                  <Button
+                    type="primary"
+                    icon={<LockOutlined />}
+                    onClick={() => setIsChangingPassword(true)}
+                    className="profile-action-btn"
+                  >
+                    Change Password
                   </Button>
                 ) : (
                   <>
                     <Button
                       icon={<CloseOutlined />}
-                      onClick={handleCancelProfile}
+                      onClick={handleCancelPassword}
                       className="profile-action-btn"
                     >
                       Cancel
@@ -272,174 +334,84 @@ const Account = () => {
                     <Button
                       type="primary"
                       icon={<SaveOutlined />}
-                      loading={saveLoading}
-                      onClick={handleSaveProfile}
+                      loading={pwLoading}
+                      onClick={handleChangePassword}
                       className="profile-action-btn"
                     >
-                      Save
+                      Update
                     </Button>
                   </>
                 )}
               </div>
             </div>
 
-            <Form
-              form={profileForm}
-              layout="vertical"
-              disabled={!isEditingProfile}
-              className="ac-form"
-            >
-              <div className="ac-form-grid">
-                <Form.Item
-                  name="name"
-                  label="Full Name"
-                  rules={[
-                    { required: true, message: "Name is required" },
-                    { min: 2, message: "At least 2 characters" },
-                  ]}
-                >
-                  <Input
-                    prefix={<UserOutlined />}
-                    placeholder="Your full name"
-                  />
-                </Form.Item>
-
-                <Form.Item name="email" label="Email Address">
-                  <Input prefix={<MailOutlined />} disabled />
-                </Form.Item>
-
-                <Form.Item
-                  name="phone_number"
-                  label="Phone Number"
-                  rules={[
-                    {
-                      pattern: /^[0-9+\-\s()]*$/,
-                      message: "Invalid phone number",
-                    },
-                  ]}
-                >
-                  <Input
-                    prefix={<PhoneOutlined />}
-                    placeholder="Your phone number"
-                  />
-                </Form.Item>
+            {!isChangingPassword ? (
+              <div className="ac-pw-row">
+                <div className="ac-pw-icon-wrap">
+                  <LockOutlined />
+                </div>
+                <div>
+                  <p className="ac-pw-label">Password</p>
+                  <p className="ac-pw-value">••••••••••••</p>
+                </div>
               </div>
-            </Form>
+            ) : (
+              <Form form={passwordForm} layout="vertical" className="ac-form">
+                <div className="ac-form-grid">
+                  <Form.Item
+                    name="oldPassword"
+                    label="Current Password"
+                    rules={[{ required: true, message: "Required" }]}
+                  >
+                    <Input.Password
+                      prefix={<LockOutlined />}
+                      placeholder="Current password"
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="newPassword"
+                    label="New Password"
+                    rules={[
+                      { required: true, message: "Required" },
+                      { min: 8, message: "At least 8 characters" },
+                    ]}
+                  >
+                    <Input.Password
+                      prefix={<LockOutlined />}
+                      placeholder="New password"
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="confirmPassword"
+                    label="Confirm New Password"
+                    dependencies={["newPassword"]}
+                    rules={[
+                      { required: true, message: "Required" },
+                      ({ getFieldValue }) => ({
+                        validator(_, value) {
+                          if (
+                            !value ||
+                            getFieldValue("newPassword") === value
+                          )
+                            return Promise.resolve();
+                          return Promise.reject("Passwords do not match");
+                        },
+                      }),
+                    ]}
+                  >
+                    <Input.Password
+                      prefix={<LockOutlined />}
+                      placeholder="Confirm new password"
+                    />
+                  </Form.Item>
+                </div>
+              </Form>
+            )}
           </div>
-
-          {/* Security section - only show for email-authenticated users */}
-          {user?.method === "email" && (
-            <div className="ac-section">
-              <div className="ac-section-top">
-                <div className="ac-section-info">
-                  <h3 className="ac-section-title">Security</h3>
-                  <p className="ac-section-desc">
-                    Keep your account safe with a strong password
-                  </p>
-                </div>
-                <div className="ac-section-actions">
-                  {!isChangingPassword ? (
-                    <Button
-                      type="primary"
-                      icon={<LockOutlined />}
-                      onClick={() => setIsChangingPassword(true)}
-                      className="profile-action-btn"
-                    >
-                      Change Password
-                    </Button>
-                  ) : (
-                    <>
-                    <Button
-                      icon={<CloseOutlined />}
-                      onClick={handleCancelPassword}
-                      className="profile-action-btn"
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="primary"
-                        icon={<SaveOutlined />}
-                      loading={pwLoading}
-                      onClick={handleChangePassword}
-                      className="profile-action-btn"
-                      >
-                        Update
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {!isChangingPassword ? (
-                <div className="ac-pw-row">
-                  <div className="ac-pw-icon-wrap">
-                    <LockOutlined />
-                  </div>
-                  <div>
-                    <p className="ac-pw-label">Password</p>
-                    <p className="ac-pw-hint">
-                      Click "Change Password" to update your credentials
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <Form form={passwordForm} layout="vertical" className="ac-form">
-                  <div className="ac-form-grid">
-                    <Form.Item
-                      name="oldPassword"
-                      label="Current Password"
-                      rules={[{ required: true, message: "Required" }]}
-                    >
-                      <Input.Password
-                        prefix={<LockOutlined />}
-                        placeholder="Current password"
-                      />
-                    </Form.Item>
-
-                    <Form.Item
-                      name="newPassword"
-                      label="New Password"
-                      rules={[
-                        { required: true, message: "Required" },
-                        { min: 8, message: "At least 8 characters" },
-                      ]}
-                    >
-                      <Input.Password
-                        prefix={<LockOutlined />}
-                        placeholder="New password"
-                      />
-                    </Form.Item>
-
-                    <Form.Item
-                      name="confirmPassword"
-                      label="Confirm New Password"
-                      dependencies={["newPassword"]}
-                      rules={[
-                        { required: true, message: "Required" },
-                        ({ getFieldValue }) => ({
-                          validator(_, value) {
-                            if (
-                              !value ||
-                              getFieldValue("newPassword") === value
-                            )
-                              return Promise.resolve();
-                            return Promise.reject("Passwords do not match");
-                          },
-                        }),
-                      ]}
-                    >
-                      <Input.Password
-                        prefix={<LockOutlined />}
-                        placeholder="Confirm new password"
-                      />
-                    </Form.Item>
-                  </div>
-                </Form>
-              )}
-            </div>
-          )}
-        </main>
-      </div>
+        )}
+      </section>
     </div>
   );
 };
