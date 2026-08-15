@@ -109,17 +109,7 @@
 }
 
 .cr-topup-btn {
-  height: 48px !important;
-  padding: 0 28px !important;
-  font-size: 15px !important;
-  font-weight: 600 !important;
-  border-radius: var(--border-radius) !important;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast) !important;
-}
-
-.cr-topup-btn:hover {
-  transform: translateY(-2px) !important;
-  box-shadow: 0 6px 20px rgba(152, 189, 210, 0.40) !important;
+  min-width: 156px;
 }
 
 /* ── Stats grid — 4-up, no Row/Col ─────── */
@@ -467,7 +457,6 @@
 
   .cr-topup-btn {
     width: 100% !important;
-    height: 44px !important;
   }
 
   .cr-balance-right {

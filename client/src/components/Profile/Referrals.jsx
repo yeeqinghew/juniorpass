@@ -163,16 +163,14 @@ const Referrals = () => {
 
   return (
     <div className="rf-page fade-in">
-      {/* Header */}
-      <div className="rf-header">
-        <div className="rf-header-badge">
-          <StarOutlined style={{ fontSize: 10 }} /> Referral Program
-        </div>
-        <h3 className="rf-page-title">Earn Credits, Share the Love</h3>
-        <p className="rf-page-sub">
+      <div style={{ marginBottom: 24 }}>
+        <Title level={3} className="cr-page-title">
+          <StarOutlined /> Referral
+        </Title>
+        <Text className="cr-page-sub">
           When your friend completes their first top-up, you both earn{" "}
           {rewardAmount} credits!
-        </p>
+        </Text>
       </div>
 
       <Spin spinning={loading}>
@@ -223,9 +221,8 @@ const Referrals = () => {
                   <Button
                     type="primary"
                     icon={<MailOutlined />}
-                    size="large"
                     onClick={() => setShareModalOpen(true)}
-                    className="rf-invite-btn"
+                    className="profile-action-btn rf-invite-btn"
                     block
                   >
                     Invite Friends via Email

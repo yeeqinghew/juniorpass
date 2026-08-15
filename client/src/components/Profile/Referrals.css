@@ -154,16 +154,7 @@
 }
 
 .rf-invite-btn {
-  height: 48px !important;
-  font-size: 14px !important;
-  font-weight: 600 !important;
-  border-radius: var(--border-radius) !important;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast) !important;
-}
-
-.rf-invite-btn:hover {
-  transform: translateY(-2px) !important;
-  box-shadow: 0 6px 20px rgba(152, 189, 210, 0.35) !important;
+  min-width: 100%;
 }
 
 .rf-invite-note {

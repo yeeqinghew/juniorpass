@@ -253,8 +253,10 @@ const Account = () => {
               <div className="ac-section-actions">
                 {!isEditingProfile ? (
                   <Button
+                    type="primary"
                     icon={<EditOutlined />}
                     onClick={() => setIsEditingProfile(true)}
+                    className="profile-action-btn"
                   >
                     Edit
                   </Button>
@@ -263,6 +265,7 @@ const Account = () => {
                     <Button
                       icon={<CloseOutlined />}
                       onClick={handleCancelProfile}
+                      className="profile-action-btn"
                     >
                       Cancel
                     </Button>
@@ -271,6 +274,7 @@ const Account = () => {
                       icon={<SaveOutlined />}
                       loading={saveLoading}
                       onClick={handleSaveProfile}
+                      className="profile-action-btn"
                     >
                       Save
                     </Button>
@@ -336,24 +340,28 @@ const Account = () => {
                 <div className="ac-section-actions">
                   {!isChangingPassword ? (
                     <Button
+                      type="primary"
                       icon={<LockOutlined />}
                       onClick={() => setIsChangingPassword(true)}
+                      className="profile-action-btn"
                     >
                       Change Password
                     </Button>
                   ) : (
                     <>
-                      <Button
-                        icon={<CloseOutlined />}
-                        onClick={handleCancelPassword}
+                    <Button
+                      icon={<CloseOutlined />}
+                      onClick={handleCancelPassword}
+                      className="profile-action-btn"
                       >
                         Cancel
                       </Button>
                       <Button
                         type="primary"
                         icon={<SaveOutlined />}
-                        loading={pwLoading}
-                        onClick={handleChangePassword}
+                      loading={pwLoading}
+                      onClick={handleChangePassword}
+                      className="profile-action-btn"
                       >
                         Update
                       </Button>

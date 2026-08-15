@@ -187,7 +187,7 @@ const Credits = ({ openTopUpOnMount = false }) => {
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => setIsTopUpModalOpen(true)}
-              className="cr-topup-btn"
+              className="profile-action-btn cr-topup-btn"
             >
               Top Up Credits
             </Button>

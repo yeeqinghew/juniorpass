@@ -527,7 +527,12 @@ const ChildrenClasses = () => {
             Manage your children and view their booked classes
           </p>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleAddChild}>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={handleAddChild}
+          className="profile-action-btn"
+        >
           Add Child
         </Button>
       </div>

@@ -116,7 +116,51 @@
   min-width: 0;
 }
 
+/* Shared treatment for the primary actions across every profile tab. */
+.profile-container button.profile-action-btn.ant-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--button-height-md) !important;
+  padding: 0 20px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  line-height: 1;
+  border-radius: var(--radius-sm) !important;
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast),
+    border-color var(--transition-fast),
+    background var(--transition-fast) !important;
+}
+
+.profile-action-btn.ant-btn .anticon {
+  font-size: 15px;
+}
+
+.profile-action-btn.ant-btn-default {
+  color: var(--text-secondary);
+  background: var(--bg-white);
+  border-color: var(--border-color);
+  box-shadow: none;
+}
+
+.profile-action-btn.ant-btn:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.profile-action-btn.ant-btn-default:not(:disabled):hover {
+  color: var(--primary-dark);
+  background: var(--bg-light-blue);
+  border-color: var(--primary-color);
+}
+
 @media screen and (max-width: 1023px) {
+  .profile-container button.profile-action-btn.ant-btn {
+    height: 42px !important;
+    min-height: 42px !important;
+  }
+
   .profile-container {
     padding: 20px 16px;
   }
