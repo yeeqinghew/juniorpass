@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Empty,
@@ -10,7 +10,6 @@ import {
   Button,
   Spin,
   Collapse,
-  Segmented,
   Modal,
   Form,
   Input,
@@ -87,7 +86,7 @@ const ChildrenClasses = () => {
     );
   }, [occurrences, searchTerm]);
 
-  const fetchChildrenAndBookings = async () => {
+  const fetchChildrenAndBookings = useCallback(async () => {
     setLoading(true);
     try {
       const [cr, br, or] = await Promise.all([
@@ -109,11 +108,17 @@ const ChildrenClasses = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
-    if (user) fetchChildrenAndBookings();
-  }, [user]);
+    if (!user) return;
+
+    const fetchTimer = setTimeout(() => {
+      fetchChildrenAndBookings();
+    }, 0);
+
+    return () => clearTimeout(fetchTimer);
+  }, [fetchChildrenAndBookings, user]);
 
   const handleAddChild = () => {
     setEditingChild(null);
@@ -573,36 +578,58 @@ const ChildrenClasses = () => {
           <div className="cc-toggle-grid">
             <div className="cc-filter-block cc-view-filter">
               <span className="cc-filter-label">View</span>
-              <Segmented
-                value={activeTab}
-                onChange={setActiveTab}
-                options={[
-                  {
-                    label: "List view",
-                    value: "list",
-                    icon: <BookOutlined />,
-                  },
-                  {
-                    label: "Calendar",
-                    value: "calendar",
-                    icon: <CalendarOutlined />,
-                  },
-                ]}
-              />
+              <div
+                className="cc-view-tabs"
+                role="group"
+                aria-label="Schedule view"
+              >
+                <button
+                  type="button"
+                  className={activeTab === "list" ? "is-active" : ""}
+                  onClick={() => setActiveTab("list")}
+                  aria-pressed={activeTab === "list"}
+                >
+                  <BookOutlined />
+                  <span>List</span>
+                </button>
+                <button
+                  type="button"
+                  className={activeTab === "calendar" ? "is-active" : ""}
+                  onClick={() => setActiveTab("calendar")}
+                  aria-pressed={activeTab === "calendar"}
+                >
+                  <CalendarOutlined />
+                  <span>Calendar</span>
+                </button>
+              </div>
             </div>
 
             {activeTab !== "calendar" && (
               <div className="cc-filter-block cc-status-filter">
                 <span className="cc-filter-label">Status</span>
-                <Segmented
-                  value={filterType}
-                  onChange={setFilterType}
-                  options={[
+                <div
+                  className="cc-status-chips"
+                  role="group"
+                  aria-label="Booking status"
+                >
+                  {[
                     { label: "Upcoming", value: "upcoming" },
                     { label: "Past", value: "past" },
                     { label: "All", value: "all" },
-                  ]}
-                />
+                  ].map((option) => (
+                    <button
+                      type="button"
+                      key={option.value}
+                      className={
+                        filterType === option.value ? "is-active" : ""
+                      }
+                      onClick={() => setFilterType(option.value)}
+                      aria-pressed={filterType === option.value}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>

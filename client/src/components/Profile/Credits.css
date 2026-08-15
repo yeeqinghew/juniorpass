@@ -164,7 +164,7 @@
   letter-spacing: var(--letter-spacing-tight);
 }
 
-.cr-hero-copy > p {
+.cr-hero-copy>p {
   max-width: 570px;
   margin: 0;
   color: var(--text-secondary);
@@ -736,7 +736,6 @@
 
 @media (max-width: 767px) {
   .cr-page-header {
-    flex-direction: column;
     margin-bottom: var(--spacing-md);
   }
 
