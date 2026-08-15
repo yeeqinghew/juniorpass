@@ -3,7 +3,6 @@ import {
   Button,
   InputNumber,
   Modal,
-  Space,
   Spin,
   Typography,
 } from "antd";
@@ -190,8 +189,8 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           {
             onClose: () => {
               if (!isPollingRef.current) {
-                setModalStep("loading");
-                pollPaymentStatus(reference_number);
+                setIsLoading(false);
+                setModalStep("form");
               }
             },
             onSuccess: () => {
@@ -365,65 +364,123 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
   );
 
   const renderLoading = () => (
-    <div className="modal-loading">
-      <Spin size="large" />
-      <Title level={4} className="modal-loading-title">
-        Processing Payment...
-      </Title>
-      <Text className="modal-loading-text">
-        Please wait while we confirm your payment.
-        <br />
-        Do not close this window.
-      </Text>
+    <div className="topup-status-screen processing">
+      <header className="topup-status-header">
+        <span className="topup-status-brand-icon">
+          <WalletOutlined />
+        </span>
+        <div>
+          <Text className="topup-status-eyebrow">JuniorPASS wallet</Text>
+          <Text className="topup-status-header-copy">Secure credit top-up</Text>
+        </div>
+      </header>
+
+      <div className="topup-status-body">
+        <div className="topup-status-icon">
+          <Spin size="large" />
+        </div>
+        <Text className="topup-status-label">Payment processing</Text>
+        <Title level={3}>Confirming your payment</Title>
+        <Text className="topup-status-description">
+          We are waiting for the payment confirmation. This usually takes only
+          a few seconds.
+        </Text>
+
+        <div className="topup-status-progress">
+          <span className="topup-status-pulse" />
+          Waiting for confirmation
+        </div>
+
+        <div className="topup-status-note">
+          <LockOutlined />
+          <span>Keep this window open while we finish securely.</span>
+        </div>
+      </div>
     </div>
   );
 
   const renderSuccess = () => (
-    <div className="modal-success">
-      <Space direction="vertical" size={24} style={{ width: "100%" }}>
-        <CheckCircleOutlined />
-        <Title level={3} className="modal-success-title">
-          Top-up Successful!
-        </Title>
-        <Text className="modal-success-text">
-          {selectedCredits} credits have been added to your account.
+    <div className="topup-status-screen success">
+      <header className="topup-status-header">
+        <span className="topup-status-brand-icon">
+          <WalletOutlined />
+        </span>
+        <div>
+          <Text className="topup-status-eyebrow">JuniorPASS wallet</Text>
+          <Text className="topup-status-header-copy">Secure credit top-up</Text>
+        </div>
+      </header>
+
+      <div className="topup-status-body">
+        <div className="topup-status-icon">
+          <CheckCircleOutlined />
+        </div>
+        <Text className="topup-status-label">Payment confirmed</Text>
+        <Title level={3}>Top-up complete</Title>
+        <Text className="topup-status-description">
+          Your credits are ready to use for your next JuniorPASS booking.
         </Text>
+
+        <div className="topup-status-credit-result">
+          <span>Credits added</span>
+          <div>
+            <strong>+{selectedCredits ?? 0}</strong>
+            <small>credits</small>
+          </div>
+        </div>
+
         <Button
           type="primary"
           size="large"
-          className="modal-btn"
+          className="topup-status-primary-btn"
           onClick={handleSuccessContinue}
         >
-          Continue
+          Continue to my credits
         </Button>
-      </Space>
+      </div>
     </div>
   );
 
   const renderError = () => (
-    <div className="modal-error">
-      <CloseCircleOutlined />
-      <Title level={3} className="modal-error-title">
-        Payment Failed
-      </Title>
-      <Text className="modal-error-text">
-        We couldn't process your payment.
-        <br />
-        Please try again or contact support.
-      </Text>
-      <Space size="middle">
-        <Button size="large" className="modal-btn" onClick={handleCancel}>
-          Close
-        </Button>
-        <Button
-          type="primary"
-          size="large"
-          className="modal-btn"
-          onClick={() => setModalStep("form")}
-        >
-          Try Again
-        </Button>
-      </Space>
+    <div className="topup-status-screen error">
+      <header className="topup-status-header">
+        <span className="topup-status-brand-icon">
+          <WalletOutlined />
+        </span>
+        <div>
+          <Text className="topup-status-eyebrow">JuniorPASS wallet</Text>
+          <Text className="topup-status-header-copy">Secure credit top-up</Text>
+        </div>
+      </header>
+
+      <div className="topup-status-body">
+        <div className="topup-status-icon">
+          <CloseCircleOutlined />
+        </div>
+        <Text className="topup-status-label">Payment not completed</Text>
+        <Title level={3}>We couldn&apos;t confirm the payment</Title>
+        <Text className="topup-status-description">
+          No credits were added. You can safely try again or return to your
+          wallet.
+        </Text>
+
+        <div className="topup-status-actions">
+          <Button size="large" onClick={handleCancel}>
+            Close
+          </Button>
+          <Button
+            type="primary"
+            size="large"
+            onClick={() => setModalStep("form")}
+          >
+            Try again
+          </Button>
+        </div>
+
+        <Text className="topup-status-support">
+          Still having trouble? Contact JuniorPASS support.
+        </Text>
+      </div>
     </div>
   );
 
@@ -432,7 +489,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
       title={null}
       open={isTopUpModalOpen}
       onCancel={handleCancel}
-      width={680}
+      width={modalStep === "form" ? 680 : 520}
       centered
       closable={modalStep !== "loading"}
       maskClosable={false}

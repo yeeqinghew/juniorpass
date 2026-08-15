@@ -8,6 +8,16 @@ const querystring = require("querystring");
 const authorization = require("../middleware/authorization");
 const { calculateCreditPrice } = require("../utils/creditPricing");
 
+const handlePaymentRoute = (handler) => async (req, res, next) => {
+  try {
+    await handler(req, res, next);
+  } catch (error) {
+    console.error("Payment route error:", error);
+    if (res.headersSent) return next(error);
+    return res.status(500).json({ error: "Unable to process payment request" });
+  }
+};
+
 function formatSGDateTime(date) {
   // Convert to Singapore time (GMT+8)
   const sgOffset = 8 * 60; // in minutes
@@ -29,7 +39,7 @@ function formatSGDateTime(date) {
 }
 
 // initiates payment and stores it.
-router.post("/init", authorization, async (req, res) => {
+router.post("/init", authorization, handlePaymentRoute(async (req, res) => {
   const credits = Number(req.body.credits);
   const amount = calculateCreditPrice(credits);
   if (!amount) {
@@ -139,7 +149,7 @@ router.post("/init", authorization, async (req, res) => {
     amount,
     credits,
   });
-});
+}));
 
 // updates payment and credit if successful.
 router.post("/webhook", async (req, res) => {
