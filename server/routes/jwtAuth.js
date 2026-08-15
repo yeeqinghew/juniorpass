@@ -12,6 +12,10 @@ const jwt = require("jsonwebtoken");
 const redisClient = require("../utils/redisClient");
 const rateLimit = require("express-rate-limit");
 const { generateReferralCode } = require("../utils/referralGenerator");
+const {
+  LOGIN_METHODS,
+  getLoginMethodConflict,
+} = require("../utils/authMethod");
 
 // Rate limiters for sensitive auth endpoints
 const loginLimiter = rateLimit({
@@ -175,6 +179,14 @@ router.post("/login", loginLimiter, validInfo, async (req, res) => {
       return res.status(401).json("Invalid Credential");
     }
 
+    const methodConflict = getLoginMethodConflict(
+      user.rows[0],
+      LOGIN_METHODS.EMAIL,
+    );
+    if (methodConflict) {
+      return res.status(409).json({ message: methodConflict });
+    }
+
     const validPassword = bcrypt.compareSync(password, user.rows[0].password);
     if (!validPassword) {
       return res.status(401).json("Password or Email is incorrect");
@@ -239,7 +251,15 @@ router.post("/login/google", async (req, res) => {
       return res.status(200).json({ token, newUser: true, referralCode });
     }
 
-    // existing Gmail user
+    const methodConflict = getLoginMethodConflict(
+      existingUser.rows[0],
+      LOGIN_METHODS.GOOGLE,
+    );
+    if (methodConflict) {
+      return res.status(409).json({ message: methodConflict });
+    }
+
+    // Existing Google user
     const token = jwtGenerator(existingUser.rows[0].user_id);
     return res.status(200).json({ token, newUser: false });
   } catch (error) {

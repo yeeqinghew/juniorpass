@@ -67,6 +67,7 @@ const useHandleLogin = ({ from, fromState, setLoading }) => {
     } catch (error) {
       console.error(error.message);
       toast.error("An error has occured during Google Login.");
+    } finally {
       if (setLoading) setLoading(false);
     }
   };
