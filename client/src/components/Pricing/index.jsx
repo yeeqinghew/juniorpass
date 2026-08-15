@@ -2,9 +2,9 @@ import { useEffect } from "react";
 import { Typography, Col, Row, Button } from "antd";
 import {
   CalendarOutlined,
-  ClockCircleOutlined,
   CustomerServiceOutlined,
   SafetyCertificateOutlined,
+  WalletOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { useUserContext } from "../UserContext";
@@ -35,9 +35,9 @@ const Pricing = () => {
 
   const benefits = [
     {
-      icon: <ClockCircleOutlined />,
-      title: "No Expiry",
-      description: "Use your credits anytime, at your own pace",
+      icon: <WalletOutlined />,
+      title: "Flexible Top-ups",
+      description: "Choose the number of credits that suits your plans",
     },
     {
       icon: <SafetyCertificateOutlined />,

@@ -684,6 +684,7 @@
 
 .cc-modal-form .ant-input,
 .cc-modal-form .ant-input-number,
+.cc-modal-form .ant-picker,
 .cc-modal-form .ant-select-selector {
   border: 1.5px solid var(--border-medium) !important;
   border-radius: var(--radius-md) !important;

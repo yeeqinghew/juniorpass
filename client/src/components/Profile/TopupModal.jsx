@@ -1,11 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import {
-  Button,
-  InputNumber,
-  Modal,
-  Spin,
-  Typography,
-} from "antd";
+import { Button, InputNumber, Modal, Spin, Typography } from "antd";
 import {
   CreditCardOutlined,
   WalletOutlined,
@@ -227,7 +221,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           <WalletOutlined />
         </div>
         <div className="topup-header-copy">
-          <Text className="topup-eyebrow">JuniorPASS wallet</Text>
+          <Text className="topup-eyebrow">Wallet</Text>
           <Title level={3}>Top up your credits</Title>
           <Text>
             Pick an amount and we will automatically apply the best rate.
@@ -267,7 +261,9 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
             className="topup-credit-input"
           />
 
-          <Text className="topup-tier-helper">Or start from a pricing tier</Text>
+          <Text className="topup-tier-helper">
+            Or start from a pricing tier
+          </Text>
           <div className="topup-tier-list">
             {CREDIT_PRICING_TIERS.map((tier) => {
               const isSelected = selectedTier?.min === tier.min;
@@ -382,8 +378,8 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
         <Text className="topup-status-label">Payment processing</Text>
         <Title level={3}>Confirming your payment</Title>
         <Text className="topup-status-description">
-          We are waiting for the payment confirmation. This usually takes only
-          a few seconds.
+          We are waiting for the payment confirmation. This usually takes only a
+          few seconds.
         </Text>
 
         <div className="topup-status-progress">

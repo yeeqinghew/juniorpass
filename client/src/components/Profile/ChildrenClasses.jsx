@@ -625,8 +625,8 @@ const ChildrenClasses = () => {
               </span>
               <h5>Add your first child profile</h5>
               <p>
-                Add a child to start booking activities and tracking their
-                class schedule here.
+                Add a child to start booking activities and tracking their class
+                schedule here.
               </p>
               <Button
                 type="primary"
@@ -721,14 +721,14 @@ const ChildrenClasses = () => {
                 rules={[{ required: true, message: "Required" }]}
               >
                 <DatePicker
-                  placeholder="Select date of birth"
+                  placeholder="Select DOB"
                   size="large"
                   style={{ width: "100%" }}
                   disabledDate={(current) => {
-                    // Disable future dates
-                    if (current && current > dayjs().endOf("day")) return true;
-
-                    return false;
+                    return Boolean(
+                      current &&
+                      !current.isBefore(dayjs().startOf("day"), "day"),
+                    );
                   }}
                   format="DD/MM/YYYY"
                   showToday

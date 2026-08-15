@@ -54,7 +54,7 @@
 .faq-collapse .ant-collapse-item {
     margin-bottom: var(--spacing-md);
     background: var(--bg-white);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg) !important;
     border: 1px solid var(--border-light);
     overflow: hidden;
     transition: var(--transition-base);
@@ -102,15 +102,16 @@
 
 /* Remove default borders */
 .faq-collapse .ant-collapse-item:last-child {
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg) !important;
 }
 
 .faq-collapse > .ant-collapse-item > .ant-collapse-header {
-    border-radius: 0;
+    border-radius: var(--radius-lg) !important;
 }
 
-.faq-collapse > .ant-collapse-item:last-child > .ant-collapse-header {
-    border-radius: 0;
+.faq-collapse > .ant-collapse-item-active > .ant-collapse-header,
+.faq-collapse > .ant-collapse-item:last-child.ant-collapse-item-active > .ant-collapse-header {
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
 }
 
 /* Responsive adjustments */
