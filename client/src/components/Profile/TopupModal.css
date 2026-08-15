@@ -93,6 +93,8 @@
 
 .topup-current-balance {
   flex: 0 0 auto;
+  box-sizing: border-box;
+  max-width: 100%;
   min-width: 116px;
   padding: 10px 13px;
   background: rgba(255, 255, 255, 0.72);
