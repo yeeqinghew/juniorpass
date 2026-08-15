@@ -1,25 +1,24 @@
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useState } from "react";
 import {
   Button,
-  Card,
+  Divider,
+  Form,
+  Input,
+  Modal,
   Spin,
   Tag,
   Typography,
-  Modal,
-  Input,
-  Form,
-  Divider,
 } from "antd";
 import {
-  GiftOutlined,
-  LinkOutlined,
-  UserAddOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
   CopyOutlined,
+  GiftOutlined,
+  LinkOutlined,
   MailOutlined,
   StarOutlined,
   ThunderboltOutlined,
+  UserAddOutlined,
 } from "@ant-design/icons";
 import { useUserContext } from "../UserContext";
 import toast from "react-hot-toast";
@@ -56,14 +55,9 @@ const Referrals = () => {
   const copyToClipboard = async (text, message) => {
     try {
       await navigator.clipboard.writeText(text);
-
       setCopied(true);
-
       toast.success(message);
-
-      setTimeout(() => {
-        setCopied(false);
-      }, 2000);
+      setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error("Failed to copy");
     }
@@ -78,352 +72,322 @@ const Referrals = () => {
           recipient_name: values.recipient_name,
         }),
       });
+
       if (res.ok) {
         toast.success("Invitation sent!");
         setShareModalOpen(false);
         form.resetFields();
-      } else toast.error("Failed to send invitation");
+      } else {
+        toast.error("Failed to send invitation");
+      }
     } catch {
       toast.error("Error sending invitation");
     }
   };
 
-  const referralLink = useMemo(
-    () =>
-      `${window.location.origin}/register?referral_code=${referralData?.referral_code}`,
-    [referralData?.referral_code],
-  );
+  const closeShareModal = () => {
+    setShareModalOpen(false);
+    form.resetFields();
+  };
 
   const rewardAmount = referralData?.reward_amount || 50;
   const stats = referralData?.stats || {};
+  const referralLink = `${window.location.origin}/register?referral_code=${referralData?.referral_code || ""}`;
 
-  const statItems = useMemo(
-    () => [
-      {
-        key: "total",
-        icon: <UserAddOutlined />,
-        value: stats.total_referrals || 0,
-        label: "Invited",
-        color: "primary",
-      },
-      {
-        key: "completed",
-        icon: <CheckCircleOutlined />,
-        value: stats.completed_referrals || 0,
-        label: "Completed",
-        color: "success",
-      },
-      {
-        key: "pending",
-        icon: <ClockCircleOutlined />,
-        value: stats.pending_referrals || 0,
-        label: "Pending",
-        color: "warning",
-      },
-      {
-        key: "earned",
-        icon: <GiftOutlined />,
-        value: stats.total_credits_earned || 0,
-        label: "Credits Earned",
-        color: "purple",
-      },
-    ],
-    [stats],
-  );
+  const statItems = [
+    {
+      key: "total",
+      icon: <UserAddOutlined />,
+      value: stats.total_referrals || 0,
+      label: "Friends invited",
+      color: "primary",
+    },
+    {
+      key: "completed",
+      icon: <CheckCircleOutlined />,
+      value: stats.completed_referrals || 0,
+      label: "Rewards unlocked",
+      color: "success",
+    },
+    {
+      key: "pending",
+      icon: <ClockCircleOutlined />,
+      value: stats.pending_referrals || 0,
+      label: "Awaiting top-up",
+      color: "warning",
+    },
+    {
+      key: "earned",
+      icon: <GiftOutlined />,
+      value: stats.total_credits_earned || 0,
+      label: "Credits earned",
+      color: "reward",
+    },
+  ];
 
-  const steps = useMemo(
-    () => [
-      {
-        emoji: <LinkOutlined />,
-        num: 1,
-        name: "Share Your Code",
-        desc: "Copy your code or send an email invite",
-      },
-      {
-        emoji: <UserAddOutlined />,
-        num: 2,
-        name: "Friend Signs Up",
-        desc: "They use your code during registration",
-      },
-      {
-        emoji: <ThunderboltOutlined />,
-        num: 3,
-        name: "First Top-Up",
-        desc: "Your friend completes their first payment",
-      },
-      {
-        emoji: <GiftOutlined />,
-        num: 4,
-        name: "Both Earn Credits",
-        desc: `You and your friend each get ${rewardAmount} credits`,
-      },
-    ],
-    [rewardAmount],
-  );
+  const steps = [
+    {
+      icon: <LinkOutlined />,
+      name: "Share your invite",
+      desc: "Send your code or referral link to a friend.",
+    },
+    {
+      icon: <UserAddOutlined />,
+      name: "Your friend joins",
+      desc: "They register for JuniorPASS using your code.",
+    },
+    {
+      icon: <ThunderboltOutlined />,
+      name: "They make a top-up",
+      desc: "The reward unlocks after their first completed payment.",
+    },
+    {
+      icon: <GiftOutlined />,
+      name: "You both earn credits",
+      desc: `${rewardAmount} credits are added to each account.`,
+    },
+  ];
 
   return (
     <div className="rf-page fade-in">
-      <div style={{ marginBottom: 24 }}>
-        <Title level={3} className="cr-page-title">
-          <StarOutlined /> Referral
-        </Title>
-        <Text className="cr-page-sub">
-          When your friend completes their first top-up, you both earn{" "}
-          {rewardAmount} credits!
-        </Text>
+      <div className="rf-page-header">
+        <div>
+          <Title level={3} className="rf-page-title">
+            <StarOutlined /> Referrals
+          </Title>
+          <Text className="rf-page-sub">
+            Invite friends to JuniorPASS and earn credits together.
+          </Text>
+        </div>
+        <span className="rf-reward-chip">
+          <GiftOutlined /> {rewardAmount} credits each
+        </span>
       </div>
 
       <Spin spinning={loading}>
         {referralData && (
           <>
-            <Card className="rf-code-card" bordered={false}>
-              <div className="rf-code-inner">
-                <div className="rf-code-left">
-                  <div className="rf-code-label">
-                    <LinkOutlined /> Your Referral Code
-                  </div>
-                  <div
-                    className="rf-code-display"
-                    onClick={() =>
-                      copyToClipboard(
-                        referralData.referral_code,
-                        "Code copied!",
-                      )
-                    }
-                  >
-                    <span className="rf-code-value">
-                      {referralData.referral_code}
-                    </span>
-                    <Button
-                      type="text"
-                      icon={
-                        copied ? (
-                          <CheckCircleOutlined
-                            style={{
-                              fontSize: 16,
-                              color: "var(--success-color)",
-                            }}
-                          />
-                        ) : (
-                          <CopyOutlined style={{ fontSize: 16 }} />
-                        )
-                      }
-                      className="rf-copy-btn"
-                      title="Copy code"
-                    />
-                  </div>
-                  <span className="rf-code-hint">
-                    ✦ Click the code to copy &amp; share with friends
+            <section className="rf-hero">
+              <div className="rf-hero-copy">
+                <span className="rf-hero-kicker">
+                  <ThunderboltOutlined /> Refer and earn
+                </span>
+                <h3>Give {rewardAmount}. Get {rewardAmount}.</h3>
+                <p>
+                  Your friend receives {rewardAmount} credits after their first
+                  top-up, and the same reward is added to your wallet.
+                </p>
+
+                <div className="rf-benefits">
+                  <span>
+                    <CheckCircleOutlined /> No limit on invitations
+                  </span>
+                  <span>
+                    <CheckCircleOutlined /> Rewards are added automatically
                   </span>
                 </div>
-
-                <div className="rf-code-right">
-                  <Button
-                    type="primary"
-                    icon={<MailOutlined />}
-                    onClick={() => setShareModalOpen(true)}
-                    className="profile-action-btn rf-invite-btn"
-                    block
-                  >
-                    Invite Friends via Email
-                  </Button>
-                  <div className="rf-invite-note">
-                    <ThunderboltOutlined
-                      style={{ color: "var(--warning-color)", fontSize: 13 }}
-                    />
-                    Both you &amp; your friend earn {rewardAmount} credits
-                  </div>
-                </div>
               </div>
-            </Card>
+
+              <div className="rf-share-panel">
+                <div className="rf-share-label">Your referral code</div>
+                <button
+                  type="button"
+                  className={`rf-code-button ${copied ? "copied" : ""}`}
+                  onClick={() =>
+                    copyToClipboard(referralData.referral_code, "Code copied!")
+                  }
+                >
+                  <span className="rf-code-value">
+                    {referralData.referral_code}
+                  </span>
+                  <span className="rf-code-copy">
+                    {copied ? <CheckCircleOutlined /> : <CopyOutlined />}
+                    {copied ? "Copied" : "Copy"}
+                  </span>
+                </button>
+
+                <Button
+                  type="primary"
+                  icon={<MailOutlined />}
+                  onClick={() => setShareModalOpen(true)}
+                  className="profile-action-btn rf-invite-btn"
+                  block
+                >
+                  Invite friends via email
+                </Button>
+
+                <button
+                  type="button"
+                  className="rf-copy-link-btn"
+                  onClick={() =>
+                    copyToClipboard(referralLink, "Referral link copied!")
+                  }
+                >
+                  <LinkOutlined /> Copy referral link
+                </button>
+              </div>
+            </section>
 
             <div className="rf-stats-grid">
-              {statItems.map((s) => (
-                <div className="rf-stat-card" key={s.key}>
-                  <div className={`rf-stat-icon ${s.color}`}>{s.icon}</div>
+              {statItems.map((item) => (
+                <div className="rf-stat-card" key={item.key}>
+                  <div className={`rf-stat-icon ${item.color}`}>
+                    {item.icon}
+                  </div>
                   <div>
-                    <span className="rf-stat-value">{s.value}</span>
-                    <span className="rf-stat-label">{s.label}</span>
+                    <span className="rf-stat-value">{item.value}</span>
+                    <span className="rf-stat-label">{item.label}</span>
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* ── Referral list ── */}
-            <Card className="rf-list-card" bordered={false}>
-              <div className="rf-list-head">
-                <Title level={5} className="rf-list-title">
-                  <span className="rf-list-title-icon">
-                    <UserAddOutlined />
-                  </span>
-                  Recent Referrals
-                </Title>
-                {referralData.recent_referrals?.length > 0 && (
-                  <Tag
-                    color="blue"
-                    style={{ borderRadius: 100, fontWeight: 600 }}
-                  >
-                    {referralData.recent_referrals.length} total
-                  </Tag>
-                )}
-              </div>
-
-              {!referralData.recent_referrals?.length ? (
-                <div className="rf-empty">
-                  <div className="rf-empty-icon">
-                    <UserAddOutlined />
+            <div className="rf-content-grid">
+              <section className="rf-panel rf-referrals-panel">
+                <div className="rf-panel-header">
+                  <div>
+                    <span className="rf-panel-eyebrow">Activity</span>
+                    <h4>Recent referrals</h4>
                   </div>
-                  <Text
-                    style={{
-                      fontWeight: 600,
-                      fontSize: 15,
-                      color: "var(--text-primary)",
-                    }}
-                  >
-                    No referrals yet
-                  </Text>
-                  <Text
-                    style={{ color: "var(--text-secondary)", fontSize: 13 }}
-                  >
-                    Share your code to start earning!
-                  </Text>
-                  <Button
-                    style={{
-                      marginTop: 8,
-                      borderRadius: "var(--border-radius)",
-                    }}
-                    onClick={() => setShareModalOpen(true)}
-                  >
-                    Send First Invite
-                  </Button>
+                  {referralData.recent_referrals?.length > 0 && (
+                    <span className="rf-count-pill">
+                      {referralData.recent_referrals.length} total
+                    </span>
+                  )}
                 </div>
-              ) : (
-                <div className="rf-list-body">
-                  {referralData.recent_referrals.map((r) => (
-                    <div className="rf-referral-item" key={r.id}>
-                      <div className="rf-referral-info">
-                        <div className="rf-referral-row">
-                          <span className="rf-referral-name">
-                            {r.referee_name}
-                          </span>
-                          <Tag
-                            color={
-                              r.status === "completed" ? "success" : "warning"
-                            }
-                            icon={
-                              r.status === "completed" ? (
-                                <CheckCircleOutlined />
-                              ) : (
-                                <ClockCircleOutlined />
-                              )
-                            }
-                            style={{
-                              borderRadius: 100,
-                              fontSize: 11,
-                              fontWeight: 600,
-                              textTransform: "capitalize",
-                            }}
-                          >
-                            {r.status}
-                          </Tag>
-                        </div>
-                        <span className="rf-referral-email">
-                          {r.referee_email}
+
+                {!referralData.recent_referrals?.length ? (
+                  <div className="rf-empty">
+                    <span className="rf-empty-icon">
+                      <UserAddOutlined />
+                    </span>
+                    <h5>Your first reward starts here</h5>
+                    <p>Invite a friend and track their progress in this space.</p>
+                    <Button
+                      type="primary"
+                      icon={<MailOutlined />}
+                      className="profile-action-btn rf-empty-action"
+                      onClick={() => setShareModalOpen(true)}
+                    >
+                      Send first invite
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="rf-list-body">
+                    {referralData.recent_referrals.map((referral) => (
+                      <div
+                        className="rf-referral-item"
+                        key={referral.id || referral.referee_email}
+                      >
+                        <span className="rf-referral-avatar">
+                          {referral.referee_name?.charAt(0)?.toUpperCase() || "?"}
                         </span>
+                        <div className="rf-referral-info">
+                          <div className="rf-referral-row">
+                            <span className="rf-referral-name">
+                              {referral.referee_name}
+                            </span>
+                            <Tag
+                              color={
+                                referral.status === "completed"
+                                  ? "success"
+                                  : "warning"
+                              }
+                              icon={
+                                referral.status === "completed" ? (
+                                  <CheckCircleOutlined />
+                                ) : (
+                                  <ClockCircleOutlined />
+                                )
+                              }
+                              className="rf-status-tag"
+                            >
+                              {referral.status}
+                            </Tag>
+                          </div>
+                          <span className="rf-referral-email">
+                            {referral.referee_email}
+                          </span>
+                        </div>
+                        <div className="rf-referral-reward">
+                          <strong
+                            className={
+                              referral.status === "completed" ? "" : "pending"
+                            }
+                          >
+                            {referral.status === "completed" ? (
+                              <>
+                                <GiftOutlined /> +{rewardAmount}
+                              </>
+                            ) : (
+                              <>
+                                <ClockCircleOutlined /> Awaiting top-up
+                              </>
+                            )}
+                          </strong>
+                          <span>
+                            {new Date(referral.created_at).toLocaleDateString(
+                              "en-US",
+                              {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              },
+                            )}
+                          </span>
+                        </div>
                       </div>
-                      <div className="rf-referral-reward">
-                        <div className="rf-reward-amount">
-                          <GiftOutlined />+{rewardAmount} credits
-                        </div>
-                        <div className="rf-reward-date">
-                          {new Date(r.created_at).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
-                        </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <aside className="rf-panel rf-how-panel">
+                <div className="rf-panel-header">
+                  <div>
+                    <span className="rf-panel-eyebrow">Four simple steps</span>
+                    <h4>How it works</h4>
+                  </div>
+                </div>
+
+                <div className="rf-timeline">
+                  {steps.map((step, index) => (
+                    <div className="rf-step" key={step.name}>
+                      <div className="rf-step-marker">
+                        <span>{step.icon}</span>
+                        <small>{index + 1}</small>
+                      </div>
+                      <div>
+                        <h5>{step.name}</h5>
+                        <p>{step.desc}</p>
                       </div>
                     </div>
                   ))}
                 </div>
-              )}
-            </Card>
-
-            {/* ── How it works ── */}
-            <Card className="rf-hiw-card" bordered={false}>
-              <div className="rf-hiw-head">
-                <Title level={4} className="rf-hiw-title">
-                  <GiftOutlined /> How It Works
-                </Title>
-                <span className="rf-hiw-pill">
-                  🎁 {rewardAmount} credits each
-                </span>
-              </div>
-
-              <div className="rf-steps">
-                {steps.map((step, i) => (
-                  <>
-                    <div className="rf-step" key={step.num}>
-                      <div className="rf-step-icon-wrap">
-                        <div className="rf-step-icon">{step.emoji}</div>
-                        <div className="rf-step-num">{step.num}</div>
-                      </div>
-                      <div>
-                        <div className="rf-step-name">{step.name}</div>
-                        <div className="rf-step-desc">{step.desc}</div>
-                      </div>
-                    </div>
-                    {i < 3 && (
-                      <div className="rf-step-arrow" key={`a${i}`}>
-                        ›
-                      </div>
-                    )}
-                  </>
-                ))}
-              </div>
-            </Card>
+              </aside>
+            </div>
           </>
         )}
       </Spin>
 
-      {/* ── Invite modal ── */}
       <Modal
-        title={
-          <span
-            style={{
-              fontWeight: 700,
-              fontSize: 17,
-              color: "var(--text-primary)",
-            }}
-          >
-            Invite a Friend 🎁
-          </span>
-        }
+        title={null}
         open={shareModalOpen}
-        onCancel={() => {
-          setShareModalOpen(false);
-          form.resetFields();
-        }}
+        onCancel={closeShareModal}
         footer={null}
+        width={480}
         centered
         className="rf-modal"
-        styles={{
-          content: {
-            borderRadius: "var(--border-radius-lg)",
-            overflow: "hidden",
-          },
-        }}
       >
-        <p
-          style={{
-            fontSize: 13,
-            color: "var(--text-secondary)",
-            marginTop: 4,
-            marginBottom: 20,
-          }}
-        >
-          We'll send them a personalised invite with your referral code.
-        </p>
+        <div className="rf-modal-heading">
+          <span className="rf-modal-icon">
+            <MailOutlined />
+          </span>
+          <div>
+            <h3>Invite a friend</h3>
+            <p>We’ll email them your personal JuniorPASS invitation.</p>
+          </div>
+        </div>
 
         <Form
           form={form}
@@ -432,14 +396,14 @@ const Referrals = () => {
           className="rf-share-form"
         >
           <Form.Item
-            label="Friend's Name"
+            label="Friend’s name"
             name="recipient_name"
             rules={[{ required: true, message: "Name required" }]}
           >
             <Input placeholder="Jane Doe" size="large" />
           </Form.Item>
           <Form.Item
-            label="Friend's Email"
+            label="Friend’s email"
             name="email"
             rules={[
               { required: true, message: "Email required" },
@@ -448,51 +412,30 @@ const Referrals = () => {
           >
             <Input placeholder="jane@example.com" size="large" />
           </Form.Item>
-          <Form.Item style={{ marginBottom: 0 }}>
+          <Form.Item className="rf-modal-submit-item">
             <Button
               type="primary"
               htmlType="submit"
               block
-              size="large"
-              style={{
-                height: 44,
-                borderRadius: "var(--border-radius)",
-                fontWeight: 600,
-              }}
+              className="rf-modal-submit"
             >
-              Send Invitation
+              Send invitation
             </Button>
           </Form.Item>
         </Form>
 
-        <Divider style={{ margin: "20px 0" }}>
-          <Text
-            style={{
-              fontSize: 11,
-              color: "var(--text-secondary)",
-              fontWeight: 600,
-            }}
-          >
-            OR SHARE A LINK
-          </Text>
-        </Divider>
+        <Divider className="rf-modal-divider">Or share a link</Divider>
 
         <div className="rf-share-link-block">
-          <Text
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: "var(--text-secondary)",
-            }}
-          >
-            Referral link:
-          </Text>
+          <span>Referral link</span>
           <div className="rf-share-link-row">
-            <Input value={referralLink} readOnly size="small" />
+            <Input value={referralLink} readOnly />
             <Button
               icon={<CopyOutlined />}
-              style={{ borderRadius: "var(--border-radius)", flexShrink: 0 }}
-              onClick={() => copyToClipboard(referralLink, "Link copied!")}
+              aria-label="Copy referral link"
+              onClick={() =>
+                copyToClipboard(referralLink, "Referral link copied!")
+              }
             />
           </div>
         </div>
