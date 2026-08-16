@@ -85,7 +85,8 @@ router.post("/", authorization, async (req, res) => {
               sg.full_term_class_count, 
               sg.short_term_class_count,
               sg.frequency,
-              sg.is_progressive
+              sg.is_progressive,
+              sg.pricing_dollars_per_credit
        FROM schedules s
        JOIN schedule_groups sg 
        ON s.schedule_group_id = sg.schedule_group_id
@@ -128,9 +129,12 @@ router.post("/", authorization, async (req, res) => {
       scheduleGroup,
       enrolledPackageType,
     );
+    // Use the rate captured when this package price was saved.
+    const dollarsPerCredit = Number(scheduleGroup.pricing_dollars_per_credit);
     const creditCost = getPackageCreditCost(
       scheduleGroup,
       enrolledPackageType,
+      dollarsPerCredit,
     );
 
     if (!creditCost || !Number.isInteger(classes_total) || classes_total < 1) {
@@ -237,9 +241,10 @@ router.post("/", authorization, async (req, res) => {
         `
         INSERT INTO bookings (
           listing_id, schedule_id, user_id, schedule_group_id,
-          start_date, end_date, enrolled_package_type, classes_total
+          start_date, end_date, enrolled_package_type, classes_total,
+          dollars_per_credit, charged_credits
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING *
       `,
         [
@@ -251,6 +256,8 @@ router.post("/", authorization, async (req, res) => {
           end_date,
           enrolledPackageType,
           classes_total,
+          dollarsPerCredit,
+          creditCost,
         ],
       );
 
@@ -616,6 +623,7 @@ router.delete("/:bookingId", authorization, async (req, res) => {
         b.end_date,
         b.created_at,
         b.schedule_id,
+        b.charged_credits,
         l.partner_id,
         l.listing_title,
         sg.price_payg as schedule_credit,
@@ -657,13 +665,10 @@ router.delete("/:bookingId", authorization, async (req, res) => {
       actual_credit_charged: bookingData.actual_credit_charged,
     });
 
-    // Use the actual credit charged from transaction, or fallback to schedule/listing credit
+    // Prefer the immutable booking snapshot, with the transaction retained for
+    // bookings created before snapshots were introduced.
     const creditRefund =
-      bookingData.actual_credit_charged ||
-      (bookingData.schedule_credit
-        ? Math.round(parseFloat(bookingData.schedule_credit))
-        : null) ||
-      bookingData.listing_credit ||
+      bookingData.charged_credits || bookingData.actual_credit_charged ||
       1;
 
     console.log(`🗑️ Credit refund amount: ${creditRefund}`);

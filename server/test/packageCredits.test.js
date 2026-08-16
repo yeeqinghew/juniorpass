@@ -6,16 +6,16 @@ const {
   getPackageCreditCost,
 } = require("../utils/packageCredits");
 
-test("returns configured package prices as whole credits", () => {
+test("converts configured dollar prices to whole credits", () => {
   const schedule = {
     price_payg: "42.00",
     price_fullterm: "500.00",
     price_shortterm: "239.59",
   };
 
-  assert.equal(getPackageCreditCost(schedule, "pay-as-you-go"), 42);
-  assert.equal(getPackageCreditCost(schedule, "full-term"), 500);
-  assert.equal(getPackageCreditCost(schedule, "short-term"), 240);
+  assert.equal(getPackageCreditCost(schedule, "pay-as-you-go", 9.5), 5);
+  assert.equal(getPackageCreditCost(schedule, "full-term", 9.5), 53);
+  assert.equal(getPackageCreditCost(schedule, "short-term", 9.5), 26);
 });
 
 test("derives short-term credits when the stored price is zero", () => {
@@ -26,7 +26,7 @@ test("derives short-term credits when the stored price is zero", () => {
     short_term_class_count: 5,
   };
 
-  assert.equal(getPackageCreditCost(schedule, "short-term"), 240);
+  assert.equal(getPackageCreditCost(schedule, "short-term", 9.5), 26);
 });
 
 test("derives the short-term class count and credits when both are missing", () => {
@@ -38,14 +38,14 @@ test("derives the short-term class count and credits when both are missing", () 
   };
 
   assert.equal(getPackageClassCount(schedule, "short-term"), 3);
-  assert.equal(getPackageCreditCost(schedule, "short-term"), 144);
+  assert.equal(getPackageCreditCost(schedule, "short-term", 9.5), 16);
 });
 
 test("rejects packages without a valid positive credit cost", () => {
   assert.equal(
-    getPackageCreditCost({ price_shortterm: "0.00" }, "short-term"),
+    getPackageCreditCost({ price_shortterm: "0.00" }, "short-term", 9.5),
     null,
   );
-  assert.equal(getPackageCreditCost({ price_payg: null }, "pay-as-you-go"), null);
-  assert.equal(getPackageCreditCost({}, "unknown"), null);
+  assert.equal(getPackageCreditCost({ price_payg: null }, "pay-as-you-go", 9.5), null);
+  assert.equal(getPackageCreditCost({}, "unknown", 9.5), null);
 });

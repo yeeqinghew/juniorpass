@@ -19,9 +19,12 @@ import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
 
 const { Text } = Typography;
 
-const toPositiveCredits = (value) => {
-  const credits = Number(value);
-  return Number.isFinite(credits) && credits > 0 ? Math.ceil(credits) : null;
+const toPositiveCredits = (dollarValue, dollarsPerCredit) => {
+  const dollars = Number(dollarValue);
+  const rate = Number(dollarsPerCredit);
+  return Number.isFinite(dollars) && dollars > 0 && Number.isFinite(rate) && rate > 0
+    ? Math.ceil(dollars / rate)
+    : null;
 };
 
 const toPositiveClassCount = (value, fallback) => {
@@ -78,7 +81,8 @@ const BuyNow = ({
     if (!packageType || !selected?.location) return null;
 
     const location = selected.location;
-    const paygCredits = toPositiveCredits(location.credit);
+    const dollarsPerCredit = Number(location.pricing_dollars_per_credit);
+    const paygCredits = toPositiveCredits(location.credit, dollarsPerCredit);
     const fullTermClasses = toPositiveClassCount(
       location.full_term_class_count,
       10,
@@ -88,13 +92,16 @@ const BuyNow = ({
       Math.ceil(fullTermClasses * 0.25),
     );
     const fullTermCredits =
-      toPositiveCredits(location.price_fullterm) ||
+      toPositiveCredits(location.price_fullterm, dollarsPerCredit) ||
       (paygCredits ? paygCredits * fullTermClasses : null);
     const shortTermCredits =
-      toPositiveCredits(location.price_shortterm) ||
-      (fullTermCredits
-        ? Math.ceil(
-            (fullTermCredits / fullTermClasses) * 1.15 * shortTermClasses,
+      toPositiveCredits(location.price_shortterm, dollarsPerCredit) ||
+      (Number(location.price_fullterm) > 0
+        ? toPositiveCredits(
+            (Number(location.price_fullterm) / fullTermClasses) *
+              1.15 *
+              shortTermClasses,
+            dollarsPerCredit,
           )
         : null);
 

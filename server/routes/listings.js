@@ -5,6 +5,7 @@ const authorization = require("../middleware/authorization");
 const etagMiddleware = require("../middleware/etagMiddleware");
 const cacheMiddleware = require("../middleware/cacheMiddleware");
 const client = require("../utils/redisClient");
+const { getDollarsPerCredit } = require("../utils/platformSettings");
 const {
   deleteCloudinaryImage,
 } = require("../services/storage/storage.service");
@@ -104,6 +105,7 @@ router.post("", authorization, async (req, res) => {
           price_fullterm,
           price_shortterm,
         } = schedule;
+        const pricingDollarsPerCredit = await getDollarsPerCredit();
 
         // 1. Insert schedule_group (the enrollable program)
         const scheduleGroupResult = await pool.query(
@@ -117,8 +119,9 @@ router.post("", authorization, async (req, res) => {
             price_payg,
             price_fullterm,
             price_shortterm,
-            frequency
-          ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING schedule_group_id`,
+            frequency,
+            pricing_dollars_per_credit
+          ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING schedule_group_id`,
           [
             listing_outlet_id,
             package_types || ["pay-as-you-go"],
@@ -130,6 +133,7 @@ router.post("", authorization, async (req, res) => {
             price_fullterm || null,
             price_shortterm || null,
             frequency,
+            pricingDollarsPerCredit,
           ],
         );
 
@@ -221,6 +225,7 @@ router.get("", cacheMiddleware, async (req, res) => {
                     'price_payg', sg.price_payg,
                     'price_fullterm', sg.price_fullterm,
                     'price_shortterm', sg.price_shortterm,
+                    'pricing_dollars_per_credit', sg.pricing_dollars_per_credit,
                     'frequency', sg.frequency,
                     'time_slots', (
                       SELECT jsonb_agg(
@@ -313,6 +318,7 @@ router.get("/:id", cacheMiddleware, async (req, res) => {
                     'price_payg', sg.price_payg,
                     'price_fullterm', sg.price_fullterm,
                     'price_shortterm', sg.price_shortterm,
+                    'pricing_dollars_per_credit', sg.pricing_dollars_per_credit,
                     'frequency', sg.frequency,
                     'time_slots', (
                       SELECT jsonb_agg(
@@ -390,6 +396,7 @@ router.get("/partner/:partnerId", async (req, res) => {
                     'price_payg', sg.price_payg,
                     'price_fullterm', sg.price_fullterm,
                     'price_shortterm', sg.price_shortterm,
+                    'pricing_dollars_per_credit', sg.pricing_dollars_per_credit,
                     'frequency', sg.frequency,
                     'time_slots', (
                       SELECT jsonb_agg(
@@ -649,6 +656,21 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
           listing_outlet_id = loResult.rows[0].listing_outlet_id;
         }
 
+        // Retain each program's original pricing rate when a partner edits
+        // non-price details. Newly added programs use the active rate.
+        const existingRatesResult = await tx.query(
+          `SELECT schedule_group_id, pricing_dollars_per_credit,
+                  price_payg, price_fullterm, price_shortterm
+           FROM schedule_groups WHERE listing_outlet_id = $1`,
+          [listing_outlet_id],
+        );
+        const existingRates = new Map(
+          existingRatesResult.rows.map((row) => [
+            row.schedule_group_id,
+            row,
+          ]),
+        );
+
         // Delete existing schedule_groups (cascades to schedules)
         await tx.query(
           `DELETE FROM schedule_groups WHERE listing_outlet_id = $1`,
@@ -659,6 +681,7 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
         for (const schedule of schedules) {
           const {
             time_slots,
+            schedule_group_id: existingScheduleGroupId,
             frequency,
             package_types,
             is_progressive,
@@ -669,6 +692,18 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
             price_fullterm,
             price_shortterm,
           } = schedule;
+          const existingPricing = existingRates.get(existingScheduleGroupId);
+          const samePrice =
+            existingPricing &&
+            Number(existingPricing.price_payg || 0) ===
+              Number(price_payg || 0) &&
+            Number(existingPricing.price_fullterm || 0) ===
+              Number(price_fullterm || 0) &&
+            Number(existingPricing.price_shortterm || 0) ===
+              Number(price_shortterm || 0);
+          const pricingDollarsPerCredit = samePrice
+            ? Number(existingPricing.pricing_dollars_per_credit)
+            : await getDollarsPerCredit(tx);
 
           if (
             !frequency ||
@@ -691,8 +726,9 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
               price_payg,
               price_fullterm,
               price_shortterm,
-              frequency
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING schedule_group_id`,
+              frequency,
+              pricing_dollars_per_credit
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING schedule_group_id`,
             [
               listing_outlet_id,
               package_types || ["pay-as-you-go"],
@@ -704,6 +740,7 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
               price_fullterm || null,
               price_shortterm || null,
               frequency,
+              pricingDollarsPerCredit,
             ],
           );
 
@@ -867,6 +904,7 @@ router.get("/search", async (req, res) => {
                     'price_payg', sg.price_payg,
                     'price_fullterm', sg.price_fullterm,
                     'price_shortterm', sg.price_shortterm,
+                    'pricing_dollars_per_credit', sg.pricing_dollars_per_credit,
                     'frequency', sg.frequency,
                     'time_slots', (
                       SELECT jsonb_agg(

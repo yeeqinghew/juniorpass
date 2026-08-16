@@ -108,14 +108,20 @@ const Class = () => {
         }
 
         scheduleGroup.time_slots.forEach((timeSlot) => {
-          const { day, start_time, end_time, schedule_id } = timeSlot;
+          const {
+            day,
+            start_time,
+            end_time,
+            schedule_id,
+            slots: maxSlots,
+          } = timeSlot;
           const {
             frequency,
-            slots: maxSlots,
             package_types,
             price_payg,
             price_fullterm,
             price_shortterm,
+            pricing_dollars_per_credit,
             full_term_class_count,
             short_term_class_count,
           } = scheduleGroup;
@@ -175,6 +181,7 @@ const Class = () => {
                 credit: price_payg,
                 price_fullterm,
                 price_shortterm,
+                pricing_dollars_per_credit,
                 full_term_class_count,
                 short_term_class_count,
                 max_slots: maxSlots,

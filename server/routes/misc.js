@@ -1,6 +1,15 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const { getDollarsPerCredit } = require("../utils/platformSettings");
+
+router.get("/credit-conversion", async (req, res) => {
+  try {
+    res.json({ dollars_per_credit: await getDollarsPerCredit() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 const etagMiddleware = require("../middleware/etagMiddleware");
 const cacheMiddleware = require("../middleware/cacheMiddleware");
 

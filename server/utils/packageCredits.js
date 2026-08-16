@@ -1,6 +1,12 @@
-const toPositiveCredits = (value) => {
-  const credits = Number(value);
-  return Number.isFinite(credits) && credits > 0 ? Math.ceil(credits) : null;
+const dollarsToCredits = (value, dollarsPerCredit) => {
+  const dollars = Number(value);
+  const rate = Number(dollarsPerCredit);
+  return Number.isFinite(dollars) &&
+    dollars > 0 &&
+    Number.isFinite(rate) &&
+    rate > 0
+    ? Math.ceil(dollars / rate)
+    : null;
 };
 
 const toPositiveClassCount = (value) => {
@@ -29,35 +35,37 @@ const getPackageClassCount = (scheduleGroup, packageType) => {
   return null;
 };
 
-const getPackageCreditCost = (scheduleGroup, packageType) => {
+const getPackageCreditCost = (scheduleGroup, packageType, dollarsPerCredit) => {
   if (!scheduleGroup) return null;
 
   if (packageType === "pay-as-you-go") {
-    return toPositiveCredits(scheduleGroup.price_payg);
+    return dollarsToCredits(scheduleGroup.price_payg, dollarsPerCredit);
   }
 
   if (packageType === "full-term") {
-    return toPositiveCredits(scheduleGroup.price_fullterm);
+    return dollarsToCredits(scheduleGroup.price_fullterm, dollarsPerCredit);
   }
 
   if (packageType === "short-term") {
-    const configuredCredits = toPositiveCredits(
+    const configuredCredits = dollarsToCredits(
       scheduleGroup.price_shortterm,
+      dollarsPerCredit,
     );
     if (configuredCredits) return configuredCredits;
 
-    const fullTermCredits = toPositiveCredits(scheduleGroup.price_fullterm);
+    const fullTermDollars = Number(scheduleGroup.price_fullterm);
     const fullTermClasses = getPackageClassCount(scheduleGroup, "full-term");
     const shortTermClasses = getPackageClassCount(scheduleGroup, "short-term");
 
-    if (!fullTermCredits || !fullTermClasses || !shortTermClasses) return null;
+    if (!fullTermDollars || !fullTermClasses || !shortTermClasses) return null;
 
-    return Math.ceil(
-      (fullTermCredits / fullTermClasses) * 1.15 * shortTermClasses,
+    return dollarsToCredits(
+      (fullTermDollars / fullTermClasses) * 1.15 * shortTermClasses,
+      dollarsPerCredit,
     );
   }
 
   return null;
 };
 
-module.exports = { getPackageClassCount, getPackageCreditCost };
+module.exports = { dollarsToCredits, getPackageClassCount, getPackageCreditCost };

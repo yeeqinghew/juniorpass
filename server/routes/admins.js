@@ -9,8 +9,108 @@ const authorization = require("../middleware/authorization");
 const adminOnly = require("../middleware/adminOnly");
 const sendEmail = require("../utils/emailSender");
 const crypto = require("crypto");
+const { getDollarsPerCredit } = require("../utils/platformSettings");
 
 router.use(etagMiddleware);
+
+router.get(
+  "/settings/credit-conversion",
+  authorization,
+  adminOnly,
+  async (req, res) => {
+    try {
+      const dollarsPerCredit = await getDollarsPerCredit();
+      const upcoming = await pool.query(
+        `SELECT new_value, effective_from
+         FROM platform_setting_history
+         WHERE setting_key = 'partner_dollars_per_credit'
+           AND effective_from > NOW()
+         ORDER BY effective_from ASC`,
+      );
+      const history = await pool.query(
+        `SELECT old_value, new_value, effective_from, changed_at, changed_by
+         FROM platform_setting_history
+         WHERE setting_key = 'partner_dollars_per_credit'
+         ORDER BY effective_from DESC, history_id DESC
+         LIMIT 50`,
+      );
+      res.json({
+        dollars_per_credit: dollarsPerCredit,
+        upcoming_rates: upcoming.rows.map((row) => ({
+          dollars_per_credit: Number(row.new_value),
+          effective_from: row.effective_from,
+        })),
+        history: history.rows.map((row) => ({
+          old_value: row.old_value == null ? null : Number(row.old_value),
+          new_value: Number(row.new_value),
+          effective_from: row.effective_from,
+          changed_at: row.changed_at,
+          changed_by: row.changed_by,
+        })),
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+router.put(
+  "/settings/credit-conversion",
+  authorization,
+  adminOnly,
+  async (req, res) => {
+    const dollarsPerCredit = Number(req.body.dollars_per_credit);
+    const effectiveFrom = req.body.effective_from
+      ? new Date(req.body.effective_from)
+      : new Date();
+    if (!Number.isFinite(dollarsPerCredit) || dollarsPerCredit <= 0) {
+      return res.status(400).json({ error: "Rate must be greater than zero" });
+    }
+    if (Number.isNaN(effectiveFrom.getTime())) {
+      return res.status(400).json({ error: "Invalid effective date" });
+    }
+
+    try {
+      const db = await pool.connect();
+      try {
+        await db.query("BEGIN");
+        const oldResult = await db.query(
+          `SELECT new_value
+           FROM platform_setting_history
+           WHERE setting_key = 'partner_dollars_per_credit'
+             AND effective_from <= $1
+           ORDER BY effective_from DESC, history_id DESC
+           LIMIT 1`,
+          [effectiveFrom],
+        );
+        const result = await db.query(
+          `INSERT INTO platform_setting_history
+             (setting_key, old_value, new_value, changed_by, effective_from)
+           VALUES ('partner_dollars_per_credit', $1, $2, $3, $4)
+           RETURNING new_value, effective_from, changed_at`,
+          [oldResult.rows[0]?.new_value || null, dollarsPerCredit, req.user, effectiveFrom],
+        );
+        await db.query("COMMIT");
+        res.json({
+          old_value:
+            oldResult.rows[0]?.new_value == null
+              ? null
+              : Number(oldResult.rows[0].new_value),
+          dollars_per_credit: Number(result.rows[0].new_value),
+          effective_from: result.rows[0].effective_from,
+          updated_at: result.rows[0].changed_at,
+        });
+      } catch (error) {
+        await db.query("ROLLBACK");
+        throw error;
+      } finally {
+        db.release();
+      }
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
 
 // ADMIN
 router.post("/login", cacheMiddleware, async (req, res) => {

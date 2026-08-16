@@ -117,6 +117,7 @@ export const API_ENDPOINTS = {
   GET_ALL_LISTINGS: "/listings",
   GET_LISTING: (listingId) => `/listings/${listingId}`,
   SEARCH_LISTINGS: "/listings/search",
+  GET_CREDIT_CONVERSION: "/misc/credit-conversion",
 
   // Partners
   GET_PARTNER: (partnerId) => `/partners/${partnerId}`,

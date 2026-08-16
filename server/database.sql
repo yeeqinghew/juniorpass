@@ -259,6 +259,7 @@ CREATE TABLE schedule_groups (
   price_payg DECIMAL(10, 2) CHECK (price_payg >= 0),
   price_fullterm DECIMAL(10, 2) CHECK (price_fullterm >= 0),
   price_shortterm DECIMAL(10, 2) CHECK (price_shortterm >= 0),
+  pricing_dollars_per_credit DECIMAL(10, 4) NOT NULL DEFAULT 9.50,
 
   -- Frequency shared across all time slots in the group
   frequency TEXT CHECK (frequency IN ('Biweekly', 'Weekly', 'Monthly', 'Yearly')),
@@ -548,6 +549,31 @@ CREATE TABLE admins (
 INSERT INTO admins (username, password)
     VALUES('superadmin', '$2b$10$tk2dxadGFGRMGsj3mjJr2OQ4VpsxvS7cSvajbTUbRJIchUOvYOAGO');
 
+CREATE TABLE platform_settings (
+    setting_key TEXT PRIMARY KEY,
+    setting_value DECIMAL(10, 4) NOT NULL CHECK (setting_value > 0),
+    updated_by UUID REFERENCES admins(admin_id),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+INSERT INTO platform_settings (setting_key, setting_value)
+VALUES ('partner_dollars_per_credit', 9.50);
+
+CREATE TABLE platform_setting_history (
+    history_id BIGSERIAL PRIMARY KEY,
+    setting_key TEXT NOT NULL,
+    old_value DECIMAL(10, 4),
+    new_value DECIMAL(10, 4) NOT NULL,
+    changed_by UUID REFERENCES admins(admin_id),
+    changed_at TIMESTAMP DEFAULT NOW(),
+    effective_from TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO platform_setting_history
+    (setting_key, old_value, new_value, effective_from)
+VALUES ('partner_dollars_per_credit', NULL, 9.50, NOW());
+
 CREATE TABLE partnerForms (
     id SERIAL PRIMARY KEY,
     company_name VARCHAR(255) NOT NULL,
@@ -601,6 +627,8 @@ CREATE TABLE bookings (
     can_extend_to_full_term BOOLEAN DEFAULT false,
     extension_deadline TIMESTAMP,
     upgraded_from_booking_id UUID REFERENCES bookings(booking_id),
+    dollars_per_credit DECIMAL(10, 4),
+    charged_credits INTEGER,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
