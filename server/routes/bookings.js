@@ -74,9 +74,9 @@ router.post("/", authorization, async (req, res) => {
       }
     }
 
-    // Get schedule capacity, credit, and package info from schedule_groups
+    // Capacity belongs to the selected time slot; package info belongs to its group.
     const schedule = await pool.query(
-      `SELECT sg.slots, 
+      `SELECT s.slots, 
               sg.price_payg,
               sg.price_fullterm, 
               sg.price_shortterm,
@@ -187,6 +187,29 @@ router.post("/", authorization, async (req, res) => {
 
     try {
       await client.query("BEGIN");
+
+      // Serialize bookings for this time slot so simultaneous requests cannot
+      // both claim the final place.
+      await client.query(
+        "SELECT schedule_id FROM schedules WHERE schedule_id = $1 FOR UPDATE",
+        [schedule_id],
+      );
+      const currentCapacity = await client.query(
+        `SELECT COUNT(*)::integer AS count
+         FROM bookings
+         WHERE schedule_id = $1
+           AND DATE(start_date) = DATE($2::timestamp)`,
+        [schedule_id, start_date],
+      );
+      const currentBookedCount = currentCapacity.rows[0].count;
+      if (currentBookedCount >= maxSlots) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error: "This timeslot is fully booked",
+          booked_count: currentBookedCount,
+          max_slots: maxSlots,
+        });
+      }
 
       // Deduct credits only if the balance still covers the package. This
       // prevents concurrent booking requests from taking the balance negative.
@@ -360,9 +383,10 @@ router.get("/availability/:scheduleId", async (req, res) => {
       return res.status(400).json({ error: "Missing start_date or end_date" });
     }
 
-    // Get schedule with slots capacity from schedule_groups
+    // Get capacity from the selected schedule time slot.
     const schedule = await pool.query(
-      `SELECT s.schedule_id, sg.slots, s.day, sg.frequency, sg.is_progressive,
+      `SELECT s.schedule_id, s.slots, s.day, s.start_time, s.end_time,
+              sg.frequency, sg.is_progressive,
               l.listing_id, l.listing_title
        FROM schedules s
        JOIN schedule_groups sg ON s.schedule_group_id = sg.schedule_group_id
@@ -397,7 +421,7 @@ router.get("/availability/:scheduleId", async (req, res) => {
       listing_id: schedule.rows[0].listing_id,
       listing_title: schedule.rows[0].listing_title,
       day: schedule.rows[0].day,
-      timeslot: schedule.rows[0].timeslot,
+      timeslot: [schedule.rows[0].start_time, schedule.rows[0].end_time],
       frequency: schedule.rows[0].frequency,
       start_date,
       end_date,

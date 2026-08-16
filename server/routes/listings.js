@@ -95,7 +95,6 @@ router.post("", authorization, async (req, res) => {
         const {
           time_slots,
           frequency,
-          slots,
           package_types,
           is_progressive,
           full_term_start_date,
@@ -118,9 +117,8 @@ router.post("", authorization, async (req, res) => {
             price_payg,
             price_fullterm,
             price_shortterm,
-            frequency,
-            slots
-          ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING schedule_group_id`,
+            frequency
+          ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING schedule_group_id`,
           [
             listing_outlet_id,
             package_types || ["pay-as-you-go"],
@@ -132,7 +130,6 @@ router.post("", authorization, async (req, res) => {
             price_fullterm || null,
             price_shortterm || null,
             frequency,
-            slots || 10,
           ],
         );
 
@@ -140,7 +137,7 @@ router.post("", authorization, async (req, res) => {
 
         // 2. Insert time slots for this schedule group
         for (let slot of time_slots || []) {
-          const { day, timeslot } = slot;
+          const { day, timeslot, slots: slotCapacity } = slot;
 
           // Parse timeslot array: [start, end]
           const start_time = timeslot && timeslot[0] ? timeslot[0] : null;
@@ -152,9 +149,10 @@ router.post("", authorization, async (req, res) => {
               listing_outlet_id,
               day,
               start_time,
-              end_time
-            ) VALUES($1, $2, $3, $4, $5)`,
-            [schedule_group_id, listing_outlet_id, day, start_time, end_time],
+              end_time,
+              slots
+            ) VALUES($1, $2, $3, $4, $5, $6)`,
+            [schedule_group_id, listing_outlet_id, day, start_time, end_time, slotCapacity || 10],
           );
         }
       }
@@ -224,14 +222,14 @@ router.get("", cacheMiddleware, async (req, res) => {
                     'price_fullterm', sg.price_fullterm,
                     'price_shortterm', sg.price_shortterm,
                     'frequency', sg.frequency,
-                    'slots', sg.slots,
                     'time_slots', (
                       SELECT jsonb_agg(
                         jsonb_build_object(
                           'schedule_id', s.schedule_id,
                           'day', s.day,
                           'start_time', s.start_time,
-                          'end_time', s.end_time
+                          'end_time', s.end_time,
+                          'slots', s.slots
                         )
                         ORDER BY
                           CASE s.day
@@ -316,14 +314,14 @@ router.get("/:id", cacheMiddleware, async (req, res) => {
                     'price_fullterm', sg.price_fullterm,
                     'price_shortterm', sg.price_shortterm,
                     'frequency', sg.frequency,
-                    'slots', sg.slots,
                     'time_slots', (
                       SELECT jsonb_agg(
                         jsonb_build_object(
                           'schedule_id', s.schedule_id,
                           'day', s.day,
                           'start_time', s.start_time,
-                          'end_time', s.end_time
+                          'end_time', s.end_time,
+                          'slots', s.slots
                         )
                         ORDER BY
                           CASE s.day
@@ -393,14 +391,14 @@ router.get("/partner/:partnerId", async (req, res) => {
                     'price_fullterm', sg.price_fullterm,
                     'price_shortterm', sg.price_shortterm,
                     'frequency', sg.frequency,
-                    'slots', sg.slots,
                     'time_slots', (
                       SELECT jsonb_agg(
                         jsonb_build_object(
                           'schedule_id', s.schedule_id,
                           'day', s.day,
                           'start_time', s.start_time,
-                          'end_time', s.end_time
+                          'end_time', s.end_time,
+                          'slots', s.slots
                         )
                         ORDER BY
                           CASE s.day
@@ -662,7 +660,6 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
           const {
             time_slots,
             frequency,
-            slots,
             package_types,
             is_progressive,
             full_term_start_date,
@@ -694,9 +691,8 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
               price_payg,
               price_fullterm,
               price_shortterm,
-              frequency,
-              slots
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING schedule_group_id`,
+              frequency
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING schedule_group_id`,
             [
               listing_outlet_id,
               package_types || ["pay-as-you-go"],
@@ -708,7 +704,6 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
               price_fullterm || null,
               price_shortterm || null,
               frequency,
-              slots || 10,
             ],
           );
 
@@ -716,7 +711,7 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
 
           // Insert time slots for this schedule group
           for (const slot of time_slots) {
-            const { day, timeslot } = slot;
+            const { day, timeslot, slots: slotCapacity } = slot;
             if (!day || !Array.isArray(timeslot) || timeslot.length < 2) {
               await tx.query("ROLLBACK");
               return res
@@ -733,9 +728,10 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
                 listing_outlet_id,
                 day,
                 start_time,
-                end_time
-              ) VALUES ($1, $2, $3, $4, $5)`,
-              [schedule_group_id, listing_outlet_id, day, start_time, end_time],
+                end_time,
+                slots
+              ) VALUES ($1, $2, $3, $4, $5, $6)`,
+              [schedule_group_id, listing_outlet_id, day, start_time, end_time, slotCapacity || 10],
             );
           }
         }
@@ -872,14 +868,14 @@ router.get("/search", async (req, res) => {
                     'price_fullterm', sg.price_fullterm,
                     'price_shortterm', sg.price_shortterm,
                     'frequency', sg.frequency,
-                    'slots', sg.slots,
                     'time_slots', (
                       SELECT jsonb_agg(
                         jsonb_build_object(
                           'schedule_id', s.schedule_id,
                           'day', s.day,
                           'start_time', s.start_time,
-                          'end_time', s.end_time
+                          'end_time', s.end_time,
+                          'slots', s.slots
                         )
                         ORDER BY
                           CASE s.day

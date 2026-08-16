@@ -229,6 +229,7 @@ CREATE TABLE schedules (
     day TEXT CHECK (day IN ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')),
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
+    slots INTEGER NOT NULL DEFAULT 10 CHECK (slots >= 1 AND slots <= 100),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -259,9 +260,8 @@ CREATE TABLE schedule_groups (
   price_fullterm DECIMAL(10, 2) CHECK (price_fullterm >= 0),
   price_shortterm DECIMAL(10, 2) CHECK (price_shortterm >= 0),
 
-  -- Frequency and slots (shared across all time slots in group)
+  -- Frequency shared across all time slots in the group
   frequency TEXT CHECK (frequency IN ('Biweekly', 'Weekly', 'Monthly', 'Yearly')),
-  slots INTEGER DEFAULT 10 CHECK (slots >= 1 AND slots <= 100),
 
   -- Timestamps
   created_at TIMESTAMP DEFAULT NOW(),
