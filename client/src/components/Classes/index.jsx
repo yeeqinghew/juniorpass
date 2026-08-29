@@ -455,7 +455,7 @@ const Classes = () => {
           onClick={(event) => event.stopPropagation()}
           onChange={() => toggleValue(setSelectedPackageTypes, value)}
         >
-          {packageType.label} ({packageType.count})
+          {packageType.label}
         </Checkbox>
       ),
     };
@@ -546,8 +546,6 @@ const Classes = () => {
             <Dropdown menu={{ items: categoryMenuItems }} trigger={["click"]}>
               <Button>
                 Categories
-                {selectedCategories.length > 0 &&
-                  ` (${selectedCategories.length})`}
                 <DownOutlined />
               </Button>
             </Dropdown>
@@ -555,8 +553,6 @@ const Classes = () => {
             <Dropdown menu={{ items: ageMenuItems }} trigger={["click"]}>
               <Button>
                 Age groups
-                {selectedAgeGroups.length > 0 &&
-                  ` (${selectedAgeGroups.length})`}
                 <DownOutlined />
               </Button>
             </Dropdown>
@@ -565,8 +561,6 @@ const Classes = () => {
               <Dropdown menu={{ items: packageMenuItems }} trigger={["click"]}>
                 <Button>
                   Package types
-                  {selectedPackageTypes.length > 0 &&
-                    ` (${selectedPackageTypes.length})`}
                   <DownOutlined />
                 </Button>
               </Dropdown>
