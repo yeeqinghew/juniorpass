@@ -292,16 +292,26 @@ function HomePage() {
                 </div>
               </div>
               <div className="headline-cta">
-                <Link to="/">
-                  {/* <Link to="/register"> */}
+                {isProduction ? (
                   <Button
                     type="primary"
                     className="headline-button"
                     size="large"
+                    disabled
                   >
-                    Try for free!
+                    Try for free
                   </Button>
-                </Link>
+                ) : (
+                  <Link to="/login">
+                    <Button
+                      type="primary"
+                      className="headline-button"
+                      size="large"
+                    >
+                      Try for free
+                    </Button>
+                  </Link>
+                )}
                 <Link to="/about-us">
                   <Button className="headline-button" size="large">
                     About Us
