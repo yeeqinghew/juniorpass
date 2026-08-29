@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Empty,
@@ -58,6 +58,8 @@ const ChildrenClasses = () => {
   const [isDeleteChildModalOpen, setIsDeleteChildModalOpen] = useState(false);
   const [childToDelete, setChildToDelete] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [saveChildLoading, setSaveChildLoading] = useState(false);
+  const saveChildLockRef = useRef(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("list");
   const [form] = Form.useForm();
@@ -185,6 +187,10 @@ const ChildrenClasses = () => {
   };
 
   const handleSaveChild = async (values) => {
+    if (saveChildLockRef.current) return;
+
+    saveChildLockRef.current = true;
+    setSaveChildLoading(true);
     try {
       const payload = {
         ...values,
@@ -211,6 +217,9 @@ const ChildrenClasses = () => {
       } else toast.error("Failed to save profile");
     } catch {
       toast.error("Failed to save profile");
+    } finally {
+      saveChildLockRef.current = false;
+      setSaveChildLoading(false);
     }
   };
 
@@ -682,6 +691,7 @@ const ChildrenClasses = () => {
       <Modal
         open={isAddChildModalOpen}
         onCancel={() => {
+          if (saveChildLockRef.current) return;
           setIsAddChildModalOpen(false);
           form.resetFields();
         }}
@@ -787,6 +797,7 @@ const ChildrenClasses = () => {
 
           <div className="cc-modal-btns">
             <Button
+              disabled={saveChildLoading}
               onClick={() => {
                 setIsAddChildModalOpen(false);
                 form.resetFields();
@@ -794,7 +805,14 @@ const ChildrenClasses = () => {
             >
               Cancel
             </Button>
-            <Button type="primary" onClick={() => form.submit()}>
+            <Button
+              type="primary"
+              loading={saveChildLoading}
+              disabled={saveChildLoading}
+              onClick={() => {
+                if (!saveChildLockRef.current) form.submit();
+              }}
+            >
               {editingChild ? "Update Profile" : "Add Child"}
             </Button>
           </div>
