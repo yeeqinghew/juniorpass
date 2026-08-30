@@ -299,16 +299,16 @@ function HomePage() {
                     size="large"
                     disabled
                   >
-                    Try for free
+                    Try it now (Coming Soon)
                   </Button>
                 ) : (
-                  <Link to="/login">
+                  <Link to="/register">
                     <Button
                       type="primary"
                       className="headline-button"
                       size="large"
                     >
-                      Try for free
+                      Try it now
                     </Button>
                   </Link>
                 )}
