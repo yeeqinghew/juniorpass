@@ -1,5 +1,4 @@
 const express = require("express");
-const path = require("path"); // Import path module
 const cors = require("cors");
 const client = require("./utils/redisClient");
 const app = express();
@@ -43,9 +42,6 @@ app.use(
   }),
 );
 
-// Serve static files from the React app
-app.use(express.static(path.join(__dirname, "../client/build")));
-
 // CRITICAL: Handle webhook route BEFORE general body parsing middleware
 // This must come before express.json() and express.urlencoded()
 app.use(
@@ -56,42 +52,15 @@ app.use(
 app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
 app.use(express.json());
 
-// Cache-Control middleware - to instruct browsers and intermediate cache (CDNs) on how cache the response
-// Only cache static assets, not API responses
+// This service is API-only. Never cache user-specific API responses in the
+// browser or at an intermediate CDN.
 app.use((req, res, next) => {
-  // Vercel proxies browser requests through /api so authentication cookies stay
-  // first-party. Treat the optional proxy prefix exactly like a direct API call.
-  const requestPath = req.path.replace(/^\/api(?=\/|$)/, "");
-
-  // Don't cache API responses - they contain user-specific data that changes frequently
-  const isApiRoute =
-    requestPath.startsWith("/auth") ||
-    requestPath.startsWith("/admins") ||
-    requestPath.startsWith("/partners") ||
-    requestPath.startsWith("/listings") ||
-    requestPath.startsWith("/misc") ||
-    requestPath.startsWith("/media") ||
-    requestPath.startsWith("/children") ||
-    requestPath.startsWith("/payment") ||
-    requestPath.startsWith("/referrals") ||
-    requestPath.startsWith("/bookings") ||
-    requestPath.startsWith("/class-occurrences") ||
-    requestPath.startsWith("/transactions") ||
-    requestPath.startsWith("/outlets") ||
-    requestPath.startsWith("/notifications");
-
-  if (isApiRoute) {
-    // Don't cache API responses
-    res.set(
-      "Cache-Control",
-      "no-store, no-cache, must-revalidate, proxy-revalidate",
-    );
-    res.set("Pragma", "no-cache");
-    res.set("Expires", "0");
-  } else {
-    // Cache static assets for 1 hour
-    res.set("Cache-Control", "public, max-age=3600");
-  }
+  res.set(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, proxy-revalidate",
+  );
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
   next();
 });
 
@@ -122,13 +91,10 @@ apiRouter.get("/health", (req, res) => {
 app.use(apiRouter);
 app.use("/api", apiRouter);
 
-app.use("/api", (req, res) => {
+// The frontends are hosted separately on Vercel. Unknown backend routes must
+// return JSON instead of trying to serve a local frontend build.
+app.use((req, res) => {
   res.status(404).json({ error: "API endpoint not found" });
-});
-
-// Catch-all route to serve React app for any non-API route
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "../client/build", "index.html"));
 });
 
 const port = process.env.PORT || 5000;
