@@ -49,7 +49,7 @@ app.use(express.static(path.join(__dirname, "../client/build")));
 // CRITICAL: Handle webhook route BEFORE general body parsing middleware
 // This must come before express.json() and express.urlencoded()
 app.use(
-  "/payment/webhook",
+  ["/payment/webhook", "/api/payment/webhook"],
   express.raw({ type: "application/x-www-form-urlencoded" }),
 );
 
@@ -59,21 +59,26 @@ app.use(express.json());
 // Cache-Control middleware - to instruct browsers and intermediate cache (CDNs) on how cache the response
 // Only cache static assets, not API responses
 app.use((req, res, next) => {
+  // Vercel proxies browser requests through /api so authentication cookies stay
+  // first-party. Treat the optional proxy prefix exactly like a direct API call.
+  const requestPath = req.path.replace(/^\/api(?=\/|$)/, "");
+
   // Don't cache API responses - they contain user-specific data that changes frequently
   const isApiRoute =
-    req.path.startsWith("/auth") ||
-    req.path.startsWith("/admins") ||
-    req.path.startsWith("/partners") ||
-    req.path.startsWith("/listings") ||
-    req.path.startsWith("/misc") ||
-    req.path.startsWith("/media") ||
-    req.path.startsWith("/children") ||
-    req.path.startsWith("/payment") ||
-    req.path.startsWith("/referrals") ||
-    req.path.startsWith("/bookings") ||
-    req.path.startsWith("/transactions") ||
-    req.path.startsWith("/outlets") ||
-    req.path.startsWith("/notifications");
+    requestPath.startsWith("/auth") ||
+    requestPath.startsWith("/admins") ||
+    requestPath.startsWith("/partners") ||
+    requestPath.startsWith("/listings") ||
+    requestPath.startsWith("/misc") ||
+    requestPath.startsWith("/media") ||
+    requestPath.startsWith("/children") ||
+    requestPath.startsWith("/payment") ||
+    requestPath.startsWith("/referrals") ||
+    requestPath.startsWith("/bookings") ||
+    requestPath.startsWith("/class-occurrences") ||
+    requestPath.startsWith("/transactions") ||
+    requestPath.startsWith("/outlets") ||
+    requestPath.startsWith("/notifications");
 
   if (isApiRoute) {
     // Don't cache API responses
@@ -91,24 +96,34 @@ app.use((req, res, next) => {
 });
 
 // ROUTES
-app.use("/auth", require("./routes/jwtAuth"));
-app.use("/admins", require("./routes/admins"));
-app.use("/partners", require("./routes/partners"));
-app.use("/listings", require("./routes/listings"));
-app.use("/misc", require("./routes/misc"));
-app.use("/media", require("./routes/media"));
-app.use("/children", require("./routes/children"));
-app.use("/payment", require("./routes/payment"));
-app.use("/bookings", require("./routes/bookings"));
-app.use("/class-occurrences", require("./routes/classOccurrences"));
-app.use("/transactions", require("./routes/transactions"));
-app.use("/notifications", require("./routes/notifications"));
-app.use("/outlets", require("./routes/outlets"));
-app.use("/referrals", require("./routes/referrals"));
+const apiRouter = express.Router();
+
+apiRouter.use("/auth", require("./routes/jwtAuth"));
+apiRouter.use("/admins", require("./routes/admins"));
+apiRouter.use("/partners", require("./routes/partners"));
+apiRouter.use("/listings", require("./routes/listings"));
+apiRouter.use("/misc", require("./routes/misc"));
+apiRouter.use("/media", require("./routes/media"));
+apiRouter.use("/children", require("./routes/children"));
+apiRouter.use("/payment", require("./routes/payment"));
+apiRouter.use("/bookings", require("./routes/bookings"));
+apiRouter.use("/class-occurrences", require("./routes/classOccurrences"));
+apiRouter.use("/transactions", require("./routes/transactions"));
+apiRouter.use("/notifications", require("./routes/notifications"));
+apiRouter.use("/outlets", require("./routes/outlets"));
+apiRouter.use("/referrals", require("./routes/referrals"));
 
 // health check endpoint
-app.get("/health", (req, res) => {
+apiRouter.get("/health", (req, res) => {
   res.status(200).json({ status: "OK", message: "Server is up running ✨" });
+});
+
+// Keep direct Railway endpoints working while also accepting Vercel's /api proxy.
+app.use(apiRouter);
+app.use("/api", apiRouter);
+
+app.use("/api", (req, res) => {
+  res.status(404).json({ error: "API endpoint not found" });
 });
 
 // Catch-all route to serve React app for any non-API route
