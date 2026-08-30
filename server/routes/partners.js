@@ -16,6 +16,7 @@ const {
   issueAuthSession,
   revokeAuthSession,
 } = require("../utils/authSession");
+const { partnerLoginLimiter } = require("../middleware/authRateLimiters");
 
 router.use(etagMiddleware);
 
@@ -38,7 +39,7 @@ router.get("/", authorization, async (req, res) => {
   }
 });
 
-router.post("/login", async (req, res) => {
+router.post("/login", partnerLoginLimiter, async (req, res) => {
   const { email, password } = req.body || {};
 
   try {

@@ -15,6 +15,7 @@ const {
   issueAuthSession,
   revokeAuthSession,
 } = require("../utils/authSession");
+const { adminLoginLimiter } = require("../middleware/authRateLimiters");
 
 router.use(etagMiddleware);
 
@@ -118,7 +119,7 @@ router.put(
 );
 
 // ADMIN
-router.post("/login", async (req, res) => {
+router.post("/login", adminLoginLimiter, async (req, res) => {
   const { username, password } = req.body;
 
   try {

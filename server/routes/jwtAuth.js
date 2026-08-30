@@ -10,8 +10,16 @@ const adminAuthorization = authorizationMiddleware.forRole(AUTH_ROLES.ADMIN);
 const adminOnly = require("../middleware/adminOnly");
 const etagMiddleware = require("../middleware/etagMiddleware");
 const redisClient = require("../utils/redisClient");
-const rateLimit = require("express-rate-limit");
 const { generateReferralCode } = require("../utils/referralGenerator");
+const {
+  userLoginLimiter,
+  googleLoginLimiter,
+  registerLimiter,
+  sendOtpLimiter,
+  verifyOtpLimiter,
+  forgotPasswordLimiter,
+  resetPasswordLimiter,
+} = require("../middleware/authRateLimiters");
 const {
   LOGIN_METHODS,
   getLoginMethodConflict,
@@ -21,42 +29,6 @@ const {
   revokeAuthSession,
   revokeToken,
 } = require("../utils/authSession");
-
-// Rate limiters for sensitive auth endpoints
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // max 5 login attempts per window
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-const registerLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-const otpLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-const forgotPasswordLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-
-const resetPasswordLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-});
 
 const { OAuth2Client } = require("google-auth-library");
 const sendEmail = require("../utils/emailSender");
@@ -190,7 +162,7 @@ router.post("/register", registerLimiter, validInfo, async (req, res) => {
   }
 });
 
-router.post("/login", loginLimiter, validInfo, async (req, res) => {
+router.post("/login", userLoginLimiter, validInfo, async (req, res) => {
   const { email, password } = req.body;
 
   try {
@@ -224,7 +196,7 @@ router.post("/login", loginLimiter, validInfo, async (req, res) => {
   }
 });
 
-router.post("/login/google", async (req, res) => {
+router.post("/login/google", googleLoginLimiter, async (req, res) => {
   try {
     const { googleCredential } = req.body;
 
@@ -505,7 +477,7 @@ router.post("/check-email", async (req, res) => {
   }
 });
 
-router.post("/send-otp", otpLimiter, async (req, res) => {
+router.post("/send-otp", sendOtpLimiter, async (req, res) => {
   const { email } = req.body;
 
   try {
@@ -528,7 +500,7 @@ router.post("/send-otp", otpLimiter, async (req, res) => {
   }
 });
 
-router.post("/verify-otp", async (req, res) => {
+router.post("/verify-otp", verifyOtpLimiter, async (req, res) => {
   const { email, otp } = req.body;
 
   // Throttle brute-force attempts per email using Redis
