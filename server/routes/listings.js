@@ -1,7 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
-const authorization = require("../middleware/authorization");
+const { AUTH_ROLES } = require("../constants/auth");
+const authorization = require("../middleware/authorization").forRole(
+  AUTH_ROLES.PARTNER,
+);
 const etagMiddleware = require("../middleware/etagMiddleware");
 const cacheMiddleware = require("../middleware/cacheMiddleware");
 const client = require("../utils/redisClient");
@@ -523,14 +526,21 @@ router.patch("/:id", authorization, async (req, res) => {
   }
 });
 
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", authorization, async (req, res) => {
   const id = req.params.id;
   try {
     // retrieve image URLs from the DB
     const { rows } = await pool.query(
-      `SELECT images FROM listings WHERE listing_id = $1`,
+      `SELECT images, partner_id FROM listings WHERE listing_id = $1`,
       [id],
     );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Listing not found" });
+    }
+    if (rows[0].partner_id !== req.user) {
+      return res.status(403).json({ error: "Not authorized to delete this listing" });
+    }
 
     // Extract image URLs from the database result
     const imageURLs = rows[0].images;
@@ -558,15 +568,24 @@ router.delete("/:id", async (req, res) => {
 });
 
 // make it inactive
-router.patch("/:listing_id/status", async (req, res) => {
+router.patch("/:listing_id/status", authorization, async (req, res) => {
   const { listing_id } = req.params;
   const { active } = req.body;
 
   try {
-    await pool.query(`UPDATE listings SET active = $1 WHERE listing_id = $2`, [
-      active,
-      listing_id,
-    ]);
+    const result = await pool.query(
+      `UPDATE listings
+       SET active = $1
+       WHERE listing_id = $2 AND partner_id = $3
+       RETURNING listing_id`,
+      [active, listing_id, req.user],
+    );
+    
+    if (result.rowCount === 0) {
+      return res
+        .status(404)
+        .json({ error: "Listing not found or not owned by this partner" });
+    }
     res.status(200).json({
       message: "Listing status updated successfully.",
     });

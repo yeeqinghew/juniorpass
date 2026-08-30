@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import {
   createContext,
   useContext,
@@ -5,7 +6,6 @@ import {
   useEffect,
   useCallback,
 } from "react";
-import { jwtDecode } from "jwt-decode";
 import { fetchWithAuth, API_ENDPOINTS } from "../utils/api";
 import toast from "react-hot-toast";
 
@@ -21,94 +21,54 @@ export const UserProvider = ({ children }) => {
     setUser(userData);
   }, []);
 
-  const fetchUserDataAndAuth = useCallback(
-    async (token) => {
-      try {
-        setLoading(true);
-        const profileResponse = await fetchWithAuth(
-          API_ENDPOINTS.VERIFY_TOKEN,
-          {
-            method: "GET",
-          },
-        );
-
-        if (profileResponse.ok) {
-          const userData = await profileResponse.json();
-          setAuth(true, userData);
-        } else {
-          console.error(
-            "🔴 Failed to fetch user profile, token might be invalid or session expired.",
-          );
-          localStorage.removeItem("token");
-          setAuth(false);
-          toast.error(
-            "Your session has expired or is invalid. Please log in again.",
-          );
-        }
-      } catch (error) {
-        console.error("🔴 Error in fetchUserDataAndAuth:", error);
-        localStorage.removeItem("token");
-        setAuth(false);
-        toast.error(
-          "An error occurred while authenticating. Please try again.",
-        );
-      } finally {
-        setLoading(false);
-      }
-    },
-    [setAuth],
-  );
-
-  // NEW: Function to explicitly re-evaluate authentication status
-  const reauthenticate = useCallback(async () => {
-    setLoading(true); // Start loading when reauthenticating
-    const token = localStorage.getItem("token"); // Read the token fresh
-
-    if (!token) {
-      setAuth(false);
-      setLoading(false);
-      return;
-    }
-
+  const reauthenticate = useCallback(async ({ silent = false } = {}) => {
+    setLoading(true);
     try {
-      const decodedToken = jwtDecode(token);
-      if (decodedToken.exp * 1000 < Date.now()) {
-        localStorage.removeItem("token");
+      const profileResponse = await fetchWithAuth(API_ENDPOINTS.VERIFY_TOKEN, {
+        method: "GET",
+      });
+
+      if (!profileResponse.ok) {
         setAuth(false);
-        toast.error("Your session has expired. Please log in again.");
-      } else {
-        await fetchUserDataAndAuth(token); // Fetch user data if token is valid
+        if (!silent) {
+          toast.error("Your session has expired. Please log in again.");
+        }
+        return false;
       }
+
+      const userData = await profileResponse.json();
+      setAuth(true, userData);
+      return true;
     } catch (error) {
-      console.error(
-        "🔴 Invalid token or decoding error during reauthentication:",
-        error,
-      );
-      localStorage.removeItem("token");
+      console.error("Error while authenticating:", error);
       setAuth(false);
-      toast.error("Invalid session. Please log in again.");
+      if (!silent) {
+        toast.error("Unable to verify your session. Please try again.");
+      }
+      return false;
     } finally {
-      setLoading(false); // Ensure loading is off after attempt
+      setLoading(false);
     }
-  }, [setAuth, fetchUserDataAndAuth]);
+  }, [setAuth]);
 
   useEffect(() => {
-    // Initial check when the component mounts
-    reauthenticate(); // Use the new reauthenticate function here
+    const timeoutId = window.setTimeout(() => {
+      reauthenticate({ silent: true });
+    }, 0);
 
-    // Add an event listener for storage changes (for cross-tab/window sync)
-    const handleStorageChange = (event) => {
-      if (event.key === "token") {
-        reauthenticate(); // Re-check authentication status if token in localStorage changes
-      }
+    return () => window.clearTimeout(timeoutId);
+  }, [reauthenticate]);
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setAuth(false);
+      setLoading(false);
     };
 
-    window.addEventListener("storage", handleStorageChange);
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-    };
-  }, [reauthenticate]); // Depend on reauthenticate
+    window.addEventListener("auth:unauthorized", handleUnauthorized);
+    return () =>
+      window.removeEventListener("auth:unauthorized", handleUnauthorized);
+  }, [setAuth]);
 
   return (
     <UserContext.Provider

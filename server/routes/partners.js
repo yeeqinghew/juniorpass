@@ -3,13 +3,19 @@ const router = express.Router();
 const pool = require("../db");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
-const jwtGenerator = require("../utils/jwtGenerator");
-const authorization = require("../middleware/authorization");
+const { AUTH_ROLES } = require("../constants/auth");
+const authorization = require("../middleware/authorization").forRole(
+  AUTH_ROLES.PARTNER,
+);
 const etagMiddleware = require("../middleware/etagMiddleware");
 const cacheMiddleware = require("../middleware/cacheMiddleware");
 const client = require("../utils/redisClient");
 const validInfo = require("../middleware/validInfo");
 const sendEmail = require("../utils/emailSender");
+const {
+  issueAuthSession,
+  revokeAuthSession,
+} = require("../utils/authSession");
 
 router.use(etagMiddleware);
 
@@ -17,7 +23,12 @@ router.use(etagMiddleware);
 router.get("/", authorization, async (req, res) => {
   try {
     const partner = await pool.query(
-      "SELECT * FROM partners WHERE partner_id = $1",
+      `SELECT partner_id, partner_name, email, description, website, rating,
+              credit, picture, address, region, contact_number,
+              array_to_json(categories) AS categories, is_profile_complete,
+              requires_password_change, created_at, updated_at
+       FROM partners
+       WHERE partner_id = $1`,
       [req.user],
     );
     return res.status(200).json(partner.rows[0]);
@@ -60,22 +71,38 @@ router.post("/login", async (req, res) => {
         .json({ message: "Password or Email is incorrect" });
     }
 
-    const token = jwtGenerator(partner.rows[0].partner_id);
-
-    return res.status(200).json({
-      token,
-      requires_password_change:
-        partner.rows[0].requires_password_change || false,
-      is_profile_complete: partner.rows[0].is_profile_complete !== false, // Default true for existing partners
-    });
+    return res.status(200).json(
+      issueAuthSession(res, partner.rows[0].partner_id, AUTH_ROLES.PARTNER, {
+        requires_password_change:
+          partner.rows[0].requires_password_change || false,
+        is_profile_complete: partner.rows[0].is_profile_complete !== false,
+      }),
+    );
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message });
   }
 });
 
+router.get("/is-verify", authorization, (req, res) => {
+  return res.status(200).json({ authenticated: true, role: req.authRole });
+});
+
+router.post("/logout", authorization, async (req, res) => {
+  try {
+    await revokeAuthSession(req, res, AUTH_ROLES.PARTNER);
+    return res.status(200).json({ message: "Logged out successfully" });
+  } catch (error) {
+    console.error("ERROR in /partners/logout", error.message);
+    return res.status(500).json({ error: "Unable to log out" });
+  }
+});
+
 router.get("/:partnerId/outlets", authorization, async (req, res) => {
   const { partnerId } = req.params;
+  if (req.user !== partnerId) {
+    return res.status(403).json({ error: "Not authorized for these outlets" });
+  }
 
   try {
     // Query to get outlets for the specific partner
@@ -113,9 +140,12 @@ router.get("/:id", cacheMiddleware, async (req, res) => {
   }
 });
 
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", authorization, async (req, res) => {
   try {
     const { id } = req.params;
+    if (req.user !== id) {
+      return res.status(403).json({ error: "Not authorized to edit this profile" });
+    }
     const {
       partner_name,
       description,
@@ -136,10 +166,13 @@ router.patch("/:id", async (req, res) => {
         description = COALESCE($2, description),
         picture = COALESCE($3, picture),
         address = COALESCE($4, address),
-        contact_number = COALESCE($5, contact_number),
+       contact_number = COALESCE($5, contact_number),
         website = COALESCE($6, website)
        WHERE partner_id = $7
-       RETURNING *`,
+       RETURNING partner_id, partner_name, email, description, website,
+                 rating, credit, picture, address, region, contact_number,
+                 array_to_json(categories) AS categories, is_profile_complete,
+                 requires_password_change, created_at, updated_at`,
       [
         partner_name,
         description,
@@ -301,9 +334,12 @@ router.post("/change-password", authorization, async (req, res) => {
       [hashedNewPassword, partner_id],
     );
 
+    await revokeAuthSession(req, res, AUTH_ROLES.PARTNER);
+
     return res.status(200).json({
       success: true,
       message: "Password changed successfully",
+      authenticated: false,
     });
   } catch (error) {
     console.error("ERROR in /partners/change-password", error.message);
@@ -342,7 +378,6 @@ const getPartnerByPartnerId = async (partnerId) => {
       `SELECT partner_id,
         partner_name,
         email,
-        password,
         description,
         website,
         rating,
@@ -414,8 +449,8 @@ router.get("/dashboard/overview", authorization, async (req, res) => {
         pool.query(
           `SELECT COUNT(*) AS c
            FROM notifications
-           WHERE recipient_type = 'partner' AND recipient_id = $1 AND is_read = false`,
-          [partnerId],
+           WHERE recipient_type = $2 AND recipient_id = $1 AND is_read = false`,
+          [partnerId, AUTH_ROLES.PARTNER],
         ),
       ]);
 

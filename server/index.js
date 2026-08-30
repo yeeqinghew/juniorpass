@@ -13,6 +13,11 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+const isDevelopment = !["production", "staging"].includes(
+  process.env.NODE_ENV,
+);
+const isLocalOrigin = (origin) =>
+  /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
 
 app.use(
   cors({
@@ -20,8 +25,9 @@ app.use(
       // 1. Allow Postman/Mobile apps (no origin)
       if (!origin) return callback(null, true);
 
-      // 2. In Development, you might want to allow everything if no list is provided
-      if (allowedOrigins.length === 0) {
+      // 2. Local development may use any localhost port. Deployed
+      // environments must explicitly list every trusted frontend origin.
+      if (isDevelopment && isLocalOrigin(origin)) {
         return callback(null, true);
       }
 

@@ -1,5 +1,5 @@
 const { Resend } = require("resend");
-const resend = new Resend(process.env.resendApiKey);
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendEmail = async (to, subject, html) => {
   try {
@@ -11,7 +11,9 @@ const sendEmail = async (to, subject, html) => {
     });
 
     if (error) {
-      throw new Error(error.message || "The email provider rejected the request");
+      throw new Error(
+        error.message || "The email provider rejected the request",
+      );
     }
 
     console.log(`✅ Email sent successfully to ${to}`);

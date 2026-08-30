@@ -15,14 +15,16 @@ const useHandleLogin = ({ from, fromState, setLoading }) => {
     try {
       const parseRes = await response.json();
 
-      if (response.ok && parseRes.token) {
-        localStorage.setItem("token", parseRes.token);
+      if (response.ok && parseRes.authenticated) {
+        const authenticated = await reauthenticate();
+        if (!authenticated) {
+          toast.error("Login succeeded, but the session could not be verified.");
+          return;
+        }
 
         toast.success("Login successfully", {
           duration: 4000,
         });
-
-        await reauthenticate();
 
         let finalNavigatePath = originalNavigatePath || "/profile"; // Default to /profile if 'from' is null/undefined
         const ignoredPathsForRedirect = [

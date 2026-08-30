@@ -2,14 +2,19 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const bcrypt = require("bcryptjs");
-const jwtGenerator = require("../utils/jwtGenerator");
+const { AUTH_ROLES } = require("../constants/auth");
 const etagMiddleware = require("../middleware/etagMiddleware");
-const cacheMiddleware = require("../middleware/cacheMiddleware");
-const authorization = require("../middleware/authorization");
+const authorization = require("../middleware/authorization").forRole(
+  AUTH_ROLES.ADMIN,
+);
 const adminOnly = require("../middleware/adminOnly");
 const sendEmail = require("../utils/emailSender");
 const crypto = require("crypto");
 const { getDollarsPerCredit } = require("../utils/platformSettings");
+const {
+  issueAuthSession,
+  revokeAuthSession,
+} = require("../utils/authSession");
 
 router.use(etagMiddleware);
 
@@ -113,7 +118,7 @@ router.put(
 );
 
 // ADMIN
-router.post("/login", cacheMiddleware, async (req, res) => {
+router.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
   try {
@@ -133,11 +138,26 @@ router.post("/login", cacheMiddleware, async (req, res) => {
         .json({ message: "Password or Email is incorrect" });
     }
 
-    const token = jwtGenerator(admin.rows[0].admin_id);
-    return res.json({ token });
+    return res.json(
+      issueAuthSession(res, admin.rows[0].admin_id, AUTH_ROLES.ADMIN),
+    );
   } catch (error) {
     console.error("ERROR in /admins/login", error.message);
     res.status(500).json({ error: error.message });
+  }
+});
+
+router.get("/is-verify", authorization, adminOnly, (req, res) => {
+  return res.status(200).json({ authenticated: true, role: req.authRole });
+});
+
+router.post("/logout", authorization, adminOnly, async (req, res) => {
+  try {
+    await revokeAuthSession(req, res, AUTH_ROLES.ADMIN);
+    return res.status(200).json({ message: "Logged out successfully" });
+  } catch (error) {
+    console.error("ERROR in /admins/logout", error.message);
+    return res.status(500).json({ error: "Unable to log out" });
   }
 });
 
@@ -145,12 +165,14 @@ router.get(
   "/getAllParents",
   authorization,
   adminOnly,
-  cacheMiddleware,
   async (req, res) => {
     // TODO: use middleware to check if user is superadmin
     try {
       const allParents = await pool.query(
-        "SELECT * FROM users WHERE user_type = 'parent'",
+        `SELECT user_id, name, email, phone_number, user_type, method, credit,
+                display_picture, created_at, updated_at
+         FROM users
+         WHERE user_type = 'parent'`,
       );
       return res.status(200).json(allParents.rows);
     } catch (error) {
@@ -173,7 +195,13 @@ router.get("/getAllChildren", authorization, adminOnly, async (req, res) => {
 
 router.get("/getAllPartners", authorization, adminOnly, async (req, res) => {
   try {
-    const partners = await pool.query("SELECT * FROM partners");
+    const partners = await pool.query(
+      `SELECT partner_id, partner_name, email, description, website, rating,
+              credit, picture, address, region, contact_number,
+              array_to_json(categories) AS categories, is_profile_complete,
+              requires_password_change, created_at, updated_at
+       FROM partners`,
+    );
     return res.status(200).json(partners.rows);
   } catch (error) {
     console.error("ERROR in /admins/getAllPartners", error.message);
@@ -211,7 +239,7 @@ router.patch(
           `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
          VALUES ($1, $2, $3, $4, $5, $6)`,
           [
-            "partner",
+            AUTH_ROLES.PARTNER,
             listing.rows[0].partner_id,
             "listing_status",
             "Listing approved",
@@ -273,7 +301,7 @@ router.patch(
           `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
          VALUES ($1, $2, $3, $4, $5, $6)`,
           [
-            "partner",
+            AUTH_ROLES.PARTNER,
             listing.rows[0].partner_id,
             "listing_status",
             "Listing rejected",

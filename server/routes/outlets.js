@@ -1,7 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
-const authorization = require("../middleware/authorization");
+const { AUTH_ROLES } = require("../constants/auth");
+const authorization = require("../middleware/authorization").forRole(
+  AUTH_ROLES.PARTNER,
+);
 
 // Get all outlets for a partner
 router.get("/partner/:partnerId", authorization, async (req, res) => {

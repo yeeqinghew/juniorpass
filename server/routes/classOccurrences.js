@@ -1,7 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
-const authorization = require("../middleware/authorization");
+const { AUTH_ROLES } = require("../constants/auth");
+const authorization = require("../middleware/authorization").forRole(
+  AUTH_ROLES.PARTNER,
+);
 
 // GET all class occurrences for a partner's listings
 router.get("/partner", authorization, async (req, res) => {
@@ -116,7 +119,7 @@ router.patch("/:occurrenceId/attendance", authorization, async (req, res) => {
         `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [
-          "user",
+          AUTH_ROLES.USER,
           user_id,
           "attendance",
           attended ? "Class Attended" : "Attendance Removed",
@@ -172,13 +175,13 @@ router.patch("/:occurrenceId/cancel", authorization, async (req, res) => {
 
     // Update occurrence to cancelled
     await pool.query(
-      `UPDATE class_occurrences
+       `UPDATE class_occurrences
        SET status = 'cancelled',
            cancellation_reason = $1,
-           cancelled_by = 'partner',
+           cancelled_by = $2,
            updated_at = NOW()
-       WHERE occurrence_id = $2`,
-      [reason || "Cancelled by partner", occurrenceId]
+       WHERE occurrence_id = $3`,
+      [reason || "Cancelled by partner", AUTH_ROLES.PARTNER, occurrenceId]
     );
 
     console.log(`✅ Class occurrence cancelled: ${occurrenceId}`);
@@ -189,7 +192,7 @@ router.patch("/:occurrenceId/cancel", authorization, async (req, res) => {
         `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [
-          "user",
+          AUTH_ROLES.USER,
           occurrence.user_id,
           "class_cancelled",
           `Class Cancelled: ${occurrence.listing_title}`,
@@ -265,7 +268,7 @@ router.patch("/:occurrenceId/reschedule", authorization, async (req, res) => {
         `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [
-          "user",
+          AUTH_ROLES.USER,
           occurrence.user_id,
           "class_rescheduled",
           `Class Rescheduled: ${occurrence.listing_title}`,
@@ -353,7 +356,7 @@ router.post("/:occurrenceId/makeup", authorization, async (req, res) => {
         `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
          VALUES ($1, $2, $3, $4, $5, $6)`,
         [
-          "user",
+          AUTH_ROLES.USER,
           occurrence.user_id,
           "makeup_class",
           `Makeup Class Scheduled: ${occurrence.listing_title}`,

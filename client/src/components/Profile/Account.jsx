@@ -19,7 +19,7 @@ import "./Account.css";
 const { Title } = Typography;
 
 const Account = () => {
-  const { user, reauthenticate } = useUserContext();
+  const { user, reauthenticate, setAuth } = useUserContext();
 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
@@ -99,8 +99,7 @@ const Account = () => {
         toast.success("Password changed!");
         setIsChangingPassword(false);
         passwordForm.resetFields();
-        // TODO: log out user from all devices after password change
-        localStorage.removeItem("token");
+        setAuth(false);
         window.location.href = "/login";
       } else {
         toast.error(data.message || "Failed to change password");

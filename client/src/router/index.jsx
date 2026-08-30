@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useIdleTimer } from "react-idle-timer";
 import { Modal, Button, Space, Typography } from "antd";
@@ -32,20 +32,17 @@ const Routers = () => {
   const navigate = useNavigate();
   const { isAuthenticated, setLoading, setAuth } = useUserContext();
   const [isTimeoutModalOpen, setIsTimeoutModalOpen] = useState(false);
+  const [isRenewingSession, setIsRenewingSession] = useState(false);
+  const sessionRenewalLockRef = useRef(false);
 
   const handleLogout = useCallback(async () => {
     try {
-      const token = localStorage.getItem("token");
-      if (token) {
-        await fetchWithAuth(API_ENDPOINTS.LOGOUT, {
-          method: "POST",
-        });
-      }
+      await fetchWithAuth(API_ENDPOINTS.LOGOUT, {
+        method: "POST",
+      });
     } catch (e) {
       console.error("Logout error:", e);
     }
-    localStorage.removeItem("token");
-    localStorage.clear();
     setAuth(false);
     setLoading(false);
     setIsTimeoutModalOpen(false);
@@ -60,18 +57,45 @@ const Routers = () => {
   }, [isAuthenticated]);
 
   const { activate } = useIdleTimer({
-    timeout: 720000, // 2 hours
+    timeout: 720000, // 12 minutes of inactivity
     onIdle: handleOnIdle,
     debounce: 500,
   });
 
-  const handleStayLoggedIn = useCallback(() => {
-    setIsTimeoutModalOpen(false);
-    // Reset the idle timer by activating
-    if (activate) {
-      activate();
+  const handleStayLoggedIn = useCallback(async () => {
+    if (sessionRenewalLockRef.current) return;
+    sessionRenewalLockRef.current = true;
+    setIsRenewingSession(true);
+
+    try {
+      const response = await fetchWithAuth(API_ENDPOINTS.REFRESH_SESSION, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        setAuth(false);
+        setLoading(false);
+        setIsTimeoutModalOpen(false);
+        toast.error("Your session has expired. Please log in again.");
+        navigate("/login");
+        return;
+      }
+
+      setIsTimeoutModalOpen(false);
+      activate?.();
+      toast.success("Your session has been renewed");
+    } catch (error) {
+      console.error("Session renewal error:", error);
+      setAuth(false);
+      setLoading(false);
+      setIsTimeoutModalOpen(false);
+      toast.error("Unable to renew your session. Please log in again.");
+      navigate("/login");
+    } finally {
+      sessionRenewalLockRef.current = false;
+      setIsRenewingSession(false);
     }
-  }, [activate]);
+  }, [activate, navigate, setAuth, setLoading]);
 
   return (
     <div className="App">
@@ -108,6 +132,8 @@ const Routers = () => {
               size="large"
               block
               onClick={handleStayLoggedIn}
+              loading={isRenewingSession}
+              disabled={isRenewingSession}
               className="session-timeout-btn session-timeout-btn-primary"
             >
               Stay Logged In

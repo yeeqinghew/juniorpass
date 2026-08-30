@@ -1,12 +1,18 @@
 const express = require("express");
 const router = express.Router();
+const { AUTH_ROLES } = require("../constants/auth");
 const fetch = require("node-fetch");
 const pool = require("../db");
 const { v4: uuidv4 } = require("uuid");
 const crypto = require("crypto");
 const querystring = require("querystring");
-const authorization = require("../middleware/authorization");
+const authorization = require("../middleware/authorization").forRole(
+  AUTH_ROLES.USER,
+);
 const { calculateCreditPrice } = require("../utils/creditPricing");
+
+const hitpaySandboxApiKey = process.env.HITPAY_SANDBOX_API_KEY;
+const hitpaySandboxSecretKey = process.env.HITPAY_SANDBOX_SECRET_KEY;
 
 const handlePaymentRoute = (handler) => async (req, res, next) => {
   try {
@@ -39,121 +45,127 @@ function formatSGDateTime(date) {
 }
 
 // initiates payment and stores it.
-router.post("/init", authorization, handlePaymentRoute(async (req, res) => {
-  const credits = Number(req.body.credits);
-  const amount = calculateCreditPrice(credits);
-  if (!amount) {
-    return res.status(400).json({ error: "Credits must be a positive whole number" });
-  }
-
-  const userResult = await pool.query(
-    "SELECT user_id, email, name FROM users WHERE user_id = $1",
-    [req.user],
-  );
-  if (userResult.rowCount === 0) {
-    return res.status(404).json({ error: "User not found" });
-  }
-  const { user_id, email, name } = userResult.rows[0];
-
-  const ref_num = uuidv4(); // Generate a unique reference number
-  // Generate expiry 10 minutes from now
-  const expiryDate = formatSGDateTime(new Date(Date.now() + 10 * 60 * 1000));
-
-  // Determine webhook URL based on environment
-  // Priority: WEBHOOK_URL > NODE_ENV-specific > fallback
-  let webhookUrl;
-  const nodeEnv = process.env.NODE_ENV || "development";
-
-  if (process.env.WEBHOOK_URL) {
-    // Explicit webhook URL takes highest priority
-    webhookUrl = process.env.WEBHOOK_URL;
-  } else {
-    // Auto-detect based on NODE_ENV
-    switch (nodeEnv) {
-      case "production":
-        webhookUrl = process.env.PRODUCTION_URL
-          ? `${process.env.PRODUCTION_URL}/payment/webhook`
-          : "https://api.juniorpass.sg/payment/webhook";
-        break;
-      case "staging":
-        webhookUrl = process.env.STAGING_URL
-          ? `${process.env.STAGING_URL}/payment/webhook`
-          : "https://juniorpass-staging.up.railway.app/payment/webhook";
-        break;
-      default: // development
-        webhookUrl = process.env.NGROK_URL
-          ? `${process.env.NGROK_URL}/payment/webhook`
-          : "https://063e-116-15-191-147.ngrok-free.app/payment/webhook";
+router.post(
+  "/init",
+  authorization,
+  handlePaymentRoute(async (req, res) => {
+    const credits = Number(req.body.credits);
+    const amount = calculateCreditPrice(credits);
+    if (!amount) {
+      return res
+        .status(400)
+        .json({ error: "Credits must be a positive whole number" });
     }
-  }
 
-  const resp = await fetch(
-    "https://api.sandbox.hit-pay.com/v1/payment-requests",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-BUSINESS-API-KEY": process.env.hitPaySandboxApiKey,
+    const userResult = await pool.query(
+      "SELECT user_id, email, name FROM users WHERE user_id = $1",
+      [req.user],
+    );
+    if (userResult.rowCount === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    const { user_id, email, name } = userResult.rows[0];
+
+    const ref_num = uuidv4(); // Generate a unique reference number
+    // Generate expiry 10 minutes from now
+    const expiryDate = formatSGDateTime(new Date(Date.now() + 10 * 60 * 1000));
+
+    // Determine webhook URL based on environment
+    // Priority: WEBHOOK_URL > NODE_ENV-specific > fallback
+    let webhookUrl;
+    const nodeEnv = process.env.NODE_ENV || "development";
+
+    if (process.env.WEBHOOK_URL) {
+      // Explicit webhook URL takes highest priority
+      webhookUrl = process.env.WEBHOOK_URL;
+    } else {
+      // Auto-detect based on NODE_ENV
+      switch (nodeEnv) {
+        case "production":
+          webhookUrl = process.env.PRODUCTION_URL
+            ? `${process.env.PRODUCTION_URL}/payment/webhook`
+            : "https://api.juniorpass.sg/payment/webhook";
+          break;
+        case "staging":
+          webhookUrl = process.env.STAGING_URL
+            ? `${process.env.STAGING_URL}/payment/webhook`
+            : "https://juniorpass-staging.up.railway.app/payment/webhook";
+          break;
+        default: // development
+          webhookUrl = process.env.NGROK_URL
+            ? `${process.env.NGROK_URL}/payment/webhook`
+            : "https://063e-116-15-191-147.ngrok-free.app/payment/webhook";
+      }
+    }
+
+    const resp = await fetch(
+      "https://api.sandbox.hit-pay.com/v1/payment-requests",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-BUSINESS-API-KEY": hitpaySandboxApiKey,
+        },
+        body: JSON.stringify({
+          amount,
+          currency: "SGD",
+          email,
+          purpose: "",
+          name,
+          reference_number: ref_num,
+          description: "Top up store credit",
+          redirect_url: "", // Not redirecting to any URL after payment due to Drop-In UI
+          webhook: webhookUrl,
+          expiry_date: expiryDate, // 10 minutes expiry
+        }),
       },
-      body: JSON.stringify({
-        amount,
-        currency: "SGD",
-        email,
-        purpose: "",
-        name,
-        reference_number: ref_num,
-        description: "Top up store credit",
-        redirect_url: "", // Not redirecting to any URL after payment due to Drop-In UI
-        webhook: webhookUrl,
-        expiry_date: expiryDate, // 10 minutes expiry
-      }),
-    },
-  );
+    );
 
-  const response = await resp.json();
-  const {
-    id,
-    name: resName,
-    email: resEmail,
-    phone,
-    amount: resAmount,
-    currency,
-    status,
-    purpose,
-    reference_number,
-    payment_methods,
-    url,
-    redirect_url,
-    webhook,
-    send_sms,
-    send_email,
-    sms_status,
-    email_status,
-    allow_repeated_payments,
-    expiry_date,
-    created_at,
-    updated_at,
-  } = response;
+    const response = await resp.json();
+    const {
+      id,
+      name: resName,
+      email: resEmail,
+      phone,
+      amount: resAmount,
+      currency,
+      status,
+      purpose,
+      reference_number,
+      payment_methods,
+      url,
+      redirect_url,
+      webhook,
+      send_sms,
+      send_email,
+      sms_status,
+      email_status,
+      allow_repeated_payments,
+      expiry_date,
+      created_at,
+      updated_at,
+    } = response;
 
-  await pool.query(
-    `INSERT INTO payment_requests
+    await pool.query(
+      `INSERT INTO payment_requests
       (user_id, amount, credits, reference_number, hitpay_payment_id)
       VALUES ($1, $2, $3, $4, $5)`,
-    [user_id, amount, credits, reference_number, response.id],
-  );
+      [user_id, amount, credits, reference_number, response.id],
+    );
 
-  res.status(200).json({
-    id: response.id,
-    url: response.url,
-    reference_number,
-    amount,
-    credits,
-  });
-}));
+    res.status(200).json({
+      id: response.id,
+      url: response.url,
+      reference_number,
+      amount,
+      credits,
+    });
+  }),
+);
 
 // updates payment and credit if successful.
 router.post("/webhook", async (req, res) => {
-  const secret = process.env.hitPaySandboxSecretKey;
+  const secret = hitpaySandboxSecretKey;
 
   // req.body is a Buffer, convert to string first
   const rawBodyString = req.body.toString("utf8");
@@ -210,10 +222,16 @@ router.post("/webhook", async (req, res) => {
         return res.status(200).send("OK");
       }
 
-      const { user_id, amount: expectedAmount, credits } = paymentResult.rows[0];
+      const {
+        user_id,
+        amount: expectedAmount,
+        credits,
+      } = paymentResult.rows[0];
 
       if (Number(amount).toFixed(2) !== Number(expectedAmount).toFixed(2)) {
-        console.error(`Payment amount mismatch for reference: ${reference_number}`);
+        console.error(
+          `Payment amount mismatch for reference: ${reference_number}`,
+        );
         return res.status(200).send("OK");
       }
 
@@ -292,7 +310,7 @@ router.get("/verify/:reference_number", authorization, async (req, res) => {
         {
           method: "GET",
           headers: {
-            "X-BUSINESS-API-KEY": process.env.hitPaySandboxApiKey,
+            "X-BUSINESS-API-KEY": hitpaySandboxApiKey,
           },
         },
       );
@@ -416,18 +434,18 @@ async function markPaymentCompleted({
         try {
           await pool.query(
             `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
-             VALUES ('user', $1, 'referral_completed', 'Referral Bonus Earned!',
+             VALUES ($3, $1, 'referral_completed', 'Referral Bonus Earned!',
                      'Your friend completed their first top-up. You earned ' || $2 || ' credits!',
                      jsonb_build_object('reward_credits', $2))`,
-            [referral.referrer_id, REFERRAL_REWARD],
+            [referral.referrer_id, REFERRAL_REWARD, AUTH_ROLES.USER],
           );
 
           await pool.query(
             `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
-             VALUES ('user', $1, 'referral_bonus', 'Welcome Bonus!',
+             VALUES ($3, $1, 'referral_bonus', 'Welcome Bonus!',
                      'Thanks for joining! You earned ' || $2 || ' welcome credits!',
                      jsonb_build_object('reward_credits', $2))`,
-            [user_id, REFERRAL_REWARD],
+            [user_id, REFERRAL_REWARD, AUTH_ROLES.USER],
           );
         } catch (notifyErr) {
           console.error(

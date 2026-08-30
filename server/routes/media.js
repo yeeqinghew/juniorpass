@@ -7,10 +7,17 @@ const {
   getListingImageSignature,
   deleteImages,
 } = require("../services/storage/storage.service");
+const { AUTH_ROLES } = require("../constants/auth");
 const authorization = require("../middleware/authorization");
+const userAuthorization = authorization.forRole(AUTH_ROLES.USER);
+const partnerAuthorization = authorization.forRole(AUTH_ROLES.PARTNER);
+const userOrPartnerAuthorization = authorization.forRoles(
+  AUTH_ROLES.USER,
+  AUTH_ROLES.PARTNER,
+);
 
 // -------------------- USER DP --------------------
-router.post("/upload/user-dp", authorization, (req, res) => {
+router.post("/upload/user-dp", userAuthorization, (req, res) => {
   try {
     const data = getUserDPSignature(req.user);
     res.json(data);
@@ -20,7 +27,7 @@ router.post("/upload/user-dp", authorization, (req, res) => {
 });
 
 // -------------------- PARTNER DP --------------------
-router.post("/upload/partner-dp", authorization, (req, res) => {
+router.post("/upload/partner-dp", partnerAuthorization, (req, res) => {
   try {
     const data = getPartnerDPSignature(req.user);
     res.json(data);
@@ -30,7 +37,7 @@ router.post("/upload/partner-dp", authorization, (req, res) => {
 });
 
 // -------------------- LISTING IMAGE --------------------
-router.post("/upload/listing-image", authorization, (req, res) => {
+router.post("/upload/listing-image", partnerAuthorization, (req, res) => {
   try {
     const { listingId } = req.body;
 
@@ -47,7 +54,7 @@ router.post("/upload/listing-image", authorization, (req, res) => {
 });
 
 // -------------------- DELETE IMAGES --------------------
-router.delete("/delete", authorization, async (req, res) => {
+router.delete("/delete", userOrPartnerAuthorization, async (req, res) => {
   try {
     const { publicIds } = req.body;
 

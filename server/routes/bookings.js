@@ -1,13 +1,16 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const { AUTH_ROLES } = require("../constants/auth");
 const {
   getPackageClassCount,
   getPackageCreditCost,
 } = require("../utils/packageCredits");
 const authorization = require("../middleware/authorization");
+const userAuthorization = authorization.forRole(AUTH_ROLES.USER);
+const partnerAuthorization = authorization.forRole(AUTH_ROLES.PARTNER);
 
-router.post("/", authorization, async (req, res) => {
+router.post("/", userAuthorization, async (req, res) => {
   const {
     listing_id,
     schedule_id,
@@ -49,9 +52,10 @@ router.post("/", authorization, async (req, res) => {
       [listing_id],
     );
     const user_id = req.user;
-    const user = await pool.query("SELECT * FROM users WHERE user_id = $1", [
-      user_id,
-    ]);
+    const user = await pool.query(
+      "SELECT user_id, credit FROM users WHERE user_id = $1",
+      [user_id],
+    );
 
     if (listing.rows.length === 0) {
       return res.status(404).json({ error: "Listing not found" });
@@ -316,7 +320,7 @@ router.post("/", authorization, async (req, res) => {
           `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
            VALUES ($1, $2, $3, $4, $5, $6)`,
           [
-            "partner",
+            AUTH_ROLES.PARTNER,
             listing.rows[0].partner_id,
             "booking",
             "New booking: " + listing.rows[0].listing_title,
@@ -343,7 +347,7 @@ router.post("/", authorization, async (req, res) => {
           `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
            VALUES ($1, $2, $3, $4, $5, $6)`,
           [
-            "user",
+            AUTH_ROLES.USER,
             user_id,
             "booking",
             "Booking confirmed",
@@ -445,7 +449,7 @@ router.get("/availability/:scheduleId", async (req, res) => {
 });
 
 // GET all bookings for a user
-router.get("/user", authorization, async (req, res) => {
+router.get("/user", userAuthorization, async (req, res) => {
   try {
     const user_id = req.user;
     const bookings = await pool.query(
@@ -494,7 +498,7 @@ router.get("/user", authorization, async (req, res) => {
 });
 
 // GET all class occurrences for a user (for calendar view)
-router.get("/user/occurrences", authorization, async (req, res) => {
+router.get("/user/occurrences", userAuthorization, async (req, res) => {
   try {
     const user_id = req.user;
     const occurrences = await pool.query(
@@ -575,9 +579,12 @@ router.get("/user/occurrences", authorization, async (req, res) => {
 });
 
 // GET all bookings for a partner
-router.get("/partner/:partnerId", authorization, async (req, res) => {
+router.get("/partner/:partnerId", partnerAuthorization, async (req, res) => {
   try {
     const { partnerId } = req.params;
+    if (req.user !== partnerId) {
+      return res.status(403).json({ error: "Not authorized for these bookings" });
+    }
 
     const bookings = await pool.query(
       `
@@ -607,7 +614,7 @@ router.get("/partner/:partnerId", authorization, async (req, res) => {
 });
 
 // DELETE/Cancel a booking
-router.delete("/:bookingId", authorization, async (req, res) => {
+router.delete("/:bookingId", userAuthorization, async (req, res) => {
   const { bookingId } = req.params;
   const user_id = req.user;
 
@@ -719,7 +726,7 @@ router.delete("/:bookingId", authorization, async (req, res) => {
           `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
            VALUES ($1, $2, $3, $4, $5, $6)`,
           [
-            "partner",
+            AUTH_ROLES.PARTNER,
             bookingData.partner_id,
             "cancellation",
             "Booking cancelled: " + bookingData.listing_title,
@@ -744,7 +751,7 @@ router.delete("/:bookingId", authorization, async (req, res) => {
           `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
            VALUES ($1, $2, $3, $4, $5, $6)`,
           [
-            "user",
+            AUTH_ROLES.USER,
             user_id,
             "cancellation",
             "Booking cancelled",
@@ -786,18 +793,21 @@ router.delete("/:bookingId", authorization, async (req, res) => {
  * Get all bookings for a specific listing (for partners to see registered students)
  * Returns booking details with parent and child information
  */
-router.get("/listing/:listing_id", authorization, async (req, res) => {
+router.get(
+  "/listing/:listing_id",
+  partnerAuthorization,
+  async (req, res) => {
   const { listing_id } = req.params;
 
   try {
     // First verify the partner owns this listing
     const listingCheck = await pool.query(
-      "SELECT partner_id FROM listings WHERE listing_id = $1",
-      [listing_id],
+      "SELECT partner_id FROM listings WHERE listing_id = $1 AND partner_id = $2",
+      [listing_id, req.user],
     );
 
     if (listingCheck.rowCount === 0) {
-      return res.status(404).json({ error: "Listing not found" });
+      return res.status(404).json({ error: "Listing not found or not owned by this partner" });
     }
 
     // Get bookings with user and child details
@@ -835,6 +845,7 @@ router.get("/listing/:listing_id", authorization, async (req, res) => {
     );
     res.status(500).json({ error: error.message });
   }
-});
+  },
+);
 
 module.exports = router;

@@ -1,7 +1,13 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
-const authorization = require("../middleware/authorization");
+const { AUTH_ROLES } = require("../constants/auth");
+const authMiddleware = require("../middleware/authorization");
+const authorization = authMiddleware.forRole(
+  AUTH_ROLES.USER,
+);
+const adminAuthorization = authMiddleware.forRole(AUTH_ROLES.ADMIN);
+const adminOnly = require("../middleware/adminOnly");
 const sendEmail = require("../utils/emailSender");
 const { generateReferralCode } = require("../utils/referralGenerator");
 
@@ -103,14 +109,21 @@ router.post("/register-with-code", async (req, res) => {
 });
 
 // Create referral record after user registration
-router.post("/create", async (req, res) => {
+router.post("/create", authorization, async (req, res) => {
   try {
-    const { referrer_id, referee_id } = req.body;
+    const { referrer_id, referee_id: requestedRefereeId } = req.body;
+    const referee_id = req.user;
 
-    if (!referrer_id || !referee_id) {
+    if (!referrer_id) {
       return res
         .status(400)
-        .json({ error: "Missing referrer_id or referee_id" });
+        .json({ error: "Missing referrer_id" });
+    }
+    if (requestedRefereeId && requestedRefereeId !== referee_id) {
+      return res.status(403).json({ error: "Referee must match the signed-in user" });
+    }
+    if (referrer_id === referee_id) {
+      return res.status(400).json({ error: "Self-referrals are not allowed" });
     }
 
     // Check if already referred
@@ -144,7 +157,11 @@ router.post("/create", async (req, res) => {
 });
 
 // Complete referral (when referee tops up for first time)
-router.put("/complete/:referralId", async (req, res) => {
+router.put(
+  "/complete/:referralId",
+  adminAuthorization,
+  adminOnly,
+  async (req, res) => {
   try {
     const { referralId } = req.params;
 
@@ -193,20 +210,20 @@ router.put("/complete/:referralId", async (req, res) => {
       if (referrerInfo.rows.length > 0) {
         await pool.query(
           `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
-           VALUES ('user', $1, 'referral_completed', 'Referral Bonus Earned!',
+           VALUES ($3, $1, 'referral_completed', 'Referral Bonus Earned!',
                    'Your friend completed their first top-up. You earned ' || $2 || ' credits!',
                    jsonb_build_object('reward_credits', $2))`,
-          [referral.referrer_id, REFERRAL_REWARD],
+          [referral.referrer_id, REFERRAL_REWARD, AUTH_ROLES.USER],
         );
       }
 
       // Notify referee
       await pool.query(
         `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
-         VALUES ('user', $1, 'referral_bonus', 'Welcome Bonus!',
+         VALUES ($3, $1, 'referral_bonus', 'Welcome Bonus!',
                  'Thanks for joining! You earned ' || $2 || ' welcome credits!',
                  jsonb_build_object('reward_credits', $2))`,
-        [referral.referee_id, REFERRAL_REWARD],
+        [referral.referee_id, REFERRAL_REWARD, AUTH_ROLES.USER],
       );
     } catch (notifyErr) {
       console.error("Failed to create notifications:", notifyErr.message);
@@ -220,7 +237,8 @@ router.put("/complete/:referralId", async (req, res) => {
     console.error("Error completing referral:", error.message);
     res.status(500).json({ error: error.message });
   }
-});
+  },
+);
 
 // Share referral link via email
 router.post("/share-email", authorization, async (req, res) => {

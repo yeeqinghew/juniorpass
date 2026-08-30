@@ -1,9 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const { AUTH_ROLES } = require("../constants/auth");
 const etagMiddleware = require("../middleware/etagMiddleware");
-const cacheMiddleware = require("../middleware/cacheMiddleware");
-const authorization = require("../middleware/authorization");
+const authorization = require("../middleware/authorization").forRole(
+  AUTH_ROLES.USER,
+);
 const client = require("../utils/redisClient");
 router.use(etagMiddleware);
 

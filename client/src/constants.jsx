@@ -63,11 +63,11 @@ export const BRAND = {
 };
 
 // ===== User Roles =====
-export const USER_ROLES = {
+export const USER_ROLES = Object.freeze({
   PARENT: "parent",
   PARTNER: "partner",
   ADMIN: "admin",
-};
+});
 
 // ===== Booking Status =====
 export const BOOKING_STATUS = {

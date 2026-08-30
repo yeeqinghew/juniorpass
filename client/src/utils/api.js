@@ -2,6 +2,8 @@
  * API Configuration for JuniorPASS
  * Centralized API base URL management and authenticated fetch utility
  */
+import { AUTH_ROLES } from "../constants/auth";
+
 
 /**
  * Get the API base URL based on environment
@@ -25,8 +27,8 @@ const getBaseURL = () => {
 };
 
 /**
- * Authenticated fetch wrapper
- * Automatically adds Authorization header with JWT token
+ * Authenticated fetch wrapper.
+ * The browser sends the role-scoped HttpOnly session cookie automatically.
  *
  * @param {string} endpoint - API endpoint (e.g., "/auth/login")
  * @param {Object} options - Fetch options
@@ -34,7 +36,6 @@ const getBaseURL = () => {
  */
 export const fetchWithAuth = async (endpoint, options = {}) => {
   const baseURL = getBaseURL();
-  const token = localStorage.getItem("token");
 
   // Build full URL
   const url =
@@ -45,16 +46,13 @@ export const fetchWithAuth = async (endpoint, options = {}) => {
   // Default headers
   const defaultHeaders = {
     "Content-Type": "application/json",
+    "X-Auth-Role": AUTH_ROLES.USER,
   };
-
-  // Add Authorization header if token exists
-  if (token) {
-    defaultHeaders.Authorization = `Bearer ${token}`;
-  }
 
   // Merge headers
   const config = {
     ...options,
+    credentials: "include",
     headers: {
       ...defaultHeaders,
       ...options.headers,
@@ -66,10 +64,8 @@ export const fetchWithAuth = async (endpoint, options = {}) => {
 
     // Handle 401 Unauthorized - token expired or invalid
     if (response.status === 401) {
-      console.warn("Unauthorized - clearing token");
-      localStorage.removeItem("token");
-      // Optionally redirect to login
-      // window.location.href = '/login';
+      console.warn("Unauthorized - session is missing or expired");
+      window.dispatchEvent(new CustomEvent("auth:unauthorized"));
     }
 
     return response;
@@ -95,6 +91,7 @@ export const API_ENDPOINTS = {
   RESET_PASSWORD: "/auth/reset-password",
   CHANGE_PASSWORD: "/auth/change-password",
   VERIFY_TOKEN: "/auth/",
+  REFRESH_SESSION: "/auth/refresh",
   UPDATE_PROFILE: (userId) => `/auth/${userId}`,
   LOGOUT: "/auth/logout",
 

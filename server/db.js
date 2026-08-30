@@ -13,11 +13,11 @@ const pool = isProduction
       },
     })
   : new Pool({
-      user: process.env.postgresUser,
-      password: process.env.postgresPassword,
-      host: process.env.postgresHost,
-      port: process.env.postgresPort,
-      database: process.env.postgresDatabase,
+      user: process.env.POSTGRES_USER,
+      password: process.env.POSTGRES_PASSWORD,
+      host: process.env.POSTGRES_HOST,
+      port: process.env.POSTGRES_PORT,
+      database: process.env.POSTGRES_DATABASE,
     });
 
 module.exports = pool;

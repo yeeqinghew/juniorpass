@@ -1,7 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const { AUTH_ROLES } = require("../constants/auth");
 const authorization = require("../middleware/authorization");
+const userOrPartnerAuthorization = authorization.forRoles(
+  AUTH_ROLES.USER,
+  AUTH_ROLES.PARTNER,
+);
 
 /**
  * Fetch notifications for the authenticated user or partner.
@@ -10,17 +15,20 @@ const authorization = require("../middleware/authorization");
  *  - page: default 1
  *  - limit: default 10
  */
-router.get("/", authorization, async (req, res) => {
+router.get("/", userOrPartnerAuthorization, async (req, res) => {
   const recipient_id = req.user;
   const { type } = req.query;
   const page = Math.max(parseInt(req.query.page || "1", 10), 1);
   const limit = Math.max(parseInt(req.query.limit || "10", 10), 1);
   const offset = (page - 1) * limit;
 
-  if (!type || !["user", "partner"].includes(type)) {
+  if (!type || ![AUTH_ROLES.USER, AUTH_ROLES.PARTNER].includes(type)) {
     return res
       .status(400)
       .json({ error: "Invalid or missing type. Use 'user' or 'partner'." });
+  }
+  if (req.authRole !== "legacy" && type !== req.authRole) {
+    return res.status(403).json({ error: "Notification role mismatch" });
   }
 
   try {
@@ -63,15 +71,18 @@ router.get("/", authorization, async (req, res) => {
  * Body:
  *  - type: 'user' | 'partner' (required to scope ownership)
  */
-router.patch("/:id/read", authorization, async (req, res) => {
+router.patch("/:id/read", userOrPartnerAuthorization, async (req, res) => {
   const recipient_id = req.user;
   const { id } = req.params;
   const { type } = req.body;
 
-  if (!type || !["user", "partner"].includes(type)) {
+  if (!type || ![AUTH_ROLES.USER, AUTH_ROLES.PARTNER].includes(type)) {
     return res
       .status(400)
       .json({ error: "Invalid or missing type. Use 'user' or 'partner'." });
+  }
+  if (req.authRole !== "legacy" && type !== req.authRole) {
+    return res.status(403).json({ error: "Notification role mismatch" });
   }
 
   try {

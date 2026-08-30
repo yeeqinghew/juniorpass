@@ -15,6 +15,7 @@ import {
   FacebookFilled,
   LinkedinFilled,
   InstagramOutlined,
+  LogoutOutlined,
   createFromIconfontCN,
 } from "@ant-design/icons";
 import toast, { Toaster } from "react-hot-toast";
@@ -22,6 +23,7 @@ import "./Layout.css";
 import { googleLogout } from "@react-oauth/google";
 import { useUserContext } from "../components/UserContext";
 import logo from "../images/logopngResize.png";
+import { fetchWithAuth, API_ENDPOINTS } from "../utils/api";
 
 const { Header, Content, Footer } = Layout;
 const { Text, Title } = Typography;
@@ -33,8 +35,12 @@ const LoggedInLayout = () => {
   const { user, isAuthenticated, setAuth, setLoading } = useUserContext();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
+  const handleLogout = async () => {
+    try {
+      await fetchWithAuth(API_ENDPOINTS.LOGOUT, { method: "POST" });
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
     setAuth(false);
     setLoading(false);
     // logout of Google account
@@ -43,7 +49,7 @@ const LoggedInLayout = () => {
     navigate("/login");
   };
 
-  function HeaderConfig() {
+  function renderHeader() {
     return (
       <Header
         style={{
@@ -136,7 +142,7 @@ const LoggedInLayout = () => {
                   }}
                   onClick={handleLogout}
                 >
-                  <IconFont type="icon-signout-1" />
+                  <LogoutOutlined />
                 </div>
               </Menu.Item>
             </>
@@ -150,7 +156,7 @@ const LoggedInLayout = () => {
     );
   }
 
-  function FooterConfig() {
+  function renderFooter() {
     return (
       <Footer style={{ background: "#FCFBF8", padding: "50px 150px" }}>
         <Divider></Divider>
@@ -265,7 +271,7 @@ const LoggedInLayout = () => {
       }}
     >
       <Layout>
-        <HeaderConfig />
+        {renderHeader()}
         <Content className="layout-content" style={{ padding: "0 150px" }}>
           <div
             style={{
@@ -277,7 +283,7 @@ const LoggedInLayout = () => {
             <Outlet />
           </div>
         </Content>
-        <FooterConfig />
+        {renderFooter()}
       </Layout>
     </ConfigProvider>
   );

@@ -2,12 +2,13 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const bcrypt = require("bcryptjs");
-const jwtGenerator = require("../utils/jwtGenerator");
 const validInfo = require("../middleware/validInfo");
-const authorization = require("../middleware/authorization");
+const { AUTH_ROLES } = require("../constants/auth");
+const authorizationMiddleware = require("../middleware/authorization");
+const authorization = authorizationMiddleware.forRole(AUTH_ROLES.USER);
+const adminAuthorization = authorizationMiddleware.forRole(AUTH_ROLES.ADMIN);
+const adminOnly = require("../middleware/adminOnly");
 const etagMiddleware = require("../middleware/etagMiddleware");
-const cacheMiddleware = require("../middleware/cacheMiddleware");
-const jwt = require("jsonwebtoken");
 const redisClient = require("../utils/redisClient");
 const rateLimit = require("express-rate-limit");
 const { generateReferralCode } = require("../utils/referralGenerator");
@@ -15,6 +16,11 @@ const {
   LOGIN_METHODS,
   getLoginMethodConflict,
 } = require("../utils/authMethod");
+const {
+  issueAuthSession,
+  revokeAuthSession,
+  revokeToken,
+} = require("../utils/authSession");
 
 // Rate limiters for sensitive auth endpoints
 const loginLimiter = rateLimit({
@@ -64,7 +70,9 @@ const {
   resolvePasswordResetTable,
 } = require("../utils/passwordReset");
 const { otpHtmlTemplate } = require("../utils/otpHtmlTemplate");
-const client = new OAuth2Client(process.env.googleClientID);
+const googleClientId =
+  process.env.GOOGLE_CLIENT_ID || process.env.googleClientID;
+const client = new OAuth2Client(googleClientId);
 
 function isStrongPassword(pw) {
   if (typeof pw !== "string") return false;
@@ -81,9 +89,13 @@ router.use(etagMiddleware);
 
 router.get("/", authorization, async (req, res) => {
   try {
-    const user = await pool.query("SELECT * FROM users WHERE user_id = $1", [
-      req.user,
-    ]);
+    const user = await pool.query(
+      `SELECT user_id, name, email, phone_number, user_type, method, credit,
+              display_picture, created_at, updated_at
+       FROM users
+       WHERE user_id = $1`,
+      [req.user],
+    );
 
     return res.status(200).json(user.rows[0]);
   } catch (error) {
@@ -149,17 +161,14 @@ router.post("/register", registerLimiter, validInfo, async (req, res) => {
     // generate referral code for new user
     const referralCode = await generateReferralCode(newUser.rows[0].user_id);
 
-    // generate jwt token
-    const token = jwtGenerator(newUser.rows[0].user_id);
-
     // Admin notifications: new user registration
     try {
       await pool.query(
         `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
-         SELECT 'admin', admin_id, 'user_registration', 'New user registered', 'A new user has signed up.',
+         SELECT $3, admin_id, 'user_registration', 'New user registered', 'A new user has signed up.',
                 jsonb_build_object('user_id', $1, 'email', $2)
          FROM admins`,
-        [newUser.rows[0].user_id, email],
+        [newUser.rows[0].user_id, email, AUTH_ROLES.ADMIN],
       );
     } catch (notifyErr) {
       console.error(
@@ -168,7 +177,13 @@ router.post("/register", registerLimiter, validInfo, async (req, res) => {
       );
     }
 
-    return res.status(200).json({ token, newUser: true, referralCode });
+    return res.status(200).json(
+      issueAuthSession(res, newUser.rows[0].user_id, AUTH_ROLES.USER, {
+        newUser: true,
+        user_id: newUser.rows[0].user_id,
+        referralCode,
+      }),
+    );
   } catch (error) {
     console.error(error.message);
     res.status(500).json({ error: error.message });
@@ -200,8 +215,9 @@ router.post("/login", loginLimiter, validInfo, async (req, res) => {
       return res.status(401).json("Password or Email is incorrect");
     }
 
-    const token = jwtGenerator(user.rows[0].user_id);
-    return res.status(200).json({ token });
+    return res
+      .status(200)
+      .json(issueAuthSession(res, user.rows[0].user_id, AUTH_ROLES.USER));
   } catch (error) {
     console.error(error.message);
     res.status(500).json({ error: error.message });
@@ -214,7 +230,7 @@ router.post("/login/google", async (req, res) => {
 
     const ticket = await client.verifyIdToken({
       idToken: googleCredential,
-      audience: process.env.googleClientID,
+      audience: googleClientId,
     });
     const payload = ticket.getPayload();
     const { email, name, picture, email_verified, iss, aud } = payload;
@@ -229,7 +245,7 @@ router.post("/login/google", async (req, res) => {
     ) {
       return res.status(400).json({ message: "Invalid Google token issuer" });
     }
-    if (aud !== process.env.googleClientID) {
+    if (aud !== googleClientId) {
       return res.status(400).json({ message: "Invalid Google token audience" });
     }
 
@@ -255,8 +271,13 @@ router.post("/login/google", async (req, res) => {
 
       const referralCode = await generateReferralCode(newUser.rows[0].user_id);
 
-      const token = jwtGenerator(newUser.rows[0].user_id);
-      return res.status(200).json({ token, newUser: true, referralCode });
+      return res.status(200).json(
+        issueAuthSession(res, newUser.rows[0].user_id, AUTH_ROLES.USER, {
+          newUser: true,
+          user_id: newUser.rows[0].user_id,
+          referralCode,
+        }),
+      );
     }
 
     const methodConflict = getLoginMethodConflict(
@@ -268,8 +289,11 @@ router.post("/login/google", async (req, res) => {
     }
 
     // Existing Google user
-    const token = jwtGenerator(existingUser.rows[0].user_id);
-    return res.status(200).json({ token, newUser: false });
+    return res.status(200).json(
+      issueAuthSession(res, existingUser.rows[0].user_id, AUTH_ROLES.USER, {
+        newUser: false,
+      }),
+    );
   } catch (error) {
     console.error(error.message);
     res.status(500).json({ error: error.message });
@@ -444,10 +468,11 @@ router.post("/change-password", authorization, async (req, res) => {
       userId,
     ]);
 
-    const token = jwtGenerator(userId);
-    return res
-      .status(200)
-      .json({ message: "Password changed successfully", token });
+    await revokeAuthSession(req, res, AUTH_ROLES.USER);
+    return res.status(200).json({
+      message: "Password changed successfully",
+      authenticated: false,
+    });
   } catch (err) {
     console.error("Error in change-password route:", err.message);
     res.status(500).json({ error: err.message });
@@ -572,6 +597,19 @@ router.get("/is-verify", authorization, async (req, res) => {
   }
 });
 
+router.post("/refresh", authorization, async (req, res) => {
+  try {
+    await revokeToken(req.authToken);
+    const responseBody = issueAuthSession(res, req.user, AUTH_ROLES.USER, {
+      message: "Session renewed successfully",
+    });
+    return res.status(200).json(responseBody);
+  } catch (error) {
+    console.error("Error in /auth/refresh:", error);
+    return res.status(500).json({ error: "Unable to renew session" });
+  }
+});
+
 router.patch("/:id", authorization, async (req, res) => {
   try {
     const userId = req.user;
@@ -594,15 +632,24 @@ router.patch("/:id", authorization, async (req, res) => {
   }
 });
 
-router.get("/getAllUsers", cacheMiddleware, async (req, res) => {
-  try {
-    const user = await pool.query("SELECT * FROM users");
-    return res.status(200).json(user.rows);
-  } catch (error) {
-    console.error(err.message);
-    res.status(500).json({ error: error.message });
-  }
-});
+router.get(
+  "/getAllUsers",
+  adminAuthorization,
+  adminOnly,
+  async (req, res) => {
+    try {
+      const user = await pool.query(
+        `SELECT user_id, name, email, phone_number, user_type, method, credit,
+                display_picture, created_at, updated_at
+         FROM users`,
+      );
+      return res.status(200).json(user.rows);
+    } catch (error) {
+      console.error(error.message);
+      res.status(500).json({ error: error.message });
+    }
+  },
+);
 
 /**
  * Logout: blacklist the current JWT so it cannot be used again.
@@ -610,35 +657,8 @@ router.get("/getAllUsers", cacheMiddleware, async (req, res) => {
  */
 router.post("/logout", authorization, async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res.status(400).json({ error: "Authorization header missing" });
-    }
-    const parts = authHeader.split(" ");
-    if (parts.length !== 2 || parts[0] !== "Bearer") {
-      return res.status(400).json({ error: "Invalid authorization header" });
-    }
-    const token = parts[1];
-
-    // Decode token to get expiry (exp in seconds since epoch)
-    const decoded = jwt.decode(token);
-    let ttlSeconds = 0;
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (decoded && decoded.exp) {
-      ttlSeconds = Math.max(decoded.exp - nowSec, 0);
-    } else {
-      // Fallback to default TTL (matches jwtGenerator "2h")
-      ttlSeconds = 2 * 60 * 60;
-    }
-
-    // Store blacklist entry in Redis
-    redisClient.setex(`blacklist:${token}`, ttlSeconds, "1", (err) => {
-      if (err) {
-        console.error("Redis error during logout:", err);
-        return res.status(500).json({ error: "Server error" });
-      }
-      return res.status(200).json({ message: "Logged out successfully" });
-    });
+    await revokeAuthSession(req, res, AUTH_ROLES.USER);
+    return res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
     console.error("Error in /auth/logout:", error);
     return res.status(500).json({ error: "Server error" });

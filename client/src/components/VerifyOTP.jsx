@@ -38,7 +38,7 @@ const VerifyOTP = () => {
   const [otpForm] = Form.useForm();
   const navigate = useNavigate();
   const location = useLocation();
-  const { setAuth, reauthenticate } = useUserContext();
+  const { reauthenticate } = useUserContext();
 
   // User Data
   const userData = location.state || {};
@@ -82,10 +82,14 @@ const VerifyOTP = () => {
   // Auto-unlock after cooldown
   useEffect(() => {
     if (cooldown <= 0 && otpAttempts >= MAX_OTP_ATTEMPTS) {
-      clearOtpState();
-      setOtpAttempts(0);
-      setIsOtpLocked(false);
-      setHasRequestedOtp(false);
+      const timeoutId = window.setTimeout(() => {
+        clearOtpState();
+        setOtpAttempts(0);
+        setIsOtpLocked(false);
+        setHasRequestedOtp(false);
+      }, 0);
+
+      return () => window.clearTimeout(timeoutId);
     }
   }, [cooldown, otpAttempts]);
 
@@ -112,7 +116,7 @@ const VerifyOTP = () => {
       } else {
         throw new Error(parseRes.message || "Failed to send OTP.");
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to send OTP. Please try again.");
     } finally {
       setIsResending(false);
@@ -184,7 +188,7 @@ const VerifyOTP = () => {
 
       const registerRes = await registerResponse.json();
 
-      if (!registerResponse.ok || !registerRes.token) {
+      if (!registerResponse.ok || !registerRes.authenticated) {
         toast.error(registerRes.message || "Failed to register user.");
         return;
       }
@@ -218,13 +222,16 @@ const VerifyOTP = () => {
         }
       }
 
-      localStorage.setItem("token", registerRes.token);
       clearOtpState();
       toast.success("Registration successful! Redirecting...");
       otpForm.resetFields();
 
       // Trigger reauthentication to fetch user data with the new token
-      await reauthenticate();
+      const authenticated = await reauthenticate();
+      if (!authenticated) {
+        toast.error("Registration succeeded, but the session could not be verified.");
+        return;
+      }
       navigate("/profile");
     } catch (error) {
       toast.error(error.message || "An error occurred.");

@@ -17,6 +17,7 @@ import { useUserContext } from "../components/UserContext";
 import { googleLogout } from "@react-oauth/google";
 import toast from "react-hot-toast";
 import logo from "../images/logopngResize.png";
+import { fetchWithAuth, API_ENDPOINTS } from "../utils/api";
 
 const { Header, Content } = Layout;
 const { Text } = Typography;
@@ -38,8 +39,12 @@ const OverallLayout = () => {
     setDrawerVisible(false);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
+  const handleLogout = async () => {
+    try {
+      await fetchWithAuth(API_ENDPOINTS.LOGOUT, { method: "POST" });
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
     setAuth(false);
     setLoading(false);
     googleLogout();
