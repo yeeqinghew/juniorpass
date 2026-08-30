@@ -60,7 +60,7 @@ CREATE TABLE users (
     phone_number VARCHAR(8) UNIQUE,
     user_type user_types,
     method methods NOT NULL DEFAULT 'email', -- login method used
-    credit INTEGER DEFAULT 0,
+    credit INTEGER NOT NULL DEFAULT 0,
     display_picture VARCHAR(255),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
@@ -118,12 +118,17 @@ CREATE TABLE referrals (
     id SERIAL PRIMARY KEY,
     referrer_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     referee_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    status VARCHAR(20) DEFAULT 'pending', -- pending, completed, expired, cancelled
+    status VARCHAR(20) NOT NULL DEFAULT 'pending', -- pending, completed, expired, cancelled
     completed_at TIMESTAMP,  -- When referral was completed
+    rewarded_payment_request_id UUID,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
     expired_at TIMESTAMP     -- e.g. 30 days after created_at
 );
+
+CREATE UNIQUE INDEX referrals_one_active_per_referee_uidx
+    ON referrals(referee_id)
+    WHERE status IN ('pending', 'completed');
 
 CREATE TRIGGER set_timestamp_referrals
     BEFORE UPDATE ON referrals
@@ -459,27 +464,52 @@ COMMENT ON FUNCTION can_book_package_type IS 'Validate if a user can book a spec
 
 CREATE TABLE payment_requests (
     request_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     amount NUMERIC(10, 2) NOT NULL,
     credits INTEGER NOT NULL CHECK (credits > 0),
-    reference_number VARCHAR(255) NOT NULL,
-    hitpay_payment_id VARCHAR(255) NOT NULL,
-    status payment_status DEFAULT 'PENDING',
-    webhook_received BOOLEAN DEFAULT FALSE,
+    reference_number VARCHAR(255) UNIQUE NOT NULL,
+    hitpay_payment_id VARCHAR(255) UNIQUE NOT NULL,
+    status payment_status NOT NULL DEFAULT 'PENDING',
+    webhook_received BOOLEAN NOT NULL DEFAULT FALSE,
+    settled_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP
 );
 
+ALTER TABLE referrals
+    ADD CONSTRAINT referrals_rewarded_payment_request_fkey
+    FOREIGN KEY (rewarded_payment_request_id)
+    REFERENCES payment_requests(request_id)
+    ON DELETE SET NULL;
+
+CREATE UNIQUE INDEX referrals_rewarded_payment_request_uidx
+    ON referrals(rewarded_payment_request_id)
+    WHERE rewarded_payment_request_id IS NOT NULL;
+
+CREATE INDEX payment_requests_completed_user_idx
+    ON payment_requests(user_id, created_at, request_id)
+    WHERE status = 'COMPLETED';
+
 CREATE TABLE transactions (
     transaction_id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     parent_id uuid REFERENCES parents(parent_id) NOT NULL,
-    child_id uuid REFERENCES children(child_id) NOT NULL,
-    listing_id uuid REFERENCES listings(listing_id) NOT NULL,
+    child_id uuid REFERENCES children(child_id),
+    listing_id uuid REFERENCES listings(listing_id),
     used_credit INTEGER NOT NULL,
     transaction_type transaction_types NOT NULL,
+    payment_request_id uuid REFERENCES payment_requests(request_id) ON DELETE SET NULL,
+    referral_id INTEGER REFERENCES referrals(id) ON DELETE SET NULL,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX transactions_payment_request_uidx
+    ON transactions(payment_request_id)
+    WHERE payment_request_id IS NOT NULL;
+
+CREATE UNIQUE INDEX transactions_referral_reward_uidx
+    ON transactions(referral_id, parent_id)
+    WHERE referral_id IS NOT NULL AND transaction_type = 'CREDIT';
 
 CREATE TRIGGER set_timestamp_transactions
     BEFORE UPDATE ON transactions

@@ -10,9 +10,11 @@ const adminAuthorization = authMiddleware.forRole(AUTH_ROLES.ADMIN);
 const adminOnly = require("../middleware/adminOnly");
 const sendEmail = require("../utils/emailSender");
 const { generateReferralCode } = require("../utils/referralGenerator");
-
-// Fixed referral reward amount (same for all users)
-const REFERRAL_REWARD = 50;
+const {
+  REFERRAL_REWARD_CREDITS,
+  PaymentSettlementError,
+  reconcileReferralReward,
+} = require("../services/paymentSettlement.service");
 
 // Get user's referral info
 router.get("/my-referral", authorization, async (req, res) => {
@@ -43,7 +45,7 @@ router.get("/my-referral", authorization, async (req, res) => {
       FROM referrals
       WHERE referrer_id = $1
       `,
-      [userId, REFERRAL_REWARD],
+      [userId, REFERRAL_REWARD_CREDITS],
     );
 
     // Get recent referrals
@@ -53,7 +55,7 @@ router.get("/my-referral", authorization, async (req, res) => {
     //     r.id,
     //     r.status,
     //     r.created_at,
-    //     r.completed_on,
+    //     r.completed_at,
     //     u.name as referee_name,
     //     u.email as referee_email
     //   FROM referrals r
@@ -66,13 +68,13 @@ router.get("/my-referral", authorization, async (req, res) => {
     // );
 
     // Define fixed reward amount
-    // const REFERRAL_REWARD = 50;
+    // Referral rewards use the shared REFERRAL_REWARD_CREDITS constant.
 
     res.status(200).json({
       referral_code: referralCode,
       stats: stats.rows[0],
       // recent_referrals: referrals.rows,
-      // reward_amount: REFERRAL_REWARD,
+      // reward_amount: REFERRAL_REWARD_CREDITS,
     });
   } catch (error) {
     console.error("Error fetching referral info:", error.message);
@@ -126,25 +128,22 @@ router.post("/create", authorization, async (req, res) => {
       return res.status(400).json({ error: "Self-referrals are not allowed" });
     }
 
-    // Check if already referred
-    const existing = await pool.query(
-      "SELECT * FROM referrals WHERE referrer_id = $1 AND referee_id = $2",
-      [referrer_id, referee_id],
-    );
-
-    if (existing.rows.length > 0) {
-      return res.status(400).json({ error: "Referral already exists" });
-    }
-
-    // Create referral record
+    // The partial unique index on referee_id makes this race-safe: one user
+    // can have only one pending/completed referral, even under concurrent calls.
     const referralResult = await pool.query(
       `
       INSERT INTO referrals (referrer_id, referee_id, status)
       VALUES ($1, $2, 'pending')
+      ON CONFLICT (referee_id) WHERE status IN ('pending', 'completed')
+      DO NOTHING
       RETURNING *
       `,
       [referrer_id, referee_id],
     );
+
+    if (referralResult.rowCount === 0) {
+      return res.status(409).json({ error: "Referral already exists" });
+    }
 
     res.status(201).json({
       message: "Referral created",
@@ -164,77 +163,21 @@ router.put(
   async (req, res) => {
   try {
     const { referralId } = req.params;
-
-    // Get referral details
-    const referralResult = await pool.query(
-      "SELECT * FROM referrals WHERE id = $1",
-      [referralId],
-    );
-
-    if (referralResult.rows.length === 0) {
-      return res.status(404).json({ error: "Referral not found" });
-    }
-
-    const referral = referralResult.rows[0];
-
-    if (referral.status === "completed") {
-      return res.status(400).json({ error: "Referral already completed" });
-    }
-
-    // Update referral status
-    await pool.query(
-      "UPDATE referrals SET status = 'completed', completed_on = NOW() WHERE id = $1",
-      [referralId],
-    );
-
-    // Add reward credits to referrer
-    await pool.query(
-      "UPDATE users SET credit = credit + $1 WHERE user_id = $2",
-      [REFERRAL_REWARD, referral.referrer_id],
-    );
-
-    // Add reward credits to referee
-    await pool.query(
-      "UPDATE users SET credit = credit + $1 WHERE user_id = $2",
-      [REFERRAL_REWARD, referral.referee_id],
-    );
-
-    // Create notifications
-    try {
-      // Notify referrer
-      const referrerInfo = await pool.query(
-        "SELECT email FROM users WHERE user_id = $1",
-        [referral.referrer_id],
-      );
-
-      if (referrerInfo.rows.length > 0) {
-        await pool.query(
-          `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
-           VALUES ($3, $1, 'referral_completed', 'Referral Bonus Earned!',
-                   'Your friend completed their first top-up. You earned ' || $2 || ' credits!',
-                   jsonb_build_object('reward_credits', $2))`,
-          [referral.referrer_id, REFERRAL_REWARD, AUTH_ROLES.USER],
-        );
-      }
-
-      // Notify referee
-      await pool.query(
-        `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
-         VALUES ($3, $1, 'referral_bonus', 'Welcome Bonus!',
-                 'Thanks for joining! You earned ' || $2 || ' welcome credits!',
-                 jsonb_build_object('reward_credits', $2))`,
-        [referral.referee_id, REFERRAL_REWARD, AUTH_ROLES.USER],
-      );
-    } catch (notifyErr) {
-      console.error("Failed to create notifications:", notifyErr.message);
-    }
+    const result = await reconcileReferralReward({ referralId });
 
     res.status(200).json({
-      message: "Referral completed successfully",
-      reward_credits: REFERRAL_REWARD,
+      message: result.alreadyCompleted
+        ? "Referral was already completed"
+        : "Referral completed successfully",
+      idempotent: result.alreadyCompleted,
+      reward_credits: result.rewardCredits || REFERRAL_REWARD_CREDITS,
     });
   } catch (error) {
     console.error("Error completing referral:", error.message);
+    if (error instanceof PaymentSettlementError) {
+      const status = error.code === "REFERRAL_NOT_FOUND" ? 404 : 409;
+      return res.status(status).json({ error: error.message });
+    }
     res.status(500).json({ error: error.message });
   }
   },
@@ -326,7 +269,7 @@ router.get("/leaderboard", async (req, res) => {
       ORDER BY completed_referrals DESC, total_referrals DESC
       LIMIT 10
       `,
-      [REFERRAL_REWARD],
+      [REFERRAL_REWARD_CREDITS],
     );
 
     res.status(200).json({
