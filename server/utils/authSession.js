@@ -4,37 +4,14 @@ const redisClient = require("./redisClient");
 const { clearAuthCookie, setAuthCookie } = require("./authCookies");
 
 /**
- * Determines whether the application should return the JWT
- * in the response body for backwards compatibility.
- *
- * The behavior is controlled by the `RETURN_LEGACY_AUTH_TOKEN`
- * environment variable.
- *
- * @returns {boolean}
- * `true` if the legacy token should be included in the response,
- * otherwise `false`.
- *
- * @example
- * // RETURN_LEGACY_AUTH_TOKEN=true
- * shouldReturnLegacyToken(); // true
- *
- * // RETURN_LEGACY_AUTH_TOKEN=false
- * shouldReturnLegacyToken(); // false
- */
-function shouldReturnLegacyToken() {
-  return process.env.RETURN_LEGACY_AUTH_TOKEN === "true";
-}
-
-/**
  * Creates an authenticated session for a user.
  *
  * This function generates a JWT for the given subject and role,
  * stores the JWT in an authentication cookie, and returns a
  * response object containing authentication information.
  *
- * By default, the JWT is only stored in the authentication cookie.
- * If `RETURN_LEGACY_AUTH_TOKEN=true`, the JWT is also included
- * in the response body for backwards compatibility.
+ * The JWT is stored only in the HttpOnly authentication cookie and is
+ * never included in the response body.
  *
  * @param {import("express").Response} res
  * Express response object used to set the authentication cookie.
@@ -51,8 +28,7 @@ function shouldReturnLegacyToken() {
  *
  * @returns {Object}
  * The response body containing the supplied properties and
- * `authenticated: true`. The JWT is also included as `token`
- * when legacy token responses are enabled.
+ * `authenticated: true`.
  *
  * @example
  * const { AUTH_ROLES } = require("../constants/auth");
@@ -75,7 +51,6 @@ function issueAuthSession(res, subjectId, role, responseBody = {}) {
   return {
     ...responseBody,
     authenticated: true,
-    ...(shouldReturnLegacyToken() ? { token } : {}),
   };
 }
 
@@ -163,5 +138,4 @@ module.exports = {
   issueAuthSession,
   revokeAuthSession,
   revokeToken,
-  shouldReturnLegacyToken,
 };

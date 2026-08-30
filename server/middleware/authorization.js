@@ -7,15 +7,6 @@ const { getAuthCookieToken } = require("../utils/authCookies");
 const ALL_AUTH_ROLES = Object.values(AUTH_ROLES);
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-function getBearerToken(req) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader) return null;
-
-  const parts = authHeader.split(" ");
-  if (parts.length !== 2 || parts[0] !== "Bearer") return null;
-  return parts[1];
-}
-
 function getAllowedOrigins() {
   return (process.env.ALLOWED_ORIGINS || "")
     .split(",")
@@ -63,30 +54,21 @@ function createAuthorization(allowedRoles = ALL_AUTH_ROLES) {
     const orderedRoles = orderAllowedRoles(req, allowedRoles);
     let jwtToken = null;
     let tokenRole = null;
-    let authSource = null;
 
     for (const role of orderedRoles) {
       const cookieToken = getAuthCookieToken(req, role);
       if (cookieToken) {
         jwtToken = cookieToken;
         tokenRole = role;
-        authSource = "cookie";
         break;
       }
-    }
-
-    if (!jwtToken) {
-      const bearerToken = getBearerToken(req);
-      jwtToken =
-        process.env.ALLOW_LEGACY_BEARER_AUTH === "true" ? bearerToken : null;
-      authSource = jwtToken ? "bearer" : null;
     }
 
     if (!jwtToken) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    if (authSource === "cookie" && !isCookieRequestOriginAllowed(req)) {
+    if (!isCookieRequestOriginAllowed(req)) {
       return res.status(403).json({ error: "Request origin is not allowed" });
     }
 
@@ -106,22 +88,19 @@ function createAuthorization(allowedRoles = ALL_AUTH_ROLES) {
       const payload = jwt.verify(jwtToken, jwtSecret);
       const payloadRole = payload.role;
 
-      if (authSource === "cookie" && payloadRole !== tokenRole) {
+      if (payloadRole !== tokenRole) {
         return res.status(401).json({ error: "Invalid session role" });
       }
 
-      if (payloadRole && !allowedRoles.includes(payloadRole)) {
+      if (!allowedRoles.includes(payloadRole)) {
         return res
           .status(403)
           .json({ error: "Forbidden for this account type" });
       }
 
-      // Bearer tokens are accepted only when the temporary rollout flag is
-      // enabled. Newly issued cookie tokens always have a role.
       req.user = payload.user;
-      req.authRole = payloadRole || "legacy";
+      req.authRole = payloadRole;
       req.authToken = jwtToken;
-      req.authSource = authSource;
       return next();
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError) {

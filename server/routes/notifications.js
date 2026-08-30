@@ -27,7 +27,7 @@ router.get("/", userOrPartnerAuthorization, async (req, res) => {
       .status(400)
       .json({ error: "Invalid or missing type. Use 'user' or 'partner'." });
   }
-  if (req.authRole !== "legacy" && type !== req.authRole) {
+  if (type !== req.authRole) {
     return res.status(403).json({ error: "Notification role mismatch" });
   }
 
@@ -81,7 +81,7 @@ router.patch("/:id/read", userOrPartnerAuthorization, async (req, res) => {
       .status(400)
       .json({ error: "Invalid or missing type. Use 'user' or 'partner'." });
   }
-  if (req.authRole !== "legacy" && type !== req.authRole) {
+  if (type !== req.authRole) {
     return res.status(403).json({ error: "Notification role mismatch" });
   }
 
