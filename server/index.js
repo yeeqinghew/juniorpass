@@ -81,6 +81,7 @@ apiRouter.use("/transactions", require("./routes/transactions"));
 apiRouter.use("/notifications", require("./routes/notifications"));
 apiRouter.use("/outlets", require("./routes/outlets"));
 apiRouter.use("/referrals", require("./routes/referrals"));
+apiRouter.use("/categories", require("./routes/categories"));
 
 // health check endpoint
 apiRouter.get("/health", (req, res) => {

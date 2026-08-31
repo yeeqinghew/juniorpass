@@ -2,6 +2,9 @@ CREATE DATABASE juniorPASS;
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+DROP TABLE IF EXISTS listing_activity_categories CASCADE;
+DROP TABLE IF EXISTS partner_activity_categories CASCADE;
+DROP TABLE IF EXISTS activity_categories CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS children CASCADE;
 DROP TABLE IF EXISTS parents CASCADE;
@@ -541,6 +544,63 @@ INSERT INTO categoriesListings (name)
     VALUES
     ('Music'),
     ('Sports');
+
+-- Normalized category catalogue. The legacy enum/table above is retained
+-- temporarily so existing deployments can migrate without a destructive cutover.
+CREATE TABLE activity_categories (
+    category_id SERIAL PRIMARY KEY,
+    name VARCHAR(60) NOT NULL,
+    slug VARCHAR(80) NOT NULL UNIQUE,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    display_order INTEGER NOT NULL DEFAULT 0 CHECK (display_order >= 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_activity_categories_name_ci
+    ON activity_categories (LOWER(name));
+CREATE INDEX idx_activity_categories_active_order
+    ON activity_categories (is_active, display_order, name);
+
+CREATE TRIGGER set_timestamp_activity_categories
+    BEFORE UPDATE ON activity_categories
+    FOR EACH ROW
+    EXECUTE FUNCTION trigger_set_timestamp();
+
+INSERT INTO activity_categories (name, slug, display_order)
+VALUES ('Music', 'music', 0), ('Sports', 'sports', 1);
+
+CREATE TABLE partner_activity_categories (
+    partner_id UUID NOT NULL REFERENCES partners(partner_id) ON DELETE CASCADE,
+    category_id INTEGER NOT NULL REFERENCES activity_categories(category_id) ON DELETE RESTRICT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (partner_id, category_id)
+);
+
+CREATE INDEX idx_partner_activity_categories_category
+    ON partner_activity_categories (category_id, partner_id);
+
+CREATE TABLE listing_activity_categories (
+    listing_id UUID NOT NULL REFERENCES listings(listing_id) ON DELETE CASCADE,
+    category_id INTEGER NOT NULL REFERENCES activity_categories(category_id) ON DELETE RESTRICT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (listing_id, category_id)
+);
+
+CREATE INDEX idx_listing_activity_categories_category
+    ON listing_activity_categories (category_id, listing_id);
+
+INSERT INTO partner_activity_categories (partner_id, category_id)
+SELECT DISTINCT p.partner_id, ac.category_id
+FROM partners p
+CROSS JOIN LATERAL UNNEST(p.categories) legacy_category
+JOIN activity_categories ac
+  ON LOWER(ac.name) = LOWER(legacy_category::text);
+
+INSERT INTO listing_activity_categories (listing_id, category_id)
+SELECT l.listing_id, pac.category_id
+FROM listings l
+JOIN partner_activity_categories pac ON pac.partner_id = l.partner_id;
 
 CREATE TABLE packageTypes (
     ID SERIAL PRIMARY KEY,

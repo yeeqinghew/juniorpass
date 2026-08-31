@@ -37,7 +37,12 @@ router.get("/getAllPackages", cacheMiddleware, async (req, res) => {
 
 router.get("/getAllCategories", cacheMiddleware, async (req, res) => {
   try {
-    const categories = await pool.query("SELECT * FROM categoriesListings");
+    const categories = await pool.query(
+      `SELECT category_id AS id, name, slug, display_order
+       FROM activity_categories
+       WHERE is_active = true
+       ORDER BY display_order ASC, name ASC`,
+    );
     return res.status(200).json(categories.rows);
   } catch (error) {
     console.error("ERROR in /misc/getAllCategories", error.message);

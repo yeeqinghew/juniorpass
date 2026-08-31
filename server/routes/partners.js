@@ -17,6 +17,7 @@ const {
   revokeAuthSession,
 } = require("../utils/authSession");
 const { partnerLoginLimiter } = require("../middleware/authRateLimiters");
+const { parseCategoryIds } = require("../utils/categories");
 
 router.use(etagMiddleware);
 
@@ -26,7 +27,19 @@ router.get("/", authorization, async (req, res) => {
     const partner = await pool.query(
       `SELECT partner_id, partner_name, email, description, website, rating,
               credit, picture, address, region, contact_number,
-              array_to_json(categories) AS categories, is_profile_complete,
+              COALESCE((
+                SELECT jsonb_agg(ac.name ORDER BY ac.display_order, ac.name)
+                FROM partner_activity_categories pac
+                JOIN activity_categories ac ON ac.category_id = pac.category_id
+                WHERE pac.partner_id = partners.partner_id AND ac.is_active = true
+              ), '[]'::jsonb) AS categories,
+              COALESCE((
+                SELECT jsonb_agg(ac.category_id ORDER BY ac.display_order, ac.name)
+                FROM partner_activity_categories pac
+                JOIN activity_categories ac ON ac.category_id = pac.category_id
+                WHERE pac.partner_id = partners.partner_id AND ac.is_active = true
+              ), '[]'::jsonb) AS category_ids,
+              is_profile_complete,
               requires_password_change, created_at, updated_at
        FROM partners
        WHERE partner_id = $1`,
@@ -154,94 +167,127 @@ router.patch("/:id", authorization, async (req, res) => {
       address,
       contact_number,
       website,
-      outlets = [],
+      category_ids,
+      outlets,
     } = req.body;
+
+    const parsedCategoryIds =
+      category_ids === undefined ? undefined : parseCategoryIds(category_ids);
+    if (category_ids !== undefined && (!parsedCategoryIds || parsedCategoryIds.length === 0)) {
+      return res.status(400).json({ error: "Select at least one valid category" });
+    }
+
+    if (parsedCategoryIds) {
+      const validCategories = await pool.query(
+        `SELECT category_id
+         FROM activity_categories
+         WHERE is_active = true AND category_id = ANY($1::integer[])`,
+        [parsedCategoryIds],
+      );
+      if (validCategories.rowCount !== parsedCategoryIds.length) {
+        return res.status(400).json({ error: "One or more categories are unavailable" });
+      }
+    }
 
     // -------------------------
     // 1. UPDATE PARTNER
     // -------------------------
-    const updatedPartner = await pool.query(
-      `UPDATE partners 
-       SET
-        partner_name = COALESCE($1, partner_name),
-        description = COALESCE($2, description),
-        picture = COALESCE($3, picture),
-        address = COALESCE($4, address),
-       contact_number = COALESCE($5, contact_number),
-        website = COALESCE($6, website)
-       WHERE partner_id = $7
-       RETURNING partner_id, partner_name, email, description, website,
-                 rating, credit, picture, address, region, contact_number,
-                 array_to_json(categories) AS categories, is_profile_complete,
-                 requires_password_change, created_at, updated_at`,
-      [
-        partner_name,
-        description,
-        picture,
-        address,
-        contact_number,
-        website,
-        id,
-      ],
-    );
+    const profileDb = await pool.connect();
+    let updatedPartner;
+    try {
+      await profileDb.query("BEGIN");
+      updatedPartner = await profileDb.query(
+        `UPDATE partners
+         SET
+          partner_name = COALESCE($1, partner_name),
+          description = COALESCE($2, description),
+          picture = COALESCE($3, picture),
+          address = COALESCE($4, address),
+          contact_number = COALESCE($5, contact_number),
+          website = COALESCE($6, website)
+         WHERE partner_id = $7
+         RETURNING partner_id, partner_name, email, description, website,
+                   rating, credit, picture, address, region, contact_number,
+                   is_profile_complete,
+                   requires_password_change, created_at, updated_at`,
+        [
+          partner_name,
+          description,
+          picture,
+          address,
+          contact_number,
+          website,
+          id,
+        ],
+      );
 
-    await client.del(`/partners/${id}`);
+      if (parsedCategoryIds) {
+        await profileDb.query(
+          "DELETE FROM partner_activity_categories WHERE partner_id = $1",
+          [id],
+        );
+        await profileDb.query(
+          `INSERT INTO partner_activity_categories (partner_id, category_id)
+           SELECT $1, UNNEST($2::integer[])`,
+          [id, parsedCategoryIds],
+        );
+      }
+      await profileDb.query("COMMIT");
+    } catch (error) {
+      await profileDb.query("ROLLBACK");
+      throw error;
+    } finally {
+      profileDb.release();
+    }
 
     // -------------------------
     // 2. GET EXISTING OUTLETS
     // -------------------------
-    const existing = await pool.query(
-      `SELECT * FROM outlets WHERE partner_id = $1`,
-      [id],
-    );
-
-    const existingMap = new Map(existing.rows.map((o) => [o.outlet_id, o]));
-
-    const incomingIds = new Set(
-      outlets.filter((o) => o.outlet_id).map((o) => o.outlet_id),
-    );
-
-    // -------------------------
-    // 3. DELETE REMOVED OUTLETS
-    // -------------------------
-    const deleteQueries = existing.rows
-      .filter((o) => !incomingIds.has(o.outlet_id))
-      .map((o) =>
-        pool.query(`DELETE FROM outlets WHERE outlet_id = $1`, [o.outlet_id]),
+    if (Array.isArray(outlets)) {
+      const existing = await pool.query(
+        `SELECT * FROM outlets WHERE partner_id = $1`,
+        [id],
       );
 
-    // -------------------------
-    // 4. UPDATE EXISTING
-    // -------------------------
-    const updateQueries = outlets
-      .filter((o) => o.outlet_id && existingMap.has(o.outlet_id))
-      .map((o) =>
-        pool.query(
-          `UPDATE outlets 
-           SET address = $1, nearest_mrt = $2
-           WHERE outlet_id = $3`,
-          [o.address, o.nearest_mrt, o.outlet_id],
-        ),
+      const existingMap = new Map(existing.rows.map((o) => [o.outlet_id, o]));
+      const incomingIds = new Set(
+        outlets.filter((o) => o.outlet_id).map((o) => o.outlet_id),
       );
 
-    // -------------------------
-    // 5. INSERT NEW
-    // -------------------------
-    const insertQueries = outlets
-      .filter((o) => !o.outlet_id)
-      .map((o) =>
-        pool.query(
-          `INSERT INTO outlets (partner_id, address, nearest_mrt)
-           VALUES ($1, $2, $3)`,
-          [id, o.address, o.nearest_mrt],
-        ),
-      );
+      const deleteQueries = existing.rows
+        .filter((o) => !incomingIds.has(o.outlet_id))
+        .map((o) =>
+          pool.query(`DELETE FROM outlets WHERE outlet_id = $1`, [o.outlet_id]),
+        );
+      const updateQueries = outlets
+        .filter((o) => o.outlet_id && existingMap.has(o.outlet_id))
+        .map((o) =>
+          pool.query(
+            `UPDATE outlets
+             SET address = $1, nearest_mrt = $2
+             WHERE outlet_id = $3`,
+            [o.address, o.nearest_mrt, o.outlet_id],
+          ),
+        );
+      const insertQueries = outlets
+        .filter((o) => !o.outlet_id)
+        .map((o) =>
+          pool.query(
+            `INSERT INTO outlets (partner_id, address, nearest_mrt)
+             VALUES ($1, $2, $3)`,
+            [id, o.address, o.nearest_mrt],
+          ),
+        );
 
-    await Promise.all([...deleteQueries, ...updateQueries, ...insertQueries]);
+      await Promise.all([...deleteQueries, ...updateQueries, ...insertQueries]);
+    }
+
+    await client.del(`/partners/${id}`);
+    const partnerWithCategories = await getPartnerByPartnerId(id);
 
     return res.status(200).json({
       message: "Information updated successfully!",
-      partner: updatedPartner.rows[0],
+      partner: partnerWithCategories || updatedPartner.rows[0],
     });
   } catch (error) {
     console.error("Update Error:", error);
@@ -386,7 +432,18 @@ const getPartnerByPartnerId = async (partnerId) => {
         address,
         region,
         contact_number,
-        array_to_json(categories) AS categories,
+        COALESCE((
+          SELECT jsonb_agg(ac.name ORDER BY ac.display_order, ac.name)
+          FROM partner_activity_categories pac
+          JOIN activity_categories ac ON ac.category_id = pac.category_id
+          WHERE pac.partner_id = partners.partner_id AND ac.is_active = true
+        ), '[]'::jsonb) AS categories,
+        COALESCE((
+          SELECT jsonb_agg(ac.category_id ORDER BY ac.display_order, ac.name)
+          FROM partner_activity_categories pac
+          JOIN activity_categories ac ON ac.category_id = pac.category_id
+          WHERE pac.partner_id = partners.partner_id AND ac.is_active = true
+        ), '[]'::jsonb) AS category_ids,
         created_at 
       FROM partners WHERE partner_id = $1`,
       [partnerId],
@@ -401,7 +458,22 @@ const getPartnerByPartnerId = async (partnerId) => {
 const getListingsByPartnerId = async (partnerId) => {
   try {
     const listings = await pool.query(
-      "SELECT * FROM listings WHERE partner_id = $1 ORDER BY created_at DESC",
+      `SELECT l.*,
+              COALESCE((
+                SELECT jsonb_agg(ac.name ORDER BY ac.display_order, ac.name)
+                FROM listing_activity_categories lac
+                JOIN activity_categories ac ON ac.category_id = lac.category_id
+                WHERE lac.listing_id = l.listing_id AND ac.is_active = true
+              ), '[]'::jsonb) AS categories,
+              COALESCE((
+                SELECT jsonb_agg(ac.category_id ORDER BY ac.display_order, ac.name)
+                FROM listing_activity_categories lac
+                JOIN activity_categories ac ON ac.category_id = lac.category_id
+                WHERE lac.listing_id = l.listing_id AND ac.is_active = true
+              ), '[]'::jsonb) AS category_ids
+       FROM listings l
+       WHERE l.partner_id = $1
+       ORDER BY l.created_at DESC`,
       [partnerId],
     );
     return listings.rows;

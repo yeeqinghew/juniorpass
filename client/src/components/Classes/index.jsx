@@ -190,7 +190,8 @@ const Classes = () => {
     const term = searchTerm.trim().toLowerCase();
 
     return listings.filter((listing) => {
-      const categoriesForListing = listing?.partner_info?.categories || [];
+      const categoriesForListing =
+        listing?.categories || listing?.partner_info?.categories || [];
       const agesForListing = normaliseArrayValue(listing?.age_groups);
       const packagesForListing = getListingPackageTypes(listing);
 

@@ -158,7 +158,7 @@ export const API_ENDPOINTS = {
   DELETE_MEDIA: "/media/delete",
 
   // Miscellaneous
-  GET_ALL_CATEGORIES: "/misc/getAllCategories",
+  GET_ALL_CATEGORIES: "/categories",
   GET_ALL_AGE_GROUPS: "/misc/getAllAgeGroups",
   GET_ALL_PACKAGES: "/misc/getAllPackages",
 };

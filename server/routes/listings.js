@@ -12,30 +12,37 @@ const { getDollarsPerCredit } = require("../utils/platformSettings");
 const {
   deleteCloudinaryImage,
 } = require("../services/storage/storage.service");
+const { parseCategoryIds } = require("../utils/categories");
 
 require("dotenv").config();
 router.use(etagMiddleware);
 
 // create listing
 router.post("", authorization, async (req, res) => {
+  let db;
+  let transactionOpen = false;
   try {
     const {
       partner_id,
       title,
       // lesson_type,
       description,
+      category_ids,
       age_groups,
       images,
       outlets,
     } = req.body;
 
     const partnerIdFromToken = req.user;
+    const parsedCategoryIds = parseCategoryIds(category_ids);
 
     // Validation: Check for required fields
     if (
       !title ||
       // !lesson_type ||
       !description ||
+      !parsedCategoryIds ||
+      parsedCategoryIds.length === 0 ||
       !age_groups ||
       !outlets ||
       outlets.length === 0
@@ -46,6 +53,10 @@ router.post("", authorization, async (req, res) => {
           title: !title ? "Title is required" : null,
           // lesson_type: !lesson_type ? "Lesson type is required" : null,
           description: !description ? "Description is required" : null,
+          categories:
+            !parsedCategoryIds || parsedCategoryIds.length === 0
+              ? "At least one category is required"
+              : null,
           age_groups: !age_groups ? "Age groups are required" : null,
           outlets:
             !outlets || outlets.length === 0
@@ -55,11 +66,25 @@ router.post("", authorization, async (req, res) => {
       });
     }
 
+    const validCategories = await pool.query(
+      `SELECT category_id
+       FROM activity_categories
+       WHERE is_active = true AND category_id = ANY($1::integer[])`,
+      [parsedCategoryIds],
+    );
+    if (validCategories.rowCount !== parsedCategoryIds.length) {
+      return res.status(400).json({ error: "One or more categories are unavailable" });
+    }
+
+    db = await pool.connect();
+    await db.query("BEGIN");
+    transactionOpen = true;
+
     // Note: We allow empty images array here because images are uploaded after listing creation
     // The constraint will be enforced when the listing is finalized (PATCH with images)
 
     // insert listing
-    const listing = await pool.query(
+    const listing = await db.query(
       `INSERT INTO listings (
         partner_id,
         listing_title,
@@ -83,12 +108,18 @@ router.post("", authorization, async (req, res) => {
 
     const listing_id = listing.rows[0].listing_id;
 
+    await db.query(
+      `INSERT INTO listing_activity_categories (listing_id, category_id)
+       SELECT $1, UNNEST($2::integer[])`,
+      [listing_id, parsedCategoryIds],
+    );
+
     // Insert outlets and schedule groups
     for (let outlet of outlets) {
       const { outlet_id, schedule_groups } = outlet;
 
       // Insert into listingOutlets
-      const listingOutlet = await pool.query(
+      const listingOutlet = await db.query(
         `INSERT INTO listingOutlets (listing_id, outlet_id) VALUES($1, $2) RETURNING *`,
         [listing_id, outlet_id],
       );
@@ -111,7 +142,7 @@ router.post("", authorization, async (req, res) => {
         const pricingDollarsPerCredit = await getDollarsPerCredit();
 
         // 1. Insert schedule_group (the enrollable program)
-        const scheduleGroupResult = await pool.query(
+        const scheduleGroupResult = await db.query(
           `INSERT INTO schedule_groups (
             listing_outlet_id,
             package_types,
@@ -150,7 +181,7 @@ router.post("", authorization, async (req, res) => {
           const start_time = timeslot && timeslot[0] ? timeslot[0] : null;
           const end_time = timeslot && timeslot[1] ? timeslot[1] : null;
 
-          await pool.query(
+          await db.query(
             `INSERT INTO schedules (
               schedule_group_id,
               listing_outlet_id,
@@ -164,6 +195,9 @@ router.post("", authorization, async (req, res) => {
         }
       }
     }
+
+    await db.query("COMMIT");
+    transactionOpen = false;
 
     // Invalidate cache
     await client.del("/listings");
@@ -189,8 +223,11 @@ router.post("", authorization, async (req, res) => {
       data: listing.rows[0],
     });
   } catch (err) {
+    if (db && transactionOpen) await db.query("ROLLBACK");
     console.error("ERROR in /listings POST", err.message);
     res.status(500).json({ error: err.message });
+  } finally {
+    db?.release();
   }
 });
 
@@ -200,11 +237,28 @@ router.get("", cacheMiddleware, async (req, res) => {
     const listings = await pool.query(
       ` SELECT
         l.*,
+        COALESCE((
+          SELECT jsonb_agg(ac.name ORDER BY ac.display_order, ac.name)
+          FROM listing_activity_categories lac
+          JOIN activity_categories ac ON ac.category_id = lac.category_id
+          WHERE lac.listing_id = l.listing_id AND ac.is_active = true
+        ), '[]'::jsonb) AS categories,
+        COALESCE((
+          SELECT jsonb_agg(ac.category_id ORDER BY ac.display_order, ac.name)
+          FROM listing_activity_categories lac
+          JOIN activity_categories ac ON ac.category_id = lac.category_id
+          WHERE lac.listing_id = l.listing_id AND ac.is_active = true
+        ), '[]'::jsonb) AS category_ids,
         json_build_object(
           'partner_id', p.partner_id,
           'partner_name', p.partner_name,
           'email', p.email,
-          'categories', p.categories,
+          'categories', COALESCE((
+            SELECT jsonb_agg(ac.name ORDER BY ac.display_order, ac.name)
+            FROM partner_activity_categories pac
+            JOIN activity_categories ac ON ac.category_id = pac.category_id
+            WHERE pac.partner_id = p.partner_id AND ac.is_active = true
+          ), '[]'::jsonb),
           'contact_number', p.contact_number,
           'rating', p.rating,
           'picture', p.picture,
@@ -285,7 +339,7 @@ router.get("", cacheMiddleware, async (req, res) => {
 });
 
 // get listing by listing_id
-router.get("/:id", cacheMiddleware, async (req, res) => {
+router.get("/:id([0-9a-fA-F-]{36})", cacheMiddleware, async (req, res) => {
   const id = req.params.id;
 
   try {
@@ -293,11 +347,28 @@ router.get("/:id", cacheMiddleware, async (req, res) => {
       `
       SELECT
         l.*,
+        COALESCE((
+          SELECT jsonb_agg(ac.name ORDER BY ac.display_order, ac.name)
+          FROM listing_activity_categories lac
+          JOIN activity_categories ac ON ac.category_id = lac.category_id
+          WHERE lac.listing_id = l.listing_id AND ac.is_active = true
+        ), '[]'::jsonb) AS categories,
+        COALESCE((
+          SELECT jsonb_agg(ac.category_id ORDER BY ac.display_order, ac.name)
+          FROM listing_activity_categories lac
+          JOIN activity_categories ac ON ac.category_id = lac.category_id
+          WHERE lac.listing_id = l.listing_id AND ac.is_active = true
+        ), '[]'::jsonb) AS category_ids,
         json_build_object(
           'partner_id', p.partner_id,
           'partner_name', p.partner_name,
           'email', p.email,
-          'categories', p.categories,
+          'categories', COALESCE((
+            SELECT jsonb_agg(ac.name ORDER BY ac.display_order, ac.name)
+            FROM partner_activity_categories pac
+            JOIN activity_categories ac ON ac.category_id = pac.category_id
+            WHERE pac.partner_id = p.partner_id AND ac.is_active = true
+          ), '[]'::jsonb),
           'contact_number', p.contact_number,
           'rating', p.rating,
           'picture', p.picture,
@@ -381,6 +452,18 @@ router.get("/partner/:partnerId", async (req, res) => {
       `
       SELECT
         l.*,
+        COALESCE((
+          SELECT jsonb_agg(ac.name ORDER BY ac.display_order, ac.name)
+          FROM listing_activity_categories lac
+          JOIN activity_categories ac ON ac.category_id = lac.category_id
+          WHERE lac.listing_id = l.listing_id AND ac.is_active = true
+        ), '[]'::jsonb) AS categories,
+        COALESCE((
+          SELECT jsonb_agg(ac.category_id ORDER BY ac.display_order, ac.name)
+          FROM listing_activity_categories lac
+          JOIN activity_categories ac ON ac.category_id = lac.category_id
+          WHERE lac.listing_id = l.listing_id AND ac.is_active = true
+        ), '[]'::jsonb) AS category_ids,
         (
           SELECT jsonb_agg(
             jsonb_build_object(
@@ -452,6 +535,8 @@ router.get("/partner/:partnerId", async (req, res) => {
 // edit listing
 router.patch("/:id", authorization, async (req, res) => {
   const id = req.params.id;
+  let db;
+  let transactionOpen = false;
   try {
     // Fetch the existing listing
     const existingListing = await pool.query(
@@ -480,6 +565,29 @@ router.patch("/:id", authorization, async (req, res) => {
       age_groups: req.body.age_groups ?? listing.age_groups,
       images: req.body.images ?? listing.images,
     };
+    const parsedCategoryIds =
+      req.body.category_ids === undefined
+        ? undefined
+        : parseCategoryIds(req.body.category_ids);
+
+    if (
+      req.body.category_ids !== undefined &&
+      (!parsedCategoryIds || parsedCategoryIds.length === 0)
+    ) {
+      return res.status(400).json({ error: "Select at least one valid category" });
+    }
+
+    if (parsedCategoryIds) {
+      const validCategories = await pool.query(
+        `SELECT category_id
+         FROM activity_categories
+         WHERE is_active = true AND category_id = ANY($1::integer[])`,
+        [parsedCategoryIds],
+      );
+      if (validCategories.rowCount !== parsedCategoryIds.length) {
+        return res.status(400).json({ error: "One or more categories are unavailable" });
+      }
+    }
 
     // Validate images: must have at least one image
     if (
@@ -493,8 +601,12 @@ router.patch("/:id", authorization, async (req, res) => {
       });
     }
 
+    db = await pool.connect();
+    await db.query("BEGIN");
+    transactionOpen = true;
+
     // Update listing (credit/price removed - credit is per-schedule)
-    const updatedListing = await pool.query(
+    const updatedListing = await db.query(
       `UPDATE listings SET
         listing_title = $1,
         description = $2,
@@ -510,10 +622,20 @@ router.patch("/:id", authorization, async (req, res) => {
       ],
     );
 
-    // Invalidate cache
-    await Promise.all([client.del(`/listings/${id}`), client.del(`/listings`)]);
+    if (parsedCategoryIds) {
+      await db.query(
+        "DELETE FROM listing_activity_categories WHERE listing_id = $1",
+        [id],
+      );
+      await db.query(
+        `INSERT INTO listing_activity_categories (listing_id, category_id)
+         SELECT $1, UNNEST($2::integer[])`,
+        [id, parsedCategoryIds],
+      );
+    }
 
-    // Invalidate cache
+    await db.query("COMMIT");
+    transactionOpen = false;
     await Promise.all([client.del(`/listings/${id}`), client.del(`/listings`)]);
 
     res.status(200).json({
@@ -521,8 +643,11 @@ router.patch("/:id", authorization, async (req, res) => {
       data: updatedListing.rows[0],
     });
   } catch (error) {
+    if (db && transactionOpen) await db.query("ROLLBACK");
     console.error(`ERROR in PATCH /listings/${id}:`, error);
     res.status(500).json({ error: error.message });
+  } finally {
+    db?.release();
   }
 });
 
@@ -875,8 +1000,20 @@ router.get("/search", async (req, res) => {
       params.push(partner_id);
     }
     if (category) {
-      // partners.categories is an array of enum; check if category is present
-      whereClauses.push(`$${idx} = ANY(p.categories)`);
+      whereClauses.push(
+        `EXISTS (
+          SELECT 1
+          FROM listing_activity_categories filter_lac
+          JOIN activity_categories filter_ac
+            ON filter_ac.category_id = filter_lac.category_id
+          WHERE filter_lac.listing_id = l.listing_id
+            AND filter_ac.is_active = true
+            AND (
+              LOWER(filter_ac.name) = LOWER($${idx})
+              OR filter_ac.slug = LOWER($${idx})
+            )
+        )`,
+      );
       params.push(category);
       idx++;
     }
@@ -895,11 +1032,28 @@ router.get("/search", async (req, res) => {
       `
       SELECT
         l.*,
+        COALESCE((
+          SELECT jsonb_agg(ac.name ORDER BY ac.display_order, ac.name)
+          FROM listing_activity_categories lac
+          JOIN activity_categories ac ON ac.category_id = lac.category_id
+          WHERE lac.listing_id = l.listing_id AND ac.is_active = true
+        ), '[]'::jsonb) AS categories,
+        COALESCE((
+          SELECT jsonb_agg(ac.category_id ORDER BY ac.display_order, ac.name)
+          FROM listing_activity_categories lac
+          JOIN activity_categories ac ON ac.category_id = lac.category_id
+          WHERE lac.listing_id = l.listing_id AND ac.is_active = true
+        ), '[]'::jsonb) AS category_ids,
         json_build_object(
           'partner_id', p.partner_id,
           'partner_name', p.partner_name,
           'email', p.email,
-          'categories', p.categories,
+          'categories', COALESCE((
+            SELECT jsonb_agg(ac.name ORDER BY ac.display_order, ac.name)
+            FROM partner_activity_categories pac
+            JOIN activity_categories ac ON ac.category_id = pac.category_id
+            WHERE pac.partner_id = p.partner_id AND ac.is_active = true
+          ), '[]'::jsonb),
           'contact_number', p.contact_number,
           'rating', p.rating,
           'picture', p.picture,

@@ -199,7 +199,13 @@ router.get("/getAllPartners", authorization, adminOnly, async (req, res) => {
     const partners = await pool.query(
       `SELECT partner_id, partner_name, email, description, website, rating,
               credit, picture, address, region, contact_number,
-              array_to_json(categories) AS categories, is_profile_complete,
+              COALESCE((
+                SELECT jsonb_agg(ac.name ORDER BY ac.display_order, ac.name)
+                FROM partner_activity_categories pac
+                JOIN activity_categories ac ON ac.category_id = pac.category_id
+                WHERE pac.partner_id = partners.partner_id
+              ), '[]'::jsonb) AS categories,
+              is_profile_complete,
               requires_password_change, created_at, updated_at
        FROM partners`,
     );
