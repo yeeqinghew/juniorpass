@@ -17,6 +17,25 @@ const { parseCategoryIds } = require("../utils/categories");
 require("dotenv").config();
 router.use(etagMiddleware);
 
+async function invalidateListingCaches() {
+  try {
+    let cursor = "0";
+    do {
+      const [nextCursor, keys] = await client.scan(
+        cursor,
+        "MATCH",
+        "*listings*",
+        "COUNT",
+        100,
+      );
+      cursor = nextCursor;
+      if (keys.length > 0) await client.del(...keys);
+    } while (cursor !== "0");
+  } catch (error) {
+    console.error("Listing cache invalidation failed:", error.message);
+  }
+}
+
 // create listing
 router.post("", authorization, async (req, res) => {
   let db;
@@ -44,7 +63,7 @@ router.post("", authorization, async (req, res) => {
       !parsedCategoryIds ||
       parsedCategoryIds.length === 0 ||
       !age_groups ||
-      !outlets ||
+      !Array.isArray(outlets) ||
       outlets.length === 0
     ) {
       return res.status(400).json({
@@ -59,10 +78,57 @@ router.post("", authorization, async (req, res) => {
               : null,
           age_groups: !age_groups ? "Age groups are required" : null,
           outlets:
-            !outlets || outlets.length === 0
+            !Array.isArray(outlets) || outlets.length === 0
               ? "At least one outlet is required"
               : null,
         },
+      });
+    }
+
+    const invalidProgramme = outlets.some(
+      (outlet) =>
+        !outlet?.outlet_id ||
+        !Array.isArray(outlet.schedule_groups) ||
+        outlet.schedule_groups.length === 0 ||
+        outlet.schedule_groups.some(
+          (schedule) =>
+            !Array.isArray(schedule.time_slots) ||
+            schedule.time_slots.length === 0 ||
+            schedule.time_slots.some(
+              (slot) =>
+                !slot?.day ||
+                !Array.isArray(slot.timeslot) ||
+                slot.timeslot.length !== 2 ||
+                !slot.timeslot[0] ||
+                !slot.timeslot[1] ||
+                !Number.isInteger(slot.slots) ||
+                slot.slots < 1 ||
+                slot.slots > 100,
+            ),
+        ),
+    );
+
+    if (invalidProgramme) {
+      return res.status(400).json({
+        error:
+          "Each outlet needs at least one complete schedule with a day, time, and capacity",
+      });
+    }
+
+    const outletIds = outlets.map((outlet) => outlet.outlet_id);
+    if (new Set(outletIds).size !== outletIds.length) {
+      return res.status(400).json({ error: "An outlet can only be added once" });
+    }
+
+    const ownedOutlets = await pool.query(
+      `SELECT outlet_id
+       FROM outlets
+       WHERE partner_id = $1 AND outlet_id = ANY($2::uuid[])`,
+      [partnerIdFromToken, outletIds],
+    );
+    if (ownedOutlets.rowCount !== outletIds.length) {
+      return res.status(403).json({
+        error: "One or more selected outlets do not belong to this partner",
       });
     }
 
@@ -347,6 +413,11 @@ router.get("/:id([0-9a-fA-F-]{36})", cacheMiddleware, async (req, res) => {
       `
       SELECT
         l.*,
+        (
+          SELECT COUNT(*)::integer
+          FROM bookings b
+          WHERE b.listing_id = l.listing_id
+        ) AS signup_count,
         COALESCE((
           SELECT jsonb_agg(ac.name ORDER BY ac.display_order, ac.name)
           FROM listing_activity_categories lac
@@ -452,6 +523,11 @@ router.get("/partner/:partnerId", async (req, res) => {
       `
       SELECT
         l.*,
+        (
+          SELECT COUNT(*)::integer
+          FROM bookings b
+          WHERE b.listing_id = l.listing_id
+        ) AS signup_count,
         COALESCE((
           SELECT jsonb_agg(ac.name ORDER BY ac.display_order, ac.name)
           FROM listing_activity_categories lac
@@ -697,20 +773,49 @@ router.patch("/:listing_id/status", authorization, async (req, res) => {
   const { listing_id } = req.params;
   const { active } = req.body;
 
+  if (typeof active !== "boolean") {
+    return res.status(400).json({ error: "Active status must be a boolean" });
+  }
+
   try {
     const result = await pool.query(
       `UPDATE listings
        SET active = $1
        WHERE listing_id = $2 AND partner_id = $3
+         AND (
+           $1::boolean = true
+           OR NOT EXISTS (
+             SELECT 1 FROM bookings b WHERE b.listing_id = listings.listing_id
+           )
+         )
        RETURNING listing_id`,
       [active, listing_id, req.user],
     );
     
     if (result.rowCount === 0) {
+      const listingCheck = await pool.query(
+        `SELECT
+           EXISTS (
+             SELECT 1 FROM bookings b WHERE b.listing_id = l.listing_id
+           ) AS has_signups
+         FROM listings l
+         WHERE l.listing_id = $1 AND l.partner_id = $2`,
+        [listing_id, req.user],
+      );
+
+      if (listingCheck.rows[0]?.has_signups && active === false) {
+        return res.status(409).json({
+          error: "Listings with sign-ups cannot be set to inactive",
+        });
+      }
+
       return res
         .status(404)
         .json({ error: "Listing not found or not owned by this partner" });
     }
+
+    await invalidateListingCaches();
+
     res.status(200).json({
       message: "Listing status updated successfully.",
     });
@@ -912,8 +1017,8 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
                 end_time,
                 slots
               ) VALUES ($1, $2, $3, $4, $5, $6)`,
-              [schedule_group_id, listing_outlet_id, day, start_time, end_time, slotCapacity || 10],
-            );
+            [schedule_group_id, listing_outlet_id, day, start_time, end_time, slotCapacity],
+          );
           }
         }
       }
