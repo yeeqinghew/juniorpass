@@ -163,6 +163,18 @@ router.post("/login", userLoginLimiter, validInfo, async (req, res) => {
       return res.status(401).json("Invalid Credential");
     }
 
+    if (
+      user.rows[0].is_suspended &&
+      (!user.rows[0].suspension_expires_at ||
+        new Date(user.rows[0].suspension_expires_at) > new Date())
+    ) {
+      return res.status(403).json({
+        message: "Account suspended",
+        code: "ACCOUNT_SUSPENDED",
+        suspension_expires_at: user.rows[0].suspension_expires_at,
+      });
+    }
+
     const methodConflict = getLoginMethodConflict(
       user.rows[0],
       LOGIN_METHODS.EMAIL,
@@ -214,6 +226,18 @@ router.post("/login/google", googleLoginLimiter, async (req, res) => {
       `SELECT * FROM users WHERE email = $1`,
       [email],
     );
+
+    if (
+      existingUser.rows[0]?.is_suspended &&
+      (!existingUser.rows[0].suspension_expires_at ||
+        new Date(existingUser.rows[0].suspension_expires_at) > new Date())
+    ) {
+      return res.status(403).json({
+        message: "Account suspended",
+        code: "ACCOUNT_SUSPENDED",
+        suspension_expires_at: existingUser.rows[0].suspension_expires_at,
+      });
+    }
 
     if (existingUser.rows.length === 0) {
       // new user, register

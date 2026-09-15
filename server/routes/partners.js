@@ -62,13 +62,26 @@ router.post("/login", partnerLoginLimiter, async (req, res) => {
     }
 
     const partner = await pool.query(
-      `SELECT partner_id, email, password, requires_password_change, is_profile_complete
+      `SELECT partner_id, email, password, requires_password_change, is_profile_complete,
+              is_suspended, suspension_expires_at
        FROM partners WHERE email = $1`,
       [email],
     );
 
     if (partner.rows.length === 0) {
       return res.status(401).json({ message: "Invalid Credential" });
+    }
+
+    if (
+      partner.rows[0].is_suspended &&
+      (!partner.rows[0].suspension_expires_at ||
+        new Date(partner.rows[0].suspension_expires_at) > new Date())
+    ) {
+      return res.status(403).json({
+        message: "Account suspended",
+        code: "ACCOUNT_SUSPENDED",
+        suspension_expires_at: partner.rows[0].suspension_expires_at,
+      });
     }
 
     // Preserve existing/temp credentials while accepting passwords set by the
@@ -141,6 +154,10 @@ router.get("/:id", cacheMiddleware, async (req, res) => {
       getPublicOutletsByPartnerId(id),
       getReviwesByPartnerId(id),
     ]);
+
+    if (!partner) {
+      return res.status(404).json({ error: "Partner not found" });
+    }
 
     return res.status(200).json({
       success: true,
@@ -449,7 +466,12 @@ const getPartnerByPartnerId = async (partnerId) => {
           WHERE pac.partner_id = partners.partner_id AND ac.is_active = true
         ), '[]'::jsonb) AS category_ids,
         created_at 
-      FROM partners WHERE partner_id = $1`,
+      FROM partners
+      WHERE partner_id = $1
+        AND NOT (
+          is_suspended = true AND
+          (suspension_expires_at IS NULL OR suspension_expires_at > NOW())
+        )`,
       [partnerId],
     );
     return partner.rows[0];
@@ -476,8 +498,13 @@ const getListingsByPartnerId = async (partnerId) => {
                 WHERE lac.listing_id = l.listing_id AND ac.is_active = true
               ), '[]'::jsonb) AS category_ids
        FROM listings l
+       JOIN partners p ON p.partner_id = l.partner_id
        WHERE l.partner_id = $1
          AND l.active = true
+         AND NOT (
+           p.is_suspended = true AND
+           (p.suspension_expires_at IS NULL OR p.suspension_expires_at > NOW())
+         )
          AND EXISTS (
            SELECT 1
            FROM listingOutlets available_lo

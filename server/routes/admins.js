@@ -16,6 +16,7 @@ const {
   revokeAuthSession,
 } = require("../utils/authSession");
 const { adminLoginLimiter } = require("../middleware/authRateLimiters");
+const redisClient = require("../utils/redisClient");
 
 router.use(etagMiddleware);
 
@@ -171,7 +172,9 @@ router.get(
     try {
       const allParents = await pool.query(
         `SELECT user_id, name, email, phone_number, user_type, method, credit,
-                display_picture, created_at, updated_at
+                display_picture, is_suspended, suspended_at,
+                suspension_expires_at, suspension_reason,
+                created_at, updated_at
          FROM users
          WHERE user_type = 'parent'`,
       );
@@ -206,7 +209,9 @@ router.get("/getAllPartners", authorization, adminOnly, async (req, res) => {
                 WHERE pac.partner_id = partners.partner_id
               ), '[]'::jsonb) AS categories,
               is_profile_complete,
-              requires_password_change, created_at, updated_at
+              requires_password_change, is_suspended, suspended_at,
+              suspension_expires_at, suspension_reason,
+              created_at, updated_at
        FROM partners`,
     );
     return res.status(200).json(partners.rows);
@@ -215,6 +220,254 @@ router.get("/getAllPartners", authorization, adminOnly, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+/**
+ * Admin operations view for every class, including its partner, outlets,
+ * schedule groups, time slots, and booking totals.
+ */
+router.get("/listings", authorization, adminOnly, async (_req, res) => {
+  try {
+    const listings = await pool.query(`
+      WITH schedule_slots AS (
+        SELECT
+          s.schedule_group_id,
+          jsonb_agg(
+            jsonb_build_object(
+              'schedule_id', s.schedule_id,
+              'day', s.day,
+              'start_time', s.start_time,
+              'end_time', s.end_time,
+              'slots', s.slots
+            )
+            ORDER BY
+              CASE s.day
+                WHEN 'Monday' THEN 1
+                WHEN 'Tuesday' THEN 2
+                WHEN 'Wednesday' THEN 3
+                WHEN 'Thursday' THEN 4
+                WHEN 'Friday' THEN 5
+                WHEN 'Saturday' THEN 6
+                WHEN 'Sunday' THEN 7
+              END,
+              s.start_time
+          ) AS time_slots,
+          COUNT(*)::int AS schedule_count
+        FROM schedules s
+        GROUP BY s.schedule_group_id
+      ),
+      schedule_group_summary AS (
+        SELECT
+          sg.listing_outlet_id,
+          jsonb_agg(
+            jsonb_build_object(
+              'schedule_group_id', sg.schedule_group_id,
+              'package_types', sg.package_types,
+              'is_progressive', COALESCE(sg.is_progressive, false),
+              'full_term_start_date', sg.full_term_start_date,
+              'full_term_class_count', sg.full_term_class_count,
+              'short_term_class_count', sg.short_term_class_count,
+              'price_payg', sg.price_payg,
+              'price_fullterm', sg.price_fullterm,
+              'price_shortterm', sg.price_shortterm,
+              'pricing_dollars_per_credit', sg.pricing_dollars_per_credit,
+              'frequency', sg.frequency,
+              'time_slots', COALESCE(ss.time_slots, '[]'::jsonb)
+            )
+            ORDER BY sg.created_at, sg.schedule_group_id
+          ) AS schedule_groups,
+          COUNT(*)::int AS schedule_group_count,
+          COALESCE(SUM(ss.schedule_count), 0)::int AS schedule_count
+        FROM schedule_groups sg
+        LEFT JOIN schedule_slots ss
+          ON ss.schedule_group_id = sg.schedule_group_id
+        GROUP BY sg.listing_outlet_id
+      ),
+      outlet_summary AS (
+        SELECT
+          lo.listing_id,
+          jsonb_agg(
+            jsonb_build_object(
+              'outlet_id', o.outlet_id,
+              'outlet_name', o.outlet_name,
+              'address', o.address,
+              'nearest_mrt', o.nearest_mrt,
+              'phone_number', o.phone_number,
+              'schedule_groups', COALESCE(sgs.schedule_groups, '[]'::jsonb)
+            )
+            ORDER BY o.outlet_name NULLS LAST, o.outlet_id
+          ) FILTER (WHERE o.outlet_id IS NOT NULL) AS outlets,
+          COUNT(DISTINCT o.outlet_id)::int AS outlet_count,
+          COALESCE(SUM(sgs.schedule_group_count), 0)::int AS schedule_group_count,
+          COALESCE(SUM(sgs.schedule_count), 0)::int AS schedule_count
+        FROM listingOutlets lo
+        LEFT JOIN outlets o ON o.outlet_id = lo.outlet_id
+        LEFT JOIN schedule_group_summary sgs
+          ON sgs.listing_outlet_id = lo.listing_outlet_id
+        GROUP BY lo.listing_id
+      ),
+      booking_summary AS (
+        SELECT
+          b.listing_id,
+          COUNT(*)::int AS booking_count,
+          COUNT(*) FILTER (WHERE b.end_date >= NOW())::int AS current_booking_count
+        FROM bookings b
+        GROUP BY b.listing_id
+      ),
+      category_summary AS (
+        SELECT
+          lac.listing_id,
+          jsonb_agg(ac.name ORDER BY ac.display_order, ac.name) AS categories
+        FROM listing_activity_categories lac
+        JOIN activity_categories ac ON ac.category_id = lac.category_id
+        GROUP BY lac.listing_id
+      )
+      SELECT
+        l.listing_id,
+        l.listing_title,
+        l.description,
+        l.images,
+        l.age_groups,
+        COALESCE(l.active, false) AS active,
+        l.created_at,
+        l.updated_at,
+        p.partner_id,
+        p.partner_name,
+        p.email AS partner_email,
+        COALESCE(p.is_suspended, false) AS partner_suspended,
+        COALESCE(cs.categories, '[]'::jsonb) AS categories,
+        COALESCE(os.outlets, '[]'::jsonb) AS outlets,
+        COALESCE(os.outlet_count, 0) AS outlet_count,
+        COALESCE(os.schedule_group_count, 0) AS schedule_group_count,
+        COALESCE(os.schedule_count, 0) AS schedule_count,
+        COALESCE(bs.booking_count, 0) AS booking_count,
+        COALESCE(bs.current_booking_count, 0) AS current_booking_count
+      FROM listings l
+      JOIN partners p ON p.partner_id = l.partner_id
+      LEFT JOIN outlet_summary os ON os.listing_id = l.listing_id
+      LEFT JOIN booking_summary bs ON bs.listing_id = l.listing_id
+      LEFT JOIN category_summary cs ON cs.listing_id = l.listing_id
+      ORDER BY l.created_at DESC, l.listing_id DESC
+    `);
+
+    return res.status(200).json({ listings: listings.rows });
+  } catch (error) {
+    console.error("ERROR in GET /admins/listings", error.message);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+router.patch(
+  "/accounts/:accountType/:accountId/suspension",
+  authorization,
+  adminOnly,
+  async (req, res) => {
+    const { accountType, accountId } = req.params;
+    const { suspended, reason, expires_at: expiresAt, acknowledge_upcoming_bookings: acknowledged } = req.body || {};
+    const accountConfig = {
+      parent: { table: "users", idColumn: "user_id" },
+      partner: { table: "partners", idColumn: "partner_id" },
+    }[accountType];
+
+    if (!accountConfig || typeof suspended !== "boolean") {
+      return res.status(400).json({ error: "Invalid suspension request" });
+    }
+    if (suspended && (!reason || !reason.trim())) {
+      return res.status(400).json({ error: "A suspension reason is required" });
+    }
+
+    const expiry = expiresAt ? new Date(expiresAt) : null;
+    if (expiry && (Number.isNaN(expiry.getTime()) || expiry <= new Date())) {
+      return res.status(400).json({ error: "Expiry must be a future date" });
+    }
+
+    const db = await pool.connect();
+    try {
+      await db.query("BEGIN");
+      const account = await db.query(
+        `SELECT ${accountConfig.idColumn} FROM ${accountConfig.table}
+         WHERE ${accountConfig.idColumn} = $1 FOR UPDATE`,
+        [accountId],
+      );
+      if (account.rowCount === 0) {
+        await db.query("ROLLBACK");
+        return res.status(404).json({ error: "Account not found" });
+      }
+
+      let upcomingBookingCount = 0;
+      if (suspended) {
+        const upcoming = await db.query(
+          accountType === "parent"
+            ? `SELECT COUNT(DISTINCT co.occurrence_id)::int AS count
+               FROM class_occurrences co
+               JOIN bookings b ON b.booking_id = co.booking_id
+               WHERE b.user_id = $1 AND co.scheduled_date >= NOW()
+                 AND co.status IN ('scheduled', 'rescheduled')`
+            : `SELECT COUNT(DISTINCT co.occurrence_id)::int AS count
+               FROM class_occurrences co
+               JOIN bookings b ON b.booking_id = co.booking_id
+               JOIN listings l ON l.listing_id = b.listing_id
+               WHERE l.partner_id = $1 AND co.scheduled_date >= NOW()
+                 AND co.status IN ('scheduled', 'rescheduled')`,
+          [accountId],
+        );
+        upcomingBookingCount = upcoming.rows[0].count;
+        if (upcomingBookingCount > 0 && !acknowledged) {
+          await db.query("ROLLBACK");
+          return res.status(409).json({
+            error: "Upcoming bookings require acknowledgement",
+            code: "UPCOMING_BOOKINGS_ACKNOWLEDGEMENT_REQUIRED",
+            upcoming_booking_count: upcomingBookingCount,
+          });
+        }
+      }
+
+      const updated = await db.query(
+        `UPDATE ${accountConfig.table}
+         SET is_suspended = $2,
+             suspended_at = CASE WHEN $2 THEN NOW() ELSE NULL END,
+             suspension_expires_at = CASE WHEN $2 THEN $3 ELSE NULL END,
+             suspension_reason = CASE WHEN $2 THEN $4 ELSE NULL END,
+             suspended_by = CASE WHEN $2 THEN $5 ELSE NULL END
+         WHERE ${accountConfig.idColumn} = $1
+         RETURNING is_suspended, suspended_at, suspension_expires_at, suspension_reason`,
+        [accountId, suspended, expiry, suspended ? reason.trim() : null, req.user],
+      );
+      await db.query(
+        `INSERT INTO account_suspension_audit
+           (account_type, account_id, action, reason, expires_at, changed_by)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [accountType, accountId, suspended ? "suspended" : "restored", suspended ? reason.trim() : null, expiry, req.user],
+      );
+      await db.query("COMMIT");
+
+      if (accountType === "partner") {
+        try {
+          let cursor = "0";
+          do {
+            const [nextCursor, keys] = await redisClient.scan(cursor, "MATCH", "*listings*", "COUNT", 100);
+            cursor = nextCursor;
+            if (keys.length) await redisClient.del(...keys);
+          } while (cursor !== "0");
+          await redisClient.del(`/partners/${accountId}`);
+        } catch (cacheError) {
+          console.error("Suspension cache invalidation failed:", cacheError.message);
+        }
+      }
+
+      return res.json({
+        ...updated.rows[0],
+        upcoming_booking_count: upcomingBookingCount,
+        message: suspended ? "Account suspended" : "Account restored",
+      });
+    } catch (error) {
+      await db.query("ROLLBACK");
+      console.error("ERROR updating account suspension", error.message);
+      return res.status(500).json({ error: error.message });
+    } finally {
+      db.release();
+    }
+  },
+);
 
 /**
  * Moderation: Approve a listing (sets active=true) and notify partner.

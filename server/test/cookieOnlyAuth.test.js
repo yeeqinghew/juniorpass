@@ -5,6 +5,9 @@ const { AUTH_ROLES } = require("../constants/auth");
 const authorization = require("../middleware/authorization");
 const { issueAuthSession } = require("../utils/authSession");
 const redisClient = require("../utils/redisClient");
+const pool = require("../db");
+
+const TEST_PARTNER_ID = "00000000-0000-4000-8000-000000000001";
 
 // These tests exercise authentication decisions without requiring a live Redis
 // instance. Revocation behaviour is covered separately from cookie transport.
@@ -106,8 +109,13 @@ test("a valid role-scoped cookie authenticates the matching account role", async
   await withEnvironment(
     { JWT_SECRET: "cookie-only-test-secret" },
     async () => {
+      const originalQuery = pool.query;
+      pool.query = async () => ({
+        rowCount: 1,
+        rows: [{ is_suspended: false, suspension_expires_at: null }],
+      });
       const token = jwt.sign(
-        { user: "partner-id", role: AUTH_ROLES.PARTNER },
+        { user: TEST_PARTNER_ID, role: AUTH_ROLES.PARTNER },
         process.env.JWT_SECRET,
         { expiresIn: "2h" },
       );
@@ -121,12 +129,16 @@ test("a valid role-scoped cookie authenticates the matching account role", async
       const res = createResponse();
       let nextCalled = false;
 
-      await authorization.forRole(AUTH_ROLES.PARTNER)(req, res, () => {
-        nextCalled = true;
-      });
+      try {
+        await authorization.forRole(AUTH_ROLES.PARTNER)(req, res, () => {
+          nextCalled = true;
+        });
+      } finally {
+        pool.query = originalQuery;
+      }
 
       assert.equal(nextCalled, true);
-      assert.equal(req.user, "partner-id");
+      assert.equal(req.user, TEST_PARTNER_ID);
       assert.equal(req.authRole, AUTH_ROLES.PARTNER);
       assert.equal(req.authToken, token);
       assert.equal(res.body, null);
@@ -139,7 +151,7 @@ test("a JWT role must exactly match its role-scoped cookie", async () => {
     { JWT_SECRET: "cookie-only-test-secret" },
     async () => {
       const token = jwt.sign(
-        { user: "partner-id", role: AUTH_ROLES.PARTNER },
+        { user: TEST_PARTNER_ID, role: AUTH_ROLES.PARTNER },
         process.env.JWT_SECRET,
         { expiresIn: "2h" },
       );

@@ -3,6 +3,7 @@ require("dotenv").config();
 const client = require("../utils/redisClient");
 const { AUTH_ROLES } = require("../constants/auth");
 const { getAuthCookieToken } = require("../utils/authCookies");
+const pool = require("../db");
 
 const ALL_AUTH_ROLES = Object.values(AUTH_ROLES);
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -96,6 +97,30 @@ function createAuthorization(allowedRoles = ALL_AUTH_ROLES) {
         return res
           .status(403)
           .json({ error: "Forbidden for this account type" });
+      }
+
+      if (payloadRole === AUTH_ROLES.USER || payloadRole === AUTH_ROLES.PARTNER) {
+        const table = payloadRole === AUTH_ROLES.USER ? "users" : "partners";
+        const idColumn = payloadRole === AUTH_ROLES.USER ? "user_id" : "partner_id";
+        const account = await pool.query(
+          `SELECT is_suspended, suspension_expires_at FROM ${table} WHERE ${idColumn} = $1`,
+          [payload.user],
+        );
+        if (account.rowCount === 0) {
+          return res.status(401).json({ error: "Account no longer exists" });
+        }
+        const suspension = account.rows[0];
+        if (
+          suspension.is_suspended &&
+          (!suspension.suspension_expires_at ||
+            new Date(suspension.suspension_expires_at) > new Date())
+        ) {
+          return res.status(403).json({
+            error: "Account suspended",
+            code: "ACCOUNT_SUSPENDED",
+            suspension_expires_at: suspension.suspension_expires_at,
+          });
+        }
       }
 
       req.user = payload.user;

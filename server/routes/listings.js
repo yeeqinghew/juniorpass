@@ -431,6 +431,10 @@ router.get("", cacheMiddleware, async (req, res) => {
       FROM listings l
       JOIN partners p ON p.partner_id = l.partner_id
       WHERE l.active = true
+        AND NOT (
+          p.is_suspended = true AND
+          (p.suspension_expires_at IS NULL OR p.suspension_expires_at > NOW())
+        )
         AND (
           CASE
             WHEN jsonb_typeof(l.images) = 'array' THEN jsonb_array_length(l.images) > 0
@@ -559,6 +563,11 @@ router.get("/:id([0-9a-fA-F-]{36})", cacheMiddleware, async (req, res) => {
       FROM listings l
       JOIN partners p ON p.partner_id = l.partner_id
       WHERE l.listing_id = $1
+        AND l.active = true
+        AND NOT (
+          p.is_suspended = true AND
+          (p.suspension_expires_at IS NULL OR p.suspension_expires_at > NOW())
+        )
       ORDER BY l.created_at DESC;`,
       [id],
     );
@@ -1184,6 +1193,10 @@ router.get("/search", async (req, res) => {
     // Build dynamic WHERE clauses
     const whereClauses = [
       "l.active = true",
+      `NOT (
+        p.is_suspended = true AND
+        (p.suspension_expires_at IS NULL OR p.suspension_expires_at > NOW())
+      )`,
       `EXISTS (
         SELECT 1
         FROM listingOutlets available_lo
