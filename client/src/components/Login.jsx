@@ -14,6 +14,7 @@ import { useState } from "react";
 import toast from "react-hot-toast";
 import { fetchWithAuth, API_ENDPOINTS } from "../utils/api";
 import useHandleLogin from "../hooks/useHandleLogin";
+import usePageScrollLock from "../hooks/usePageScrollLock";
 import CryptoJS from "crypto-js";
 import "../Login.css";
 
@@ -24,6 +25,7 @@ const Login = () => {
   const from = location.state?.from || "/";
   const fromState = location.state?.fromState;
   const [googleLoading, setGoogleLoading] = useState(false);
+  usePageScrollLock(googleLoading);
   const { handleResponse, handleGoogleLogin } = useHandleLogin({
     from,
     fromState,

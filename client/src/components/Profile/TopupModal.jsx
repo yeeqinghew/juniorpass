@@ -11,6 +11,7 @@ import {
 import toast from "react-hot-toast";
 import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
 import { useUserContext } from "../UserContext";
+import usePageScrollLock from "../../hooks/usePageScrollLock";
 import {
   calculateCreditPrice,
   CREDIT_PRICING_TIERS,
@@ -29,6 +30,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
 
   const selectedTier = getCreditPricingTier(selectedCredits);
   const paymentAmount = calculateCreditPrice(selectedCredits);
+  usePageScrollLock(isTopUpModalOpen && modalStep === "loading");
 
   const closeModal = () => {
     setIsTopUpModalOpen(false);
