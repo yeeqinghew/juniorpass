@@ -427,7 +427,7 @@ router.patch(
              suspended_at = CASE WHEN $2 THEN NOW() ELSE NULL END,
              suspension_expires_at = CASE WHEN $2 THEN $3::timestamptz ELSE NULL END,
              suspension_reason = CASE WHEN $2 THEN $4 ELSE NULL END,
-             suspended_by = CASE WHEN $2 THEN $5 ELSE NULL END
+             suspended_by = CASE WHEN $2 THEN $5::uuid ELSE NULL END
          WHERE ${accountConfig.idColumn} = $1
          RETURNING is_suspended, suspended_at, suspension_expires_at, suspension_reason`,
         [accountId, suspended, expiry, suspended ? reason.trim() : null, req.user],
