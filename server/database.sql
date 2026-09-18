@@ -65,6 +65,10 @@ CREATE TABLE users (
     method methods NOT NULL DEFAULT 'email', -- login method used
     credit INTEGER NOT NULL DEFAULT 0,
     display_picture VARCHAR(255),
+    is_suspended BOOLEAN NOT NULL DEFAULT FALSE,
+    suspended_at TIMESTAMPTZ,
+    suspension_expires_at TIMESTAMPTZ,
+    suspension_reason TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -153,6 +157,10 @@ CREATE TABLE partners (
     categories categories[],
     is_profile_complete BOOLEAN DEFAULT true,
     requires_password_change BOOLEAN DEFAULT false,
+    is_suspended BOOLEAN NOT NULL DEFAULT FALSE,
+    suspended_at TIMESTAMPTZ,
+    suspension_expires_at TIMESTAMPTZ,
+    suspension_reason TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -210,8 +218,12 @@ CREATE TRIGGER set_timestamp_listings
 CREATE TABLE outlets (
     outlet_id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     partner_id uuid REFERENCES partners(partner_id) ON DELETE CASCADE,
+    outlet_name VARCHAR(255),
     address VARCHAR(1000),
     nearest_mrt VARCHAR(200),
+    description VARCHAR(5000),
+    phone_number VARCHAR(30),
+    images JSONB,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -644,6 +656,20 @@ CREATE TABLE platform_settings (
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE account_suspension_audit (
+    audit_id BIGSERIAL PRIMARY KEY,
+    account_type VARCHAR(20) NOT NULL CHECK (account_type IN ('parent', 'partner')),
+    account_id UUID NOT NULL,
+    action VARCHAR(20) NOT NULL CHECK (action IN ('suspended', 'restored')),
+    reason TEXT,
+    expires_at TIMESTAMPTZ,
+    changed_by UUID NOT NULL REFERENCES admins(admin_id),
+    changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX account_suspension_audit_account_idx
+    ON account_suspension_audit (account_type, account_id, changed_at DESC);
 
 INSERT INTO platform_settings (setting_key, setting_value)
 VALUES ('partner_dollars_per_credit', 9.50);
