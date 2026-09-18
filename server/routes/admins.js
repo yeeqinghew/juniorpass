@@ -425,7 +425,7 @@ router.patch(
         `UPDATE ${accountConfig.table}
          SET is_suspended = $2,
              suspended_at = CASE WHEN $2 THEN NOW() ELSE NULL END,
-             suspension_expires_at = CASE WHEN $2 THEN $3 ELSE NULL END,
+             suspension_expires_at = CASE WHEN $2 THEN $3::timestamptz ELSE NULL END,
              suspension_reason = CASE WHEN $2 THEN $4 ELSE NULL END,
              suspended_by = CASE WHEN $2 THEN $5 ELSE NULL END
          WHERE ${accountConfig.idColumn} = $1
