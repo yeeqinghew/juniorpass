@@ -64,6 +64,7 @@ CREATE TABLE users (
     user_type user_types,
     method methods NOT NULL DEFAULT 'email', -- login method used
     credit INTEGER NOT NULL DEFAULT 0,
+    credit_expires_at TIMESTAMPTZ,
     display_picture VARCHAR(255),
     is_suspended BOOLEAN NOT NULL DEFAULT FALSE,
     suspended_at TIMESTAMPTZ,

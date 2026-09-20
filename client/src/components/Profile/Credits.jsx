@@ -25,6 +25,13 @@ const Credits = ({ openTopUpOnMount = false }) => {
   const { isMobile, isTabletPortrait } = useWindowDimensions();
   const isMobileOrTabletPortrait = isMobile || isTabletPortrait;
   const balance = user?.credit ?? 0;
+  const creditExpiry = user?.credit_expires_at
+    ? new Date(user.credit_expires_at).toLocaleDateString("en-SG", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : null;
   const [isTopUpModalOpen, setIsTopUpModalOpen] = useState(openTopUpOnMount);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -217,6 +224,11 @@ const Credits = ({ openTopUpOnMount = false }) => {
               <strong className="cr-balance-number">{balance}</strong>
               <span className="cr-balance-unit">credits</span>
             </div>
+            {balance > 0 && creditExpiry && (
+              <div className="cr-balance-expiry">
+                <CalendarOutlined /> Expires {creditExpiry}
+              </div>
+            )}
           </div>
         </div>
         <Button

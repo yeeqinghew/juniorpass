@@ -58,7 +58,14 @@ router.post("/", userAuthorization, async (req, res) => {
     );
     const user_id = req.user;
     const user = await pool.query(
-      "SELECT user_id, credit FROM users WHERE user_id = $1",
+      `SELECT user_id,
+              CASE
+                WHEN credit_expires_at IS NOT NULL AND credit_expires_at <= NOW()
+                  THEN 0
+                ELSE credit
+              END AS credit
+       FROM users
+       WHERE user_id = $1`,
       [user_id],
     );
 
@@ -247,7 +254,9 @@ router.post("/", userAuthorization, async (req, res) => {
       const debitResult = await client.query(
         `UPDATE users
          SET credit = credit - $1
-         WHERE user_id = $2 AND credit >= $1
+         WHERE user_id = $2
+           AND credit >= $1
+           AND (credit_expires_at IS NULL OR credit_expires_at > NOW())
          RETURNING credit`,
         [creditCost, user_id],
       );
@@ -702,7 +711,18 @@ router.delete("/:bookingId", userAuthorization, async (req, res) => {
 
       // Refund credits to user
       await client.query(
-        "UPDATE users SET credit = credit + $1 WHERE user_id = $2",
+        `UPDATE users
+         SET credit = CASE
+               WHEN credit_expires_at IS NOT NULL AND credit_expires_at <= NOW()
+                 THEN $1
+               ELSE credit + $1
+             END,
+             credit_expires_at = CASE
+               WHEN credit_expires_at IS NULL OR credit_expires_at <= NOW()
+                 THEN NOW() + INTERVAL '90 days'
+               ELSE credit_expires_at
+             END
+         WHERE user_id = $2`,
         [creditRefund, user_id],
       );
 

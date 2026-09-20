@@ -50,9 +50,18 @@ router.use(etagMiddleware);
 
 router.get("/", authorization, async (req, res) => {
   try {
+    await pool.query(
+      `UPDATE users
+       SET credit = 0
+       WHERE user_id = $1
+         AND credit_expires_at IS NOT NULL
+         AND credit_expires_at <= NOW()
+         AND credit <> 0`,
+      [req.user],
+    );
     const user = await pool.query(
       `SELECT user_id, name, email, phone_number, user_type, method, credit,
-              display_picture, created_at, updated_at
+              credit_expires_at, display_picture, created_at, updated_at
        FROM users
        WHERE user_id = $1`,
       [req.user],
@@ -620,8 +629,13 @@ router.patch("/:id", authorization, async (req, res) => {
 router.get("/getAllUsers", adminAuthorization, adminOnly, async (req, res) => {
   try {
     const user = await pool.query(
-      `SELECT user_id, name, email, phone_number, user_type, method, credit,
-                display_picture, created_at, updated_at
+      `SELECT user_id, name, email, phone_number, user_type, method,
+                CASE
+                  WHEN credit_expires_at IS NOT NULL AND credit_expires_at <= NOW()
+                    THEN 0
+                  ELSE credit
+                END AS credit,
+                credit_expires_at, display_picture, created_at, updated_at
          FROM users`,
     );
     return res.status(200).json(user.rows);

@@ -96,7 +96,16 @@ async function awardLockedReferral(client, referral, paymentRequestId) {
 
   await client.query(
     `UPDATE users
-     SET credit = COALESCE(credit, 0) + $1
+     SET credit = CASE
+           WHEN credit_expires_at IS NOT NULL AND credit_expires_at <= NOW()
+             THEN $1
+           ELSE COALESCE(credit, 0) + $1
+         END,
+         credit_expires_at = CASE
+           WHEN credit_expires_at IS NULL OR credit_expires_at <= NOW()
+             THEN NOW() + INTERVAL '90 days'
+           ELSE credit_expires_at
+         END
      WHERE user_id = ANY($2::uuid[])`,
     [
       REFERRAL_REWARD_CREDITS,
@@ -247,7 +256,19 @@ async function settleCompletedPayment({
 
     const walletResult = await client.query(
       `UPDATE users
-       SET credit = COALESCE(credit, 0) + $1
+       SET credit = CASE
+             WHEN credit_expires_at IS NOT NULL AND credit_expires_at <= NOW()
+               THEN $1
+             ELSE COALESCE(credit, 0) + $1
+           END,
+           credit_expires_at = LEAST(
+             NOW() + INTERVAL '365 days',
+             CASE
+               WHEN credit_expires_at IS NULL OR credit_expires_at <= NOW()
+                 THEN NOW() + INTERVAL '90 days'
+               ELSE credit_expires_at + INTERVAL '90 days'
+             END
+           )
        WHERE user_id = $2
        RETURNING credit`,
       [payment.credits, payment.user_id],

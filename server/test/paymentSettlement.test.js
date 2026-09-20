@@ -87,7 +87,7 @@ test("settles payment and first-purchase referral in one locked transaction", as
     },
     { match: /UPDATE payment_requests SET status = 'COMPLETED'/ },
     {
-      match: /UPDATE users SET credit = COALESCE\(credit, 0\) \+ \$1 WHERE user_id = \$2 RETURNING credit$/,
+      match: /UPDATE users SET credit = CASE .*credit_expires_at = LEAST.*INTERVAL '365 days'.*INTERVAL '90 days'.*WHERE user_id = \$2 RETURNING credit$/,
       result: result([{ credit: 120 }]),
     },
     { match: /INSERT INTO transactions .*payment_request_id/ },
@@ -95,7 +95,9 @@ test("settles payment and first-purchase referral in one locked transaction", as
       match: /UPDATE referrals SET status = 'completed'/,
       result: result([{ id: 7 }]),
     },
-    { match: /UPDATE users SET credit = COALESCE\(credit, 0\) \+ \$1 WHERE user_id = ANY/ },
+    {
+      match: /UPDATE users SET credit = CASE .*credit_expires_at = CASE .*INTERVAL '90 days'.*WHERE user_id = ANY/,
+    },
     { match: /INSERT INTO transactions .*referral_id/ },
     { match: /INSERT INTO notifications/ },
     { match: /^COMMIT$/ },

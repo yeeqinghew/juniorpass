@@ -171,8 +171,13 @@ router.get(
     // TODO: use middleware to check if user is superadmin
     try {
       const allParents = await pool.query(
-        `SELECT user_id, name, email, phone_number, user_type, method, credit,
-                display_picture, is_suspended, suspended_at,
+        `SELECT user_id, name, email, phone_number, user_type, method,
+                CASE
+                  WHEN credit_expires_at IS NOT NULL AND credit_expires_at <= NOW()
+                    THEN 0
+                  ELSE credit
+                END AS credit,
+                credit_expires_at, display_picture, is_suspended, suspended_at,
                 suspension_expires_at, suspension_reason,
                 created_at, updated_at
          FROM users
@@ -626,7 +631,16 @@ router.get("/metrics/overview", authorization, adminOnly, async (req, res) => {
       pool.query("SELECT COUNT(*) AS c FROM bookings WHERE created_at >= $1", [
         since,
       ]),
-      pool.query("SELECT COALESCE(SUM(credit), 0) AS s FROM users"),
+      pool.query(
+        `SELECT COALESCE(SUM(
+           CASE
+             WHEN credit_expires_at IS NOT NULL AND credit_expires_at <= NOW()
+               THEN 0
+             ELSE credit
+           END
+         ), 0) AS s
+         FROM users`,
+      ),
       pool.query("SELECT COALESCE(SUM(credit), 0) AS s FROM partners"),
       pool.query(
         "SELECT COALESCE(SUM(used_credit), 0) AS s FROM transactions WHERE transaction_type = 'DEBIT' AND created_at >= $1",
