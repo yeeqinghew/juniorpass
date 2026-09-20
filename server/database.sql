@@ -730,6 +730,7 @@ CREATE TABLE bookings (
     listing_id uuid REFERENCES listings(listing_id) ON DELETE CASCADE,
     schedule_id uuid REFERENCES schedules(schedule_id) ON DELETE CASCADE,
     user_id uuid REFERENCES users(user_id) ON DELETE CASCADE,
+    child_id uuid REFERENCES children(child_id) ON DELETE RESTRICT,
     schedule_group_id UUID REFERENCES schedule_groups(schedule_group_id) ON DELETE CASCADE,
     start_date TIMESTAMP NOT NULL,
     end_date TIMESTAMP NOT NULL,

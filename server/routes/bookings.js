@@ -9,6 +9,10 @@ const {
 const authorization = require("../middleware/authorization");
 const userAuthorization = authorization.forRole(AUTH_ROLES.USER);
 const partnerAuthorization = authorization.forRole(AUTH_ROLES.PARTNER);
+const {
+  buildOccurrenceWindows,
+  findChildBookingConflicts,
+} = require("../utils/bookingConflicts");
 
 router.post("/", userAuthorization, async (req, res) => {
   const {
@@ -18,11 +22,12 @@ router.post("/", userAuthorization, async (req, res) => {
     end_date,
     child_id,
     package_type,
+    acknowledge_same_day_booking: acknowledgeSameDayBooking = false,
   } = req.body;
 
   try {
     // Validate request body
-    if (!listing_id || !start_date || !end_date) {
+    if (!listing_id || !start_date || !end_date || !child_id) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
@@ -154,24 +159,12 @@ router.post("/", userAuthorization, async (req, res) => {
       return res.status(400).json({ error: "Insufficient credits" });
     }
 
-    // Check for overlapping bookings for this user
-    const overlappingBookings = await pool.query(
-      `
-      SELECT * FROM bookings 
-      WHERE user_id = $1 AND (
-        (start_date <= $2 AND end_date >= $2) OR
-        (start_date <= $3 AND end_date >= $3) OR
-        (start_date >= $2 AND end_date <= $3)
-      )
-    `,
-      [user_id, start_date, end_date],
-    );
-
-    if (overlappingBookings.rows.length > 0) {
-      return res
-        .status(400)
-        .json({ error: "You already have a booking at this time" });
-    }
+    const occurrenceWindows = buildOccurrenceWindows({
+      startDate: start_date,
+      endDate: end_date,
+      classCount: classes_total,
+      frequency: scheduleGroup.frequency,
+    });
 
     const existingBookings = await pool.query(
       `SELECT COUNT(*) as count 
@@ -195,6 +188,36 @@ router.post("/", userAuthorization, async (req, res) => {
 
     try {
       await client.query("BEGIN");
+
+      // Serialize bookings for one child so concurrent requests cannot bypass
+      // the conflict check.
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [
+        child_id,
+      ]);
+      const bookingConflicts = await findChildBookingConflicts(
+        client,
+        child_id,
+        occurrenceWindows,
+      );
+      const overlappingBooking = bookingConflicts.find(
+        (booking) => booking.is_overlap,
+      );
+      if (overlappingBooking) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          error: "This child already has a class at that time",
+          code: "BOOKING_TIME_CONFLICT",
+          conflict: overlappingBooking,
+        });
+      }
+      if (bookingConflicts.length > 0 && !acknowledgeSameDayBooking) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          error: "This child already has another class on the same day",
+          code: "SAME_DAY_BOOKING_WARNING",
+          conflicts: bookingConflicts,
+        });
+      }
 
       // Serialize bookings for this time slot so simultaneous requests cannot
       // both claim the final place.
@@ -244,17 +267,18 @@ router.post("/", userAuthorization, async (req, res) => {
       const newBooking = await client.query(
         `
         INSERT INTO bookings (
-          listing_id, schedule_id, user_id, schedule_group_id,
+          listing_id, schedule_id, user_id, child_id, schedule_group_id,
           start_date, end_date, enrolled_package_type, classes_total,
           dollars_per_credit, charged_credits
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING *
       `,
         [
           listing_id,
           schedule_id,
           user_id,
+          child_id,
           schedule_group_id,
           start_date,
           end_date,
@@ -268,34 +292,24 @@ router.post("/", userAuthorization, async (req, res) => {
       const booking_id = newBooking.rows[0].booking_id;
 
       // Generate class occurrences based on frequency
-      const startDateTime = new Date(start_date);
-      const endDateTime = new Date(end_date);
-      const classDurationMs = endDateTime - startDateTime;
-
-      // Determine interval in days based on frequency (default to weekly)
-      let intervalDays = 7; // Weekly by default
-      if (scheduleGroup.frequency === "Biweekly") intervalDays = 14;
-      if (scheduleGroup.frequency === "Monthly") intervalDays = 30;
-
       console.log(
-        `📅 Generating ${classes_total} class occurrences with ${intervalDays}-day interval`,
+        `📅 Generating ${classes_total} class occurrences`,
       );
 
       // Create individual class occurrences
-      for (let i = 0; i < classes_total; i++) {
-        const occurrenceStart = new Date(
-          startDateTime.getTime() + i * intervalDays * 24 * 60 * 60 * 1000,
-        );
-        const occurrenceEnd = new Date(
-          occurrenceStart.getTime() + classDurationMs,
-        );
-
+      for (const [index, occurrence] of occurrenceWindows.entries()) {
         await client.query(
           `INSERT INTO class_occurrences (
             booking_id, scheduled_date, scheduled_end_date, occurrence_number, status
           )
           VALUES ($1, $2, $3, $4, $5)`,
-          [booking_id, occurrenceStart, occurrenceEnd, i + 1, "scheduled"],
+          [
+            booking_id,
+            occurrence.start_at,
+            occurrence.end_at,
+            index + 1,
+            "scheduled",
+          ],
         );
       }
 

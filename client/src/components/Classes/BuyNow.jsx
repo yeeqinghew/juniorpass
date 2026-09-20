@@ -57,6 +57,13 @@ const formatBookingDate = (value) => {
   }).format(date);
 };
 
+const formatConflictTime = (value) =>
+  new Intl.DateTimeFormat("en-SG", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(value));
+
 const BuyNow = ({
   isBuyNowModalOpen,
   setIsBuyNowModalOpen,
@@ -162,7 +169,7 @@ const BuyNow = ({
           ? "Insufficient credits"
           : "Confirm Booking";
 
-  const handleBooking = async () => {
+  const submitBooking = async (acknowledgeSameDayBooking = false) => {
     // Validate child selection
     if (!selectedChildId) {
       toast.error("Please select a child for this class");
@@ -207,12 +214,30 @@ const BuyNow = ({
           end_date: end_date,
           child_id: selectedChildId,
           package_type: effectivePackageType,
+          acknowledge_same_day_booking: acknowledgeSameDayBooking,
         }),
       });
 
       const data = await response.json();
 
-      if (response.ok) {
+      if (
+        response.status === 409 &&
+        data.code === "SAME_DAY_BOOKING_WARNING"
+      ) {
+        const conflict = data.conflicts?.[0];
+        const conflictTime = conflict
+          ? `${formatConflictTime(conflict.start_at)}–${formatConflictTime(conflict.end_at)}`
+          : "another time";
+
+        Modal.confirm({
+          title: "Another class is booked on the same day",
+          content: `This child already has a class from ${conflictTime}. Are you sure you want to continue?`,
+          okText: "Continue booking",
+          cancelText: "Go back",
+          centered: true,
+          onOk: () => submitBooking(true),
+        });
+      } else if (response.ok) {
         toast.success(
           "Booking confirmed! Class has been added to your schedule.",
         );
@@ -234,6 +259,8 @@ const BuyNow = ({
       setIsLoading(false);
     }
   };
+
+  const handleBooking = () => submitBooking(false);
 
   return (
     <Modal
