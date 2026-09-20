@@ -76,11 +76,13 @@ const BuyNow = ({
   const [selectedChildId, setSelectedChildId] = useState(null);
   const [selectedPackageType, setSelectedPackageType] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [sameDayConflict, setSameDayConflict] = useState(null);
 
   const handleCancel = () => {
     setIsBuyNowModalOpen(false);
     setSelectedChildId(null);
     setSelectedPackageType(null);
+    setSameDayConflict(null);
   };
 
   // Get pricing and details for selected package type
@@ -229,13 +231,9 @@ const BuyNow = ({
           ? `${formatConflictTime(conflict.start_at)}–${formatConflictTime(conflict.end_at)}`
           : "another time";
 
-        Modal.confirm({
-          title: "Another class is booked on the same day",
-          content: `This child already has a class from ${conflictTime}. Are you sure you want to continue?`,
-          okText: "Continue booking",
-          cancelText: "Go back",
-          centered: true,
-          onOk: () => submitBooking(true),
+        setSameDayConflict({
+          listingTitle: conflict?.listing_title,
+          time: conflictTime,
         });
       } else if (response.ok) {
         toast.success(
@@ -244,6 +242,7 @@ const BuyNow = ({
         setIsBuyNowModalOpen(false);
         setSelectedChildId(null);
         setSelectedPackageType(null);
+        setSameDayConflict(null);
 
         // Call parent callback to refresh data
         if (onBookingSuccess) {
@@ -263,7 +262,8 @@ const BuyNow = ({
   const handleBooking = () => submitBooking(false);
 
   return (
-    <Modal
+    <>
+      <Modal
       title={
         <div className="buynow-heading">
           <span className="buynow-heading-title">Book your class</span>
@@ -492,7 +492,26 @@ const BuyNow = ({
           </div>
         </aside>
       </div>
-    </Modal>
+      </Modal>
+      <Modal
+        title="Another class is booked on the same day"
+        open={Boolean(sameDayConflict)}
+        okText="Continue booking"
+        cancelText="Go back"
+        confirmLoading={isLoading}
+        onOk={() => submitBooking(true)}
+        onCancel={() => setSameDayConflict(null)}
+        centered
+      >
+        <Text>
+          This child already has
+          {sameDayConflict?.listingTitle
+            ? ` ${sameDayConflict.listingTitle}`
+            : " another class"}{" "}
+          from {sameDayConflict?.time}. Are you sure you want to continue?
+        </Text>
+      </Modal>
+    </>
   );
 };
 
