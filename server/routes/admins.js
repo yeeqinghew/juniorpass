@@ -375,7 +375,7 @@ router.patch(
       return res.status(400).json({ error: "A suspension reason is required" });
     }
 
-    const expiry = expiresAt ? new Date(expiresAt) : null;
+    const expiry = suspended && expiresAt ? new Date(expiresAt) : null;
     if (expiry && (Number.isNaN(expiry.getTime()) || expiry <= new Date())) {
       return res.status(400).json({ error: "Expiry must be a future date" });
     }
@@ -423,14 +423,22 @@ router.patch(
 
       const updated = await db.query(
         `UPDATE ${accountConfig.table}
-         SET is_suspended = $2,
-             suspended_at = CASE WHEN $2 THEN NOW() ELSE NULL END,
-             suspension_expires_at = CASE WHEN $2 THEN $3::timestamptz ELSE NULL END,
-             suspension_reason = CASE WHEN $2 THEN $4 ELSE NULL END,
-             suspended_by = CASE WHEN $2 THEN $5::uuid ELSE NULL END
+         SET is_suspended = $2::boolean,
+             suspended_at = $3::timestamptz,
+             suspension_expires_at = $4::timestamptz,
+             suspension_reason = $5::text,
+             suspended_by = $6::uuid
          WHERE ${accountConfig.idColumn} = $1
-         RETURNING is_suspended, suspended_at, suspension_expires_at, suspension_reason`,
-        [accountId, suspended, expiry, suspended ? reason.trim() : null, req.user],
+         RETURNING is_suspended, suspended_at, suspension_expires_at,
+                   suspension_reason, suspended_by`,
+        [
+          accountId,
+          suspended,
+          suspended ? new Date() : null,
+          expiry,
+          suspended ? reason.trim() : null,
+          suspended ? req.user : null,
+        ],
       );
       await db.query(
         `INSERT INTO account_suspension_audit
