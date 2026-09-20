@@ -119,7 +119,7 @@ const Pricing = () => {
           <div>
             <Text strong>Ready for your next adventure?</Text>
             <Text>
-              Credits never expire, so your family can enjoy them anytime.
+              Each top-up extends all credits by 90 days, capped at 365 days.
             </Text>
           </div>
           <Button
