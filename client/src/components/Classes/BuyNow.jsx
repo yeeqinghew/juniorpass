@@ -62,6 +62,7 @@ const formatConflictTime = (value) =>
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
+    timeZone: "Asia/Singapore",
   }).format(new Date(value));
 
 const BuyNow = ({
@@ -77,12 +78,14 @@ const BuyNow = ({
   const [selectedPackageType, setSelectedPackageType] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [sameDayConflict, setSameDayConflict] = useState(null);
+  const [overlapConflict, setOverlapConflict] = useState(null);
 
   const handleCancel = () => {
     setIsBuyNowModalOpen(false);
     setSelectedChildId(null);
     setSelectedPackageType(null);
     setSameDayConflict(null);
+    setOverlapConflict(null);
   };
 
   // Get pricing and details for selected package type
@@ -235,6 +238,17 @@ const BuyNow = ({
           listingTitle: conflict?.listing_title,
           time: conflictTime,
         });
+      } else if (
+        response.status === 409 &&
+        data.code === "BOOKING_TIME_CONFLICT"
+      ) {
+        const conflict = data.conflict;
+        setOverlapConflict({
+          listingTitle: conflict?.listing_title,
+          time: conflict
+            ? `${formatConflictTime(conflict.start_at)}–${formatConflictTime(conflict.end_at)}`
+            : "the selected time",
+        });
       } else if (response.ok) {
         toast.success(
           "Booking confirmed! Class has been added to your schedule.",
@@ -243,6 +257,7 @@ const BuyNow = ({
         setSelectedChildId(null);
         setSelectedPackageType(null);
         setSameDayConflict(null);
+        setOverlapConflict(null);
 
         // Call parent callback to refresh data
         if (onBookingSuccess) {
@@ -509,6 +524,29 @@ const BuyNow = ({
             ? ` ${sameDayConflict.listingTitle}`
             : " another class"}{" "}
           from {sameDayConflict?.time}. Are you sure you want to continue?
+        </Text>
+      </Modal>
+      <Modal
+        title="This time overlaps another class"
+        open={Boolean(overlapConflict)}
+        footer={
+          <Button
+            type="primary"
+            onClick={() => setOverlapConflict(null)}
+          >
+            Choose another time
+          </Button>
+        }
+        onCancel={() => setOverlapConflict(null)}
+        centered
+      >
+        <Text>
+          This child already has
+          {overlapConflict?.listingTitle
+            ? ` ${overlapConflict.listingTitle}`
+            : " another class"}{" "}
+          from {overlapConflict?.time}. Please choose a class that does not
+          overlap.
         </Text>
       </Modal>
     </>
