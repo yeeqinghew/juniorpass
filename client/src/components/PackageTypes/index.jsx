@@ -193,8 +193,8 @@ function PackageTypes() {
               <Card className="faq-card">
                 <Title level={4}>Do credits expire?</Title>
                 <Paragraph>
-                  No! Your credits never expire and can be used for any package
-                  type. Top up anytime and use them at your own pace.
+                  Credits share one rolling expiry. Each top-up extends all
+                  credits by 90 days, capped at 365 days from that top-up.
                 </Paragraph>
               </Card>
             </Col>
