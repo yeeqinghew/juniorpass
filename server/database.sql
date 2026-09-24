@@ -268,6 +268,9 @@ CREATE TABLE schedule_groups (
   -- Package configuration (moved from schedules)
   package_types package_types[] NOT NULL DEFAULT ARRAY['pay-as-you-go']::package_types[],
   is_progressive BOOLEAN DEFAULT false,
+  capacity INTEGER CHECK (capacity BETWEEN 1 AND 100),
+  CONSTRAINT progressive_capacity_required
+    CHECK (NOT is_progressive OR capacity IS NOT NULL),
 
   -- Full-term package config
   full_term_start_date TIMESTAMP,

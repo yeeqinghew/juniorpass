@@ -112,6 +112,10 @@ router.post("", authorization, async (req, res) => {
           (schedule) =>
             !Array.isArray(schedule.time_slots) ||
             schedule.time_slots.length === 0 ||
+            (schedule.is_progressive &&
+              (!Number.isInteger(schedule.capacity) ||
+                schedule.capacity < 1 ||
+                schedule.capacity > 100)) ||
             schedule.time_slots.some(
               (slot) =>
                 !slot?.day ||
@@ -119,9 +123,10 @@ router.post("", authorization, async (req, res) => {
                 slot.timeslot.length !== 2 ||
                 !slot.timeslot[0] ||
                 !slot.timeslot[1] ||
-                !Number.isInteger(slot.slots) ||
-                slot.slots < 1 ||
-                slot.slots > 100,
+                (!schedule.is_progressive &&
+                  (!Number.isInteger(slot.slots) ||
+                    slot.slots < 1 ||
+                    slot.slots > 100)),
             ),
         ),
     );
@@ -234,6 +239,7 @@ router.post("", authorization, async (req, res) => {
           frequency,
           package_types,
           is_progressive,
+          capacity,
           full_term_start_date,
           full_term_class_count,
           short_term_class_count,
@@ -249,6 +255,7 @@ router.post("", authorization, async (req, res) => {
             listing_outlet_id,
             package_types,
             is_progressive,
+            capacity,
             full_term_start_date,
             full_term_class_count,
             short_term_class_count,
@@ -257,11 +264,12 @@ router.post("", authorization, async (req, res) => {
             price_shortterm,
             frequency,
             pricing_dollars_per_credit
-          ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING schedule_group_id`,
+          ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING schedule_group_id`,
           [
             listing_outlet_id,
             package_types || ["pay-as-you-go"],
             is_progressive || false,
+            is_progressive ? capacity : null,
             full_term_start_date || null,
             full_term_class_count || null,
             short_term_class_count || null,
@@ -298,7 +306,7 @@ router.post("", authorization, async (req, res) => {
               day,
               start_time,
               end_time,
-              slotCapacity || 10,
+              is_progressive ? capacity : slotCapacity,
             ],
           );
         }
@@ -385,6 +393,7 @@ router.get("", cacheMiddleware, async (req, res) => {
                     'schedule_group_id', sg.schedule_group_id,
                     'package_types', sg.package_types,
                     'is_progressive', COALESCE(sg.is_progressive, false),
+                    'capacity', sg.capacity,
                     'full_term_start_date', sg.full_term_start_date,
                     'full_term_class_count', sg.full_term_class_count,
                     'short_term_class_count', sg.short_term_class_count,
@@ -517,6 +526,7 @@ router.get("/:id([0-9a-fA-F-]{36})", cacheMiddleware, async (req, res) => {
                     'schedule_group_id', sg.schedule_group_id,
                     'package_types', sg.package_types,
                     'is_progressive', COALESCE(sg.is_progressive, false),
+                    'capacity', sg.capacity,
                     'full_term_start_date', sg.full_term_start_date,
                     'full_term_class_count', sg.full_term_class_count,
                     'short_term_class_count', sg.short_term_class_count,
@@ -617,6 +627,7 @@ router.get("/partner/:partnerId", async (req, res) => {
                     'schedule_group_id', sg.schedule_group_id,
                     'package_types', sg.package_types,
                     'is_progressive', COALESCE(sg.is_progressive, false),
+                    'capacity', sg.capacity,
                     'full_term_start_date', sg.full_term_start_date,
                     'full_term_class_count', sg.full_term_class_count,
                     'short_term_class_count', sg.short_term_class_count,
@@ -1003,6 +1014,7 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
             frequency,
             package_types,
             is_progressive,
+            capacity,
             full_term_start_date,
             full_term_class_count,
             short_term_class_count,
@@ -1045,7 +1057,9 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
           if (
             !frequency ||
             !Array.isArray(time_slots) ||
-            time_slots.length === 0
+            time_slots.length === 0 ||
+            (is_progressive &&
+              (!Number.isInteger(capacity) || capacity < 1 || capacity > 100))
           ) {
             await tx.query("ROLLBACK");
             return res.status(400).json({ error: "Invalid schedule payload" });
@@ -1057,6 +1071,7 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
               listing_outlet_id,
               package_types,
               is_progressive,
+              capacity,
               full_term_start_date,
               full_term_class_count,
               short_term_class_count,
@@ -1065,11 +1080,12 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
               price_shortterm,
               frequency,
               pricing_dollars_per_credit
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING schedule_group_id`,
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING schedule_group_id`,
             [
               listing_outlet_id,
               package_types || ["pay-as-you-go"],
               is_progressive || false,
+              is_progressive ? capacity : null,
               full_term_start_date || null,
               full_term_class_count || null,
               short_term_class_count || null,
@@ -1086,7 +1102,15 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
           // Insert time slots for this schedule group
           for (const slot of time_slots) {
             const { day, timeslot, slots: slotCapacity } = slot;
-            if (!day || !Array.isArray(timeslot) || timeslot.length < 2) {
+            if (
+              !day ||
+              !Array.isArray(timeslot) ||
+              timeslot.length < 2 ||
+              (!is_progressive &&
+                (!Number.isInteger(slotCapacity) ||
+                  slotCapacity < 1 ||
+                  slotCapacity > 100))
+            ) {
               await tx.query("ROLLBACK");
               return res
                 .status(400)
@@ -1111,7 +1135,7 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
                 day,
                 start_time,
                 end_time,
-                slotCapacity,
+                is_progressive ? capacity : slotCapacity,
               ],
             );
           }
@@ -1290,6 +1314,7 @@ router.get("/search", async (req, res) => {
                     'schedule_group_id', sg.schedule_group_id,
                     'package_types', sg.package_types,
                     'is_progressive', COALESCE(sg.is_progressive, false),
+                    'capacity', sg.capacity,
                     'full_term_start_date', sg.full_term_start_date,
                     'full_term_class_count', sg.full_term_class_count,
                     'short_term_class_count', sg.short_term_class_count,

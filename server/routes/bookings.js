@@ -90,9 +90,11 @@ router.post("/", userAuthorization, async (req, res) => {
       }
     }
 
-    // Capacity belongs to the selected time slot; package info belongs to its group.
+    // Progressive programmes share one enrolment capacity across every required
+    // time slot. Non-progressive classes keep per-time-slot capacity.
     const schedule = await pool.query(
-      `SELECT s.slots, 
+      `SELECT s.slots,
+              sg.capacity,
               sg.price_payg,
               sg.price_fullterm, 
               sg.price_shortterm,
@@ -115,8 +117,15 @@ router.post("/", userAuthorization, async (req, res) => {
     }
 
     const scheduleGroup = schedule.rows[0];
-    const maxSlots = scheduleGroup.slots || 10;
+    const isProgressive = scheduleGroup.is_progressive === true;
+    const maxSlots = Number(
+      isProgressive ? scheduleGroup.capacity : scheduleGroup.slots,
+    );
     const schedule_group_id = scheduleGroup.schedule_group_id;
+
+    if (!Number.isInteger(maxSlots) || maxSlots < 1) {
+      return res.status(400).json({ error: "Class capacity is unavailable" });
+    }
 
     // Determine package type
     const enrolledPackageType = package_type || "pay-as-you-go";
@@ -174,11 +183,17 @@ router.post("/", userAuthorization, async (req, res) => {
     });
 
     const existingBookings = await pool.query(
-      `SELECT COUNT(*) as count 
-       FROM bookings 
-       WHERE schedule_id = $1 
-       AND DATE(start_date) = DATE($2::timestamp)`,
-      [schedule_id, start_date],
+      isProgressive
+        ? `SELECT COUNT(*) AS count
+           FROM bookings
+           WHERE schedule_group_id = $1`
+        : `SELECT COUNT(*) AS count
+           FROM bookings
+           WHERE schedule_id = $1
+             AND DATE(start_date) = DATE($2::timestamp)`,
+      isProgressive
+        ? [schedule_group_id]
+        : [schedule_id, start_date],
     );
 
     const bookedCount = parseInt(existingBookings.rows[0].count);
@@ -226,18 +241,31 @@ router.post("/", userAuthorization, async (req, res) => {
         });
       }
 
-      // Serialize bookings for this time slot so simultaneous requests cannot
-      // both claim the final place.
-      await client.query(
-        "SELECT schedule_id FROM schedules WHERE schedule_id = $1 FOR UPDATE",
-        [schedule_id],
-      );
+      // Lock the capacity owner so simultaneous requests cannot both claim the
+      // final place.
+      if (isProgressive) {
+        await client.query(
+          "SELECT schedule_group_id FROM schedule_groups WHERE schedule_group_id = $1 FOR UPDATE",
+          [schedule_group_id],
+        );
+      } else {
+        await client.query(
+          "SELECT schedule_id FROM schedules WHERE schedule_id = $1 FOR UPDATE",
+          [schedule_id],
+        );
+      }
       const currentCapacity = await client.query(
-        `SELECT COUNT(*)::integer AS count
-         FROM bookings
-         WHERE schedule_id = $1
-           AND DATE(start_date) = DATE($2::timestamp)`,
-        [schedule_id, start_date],
+        isProgressive
+          ? `SELECT COUNT(*)::integer AS count
+             FROM bookings
+             WHERE schedule_group_id = $1`
+          : `SELECT COUNT(*)::integer AS count
+             FROM bookings
+             WHERE schedule_id = $1
+               AND DATE(start_date) = DATE($2::timestamp)`,
+        isProgressive
+          ? [schedule_group_id]
+          : [schedule_id, start_date],
       );
       const currentBookedCount = currentCapacity.rows[0].count;
       if (currentBookedCount >= maxSlots) {
