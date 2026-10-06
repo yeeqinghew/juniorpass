@@ -39,7 +39,7 @@ function HomePage() {
   // Keep track of the hovered card index (-1 means none are hovered)
   const [hoveredIndex, setHoveredIndex] = useState(-1);
   const [drawerVisible, setDrawerVisible] = useState(false);
-  const { isDesktop, isTabletLandscape, isMobile } = useWindowDimensions();
+  const { isMobile } = useWindowDimensions();
   const [scrolled, setScrolled] = useState(false);
 
   const handleMouseEnter = (index) => {
@@ -368,6 +368,7 @@ function HomePage() {
                         src={image}
                         alt={`Partner logo ${index + 1}`}
                         preview={false}
+                        className="partner-logo"
                       />
                     </Card>
                   </SplideSlide>

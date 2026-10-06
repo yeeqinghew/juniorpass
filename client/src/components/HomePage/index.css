@@ -451,6 +451,23 @@ html {
     overflow: hidden;
 }
 
+.partner-splide-card .ant-card-body {
+    width: 100%;
+    height: 100%;
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.partner-splide-card .ant-image {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 /* Hover gradient effect */
 .partner-splide-card::before {
     content: '';
@@ -474,10 +491,13 @@ html {
     opacity: 1;
 }
 
-.partner-splide-card img {
-    max-width: 85%;
-    max-height: 75%;
+.partner-splide-card .ant-image-img.partner-logo {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
     object-fit: contain;
+    object-position: center;
     filter: var(--filter-grayscale-light);
     transition: all var(--transition-medium);
     position: relative;
@@ -1275,7 +1295,6 @@ html {
 
     .partner-splide-card {
         display: flex !important;
-        height: auto !important;
         width: 100% !important;
     }
 
@@ -1441,7 +1460,6 @@ html {
 
     .partner-splide-card {
         display: flex !important;
-        height: auto !important;
     }
 
     /* Join Us Section */
