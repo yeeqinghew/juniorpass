@@ -11,10 +11,7 @@ const adminOnly = require("../middleware/adminOnly");
 const sendEmail = require("../utils/emailSender");
 const crypto = require("crypto");
 const { getDollarsPerCredit } = require("../utils/platformSettings");
-const {
-  issueAuthSession,
-  revokeAuthSession,
-} = require("../utils/authSession");
+const { issueAuthSession, revokeAuthSession } = require("../utils/authSession");
 const { adminLoginLimiter } = require("../middleware/authRateLimiters");
 const redisClient = require("../utils/redisClient");
 
@@ -95,7 +92,12 @@ router.put(
              (setting_key, old_value, new_value, changed_by, effective_from)
            VALUES ('partner_dollars_per_credit', $1, $2, $3, $4)
            RETURNING new_value, effective_from, changed_at`,
-          [oldResult.rows[0]?.new_value || null, dollarsPerCredit, req.user, effectiveFrom],
+          [
+            oldResult.rows[0]?.new_value || null,
+            dollarsPerCredit,
+            req.user,
+            effectiveFrom,
+          ],
         );
         await db.query("COMMIT");
         res.json({
@@ -163,15 +165,11 @@ router.post("/logout", authorization, adminOnly, async (req, res) => {
   }
 });
 
-router.get(
-  "/getAllParents",
-  authorization,
-  adminOnly,
-  async (req, res) => {
-    // TODO: use middleware to check if user is superadmin
-    try {
-      const allParents = await pool.query(
-        `SELECT user_id, name, email, phone_number, user_type, method,
+router.get("/getAllParents", authorization, adminOnly, async (req, res) => {
+  // TODO: use middleware to check if user is superadmin
+  try {
+    const allParents = await pool.query(
+      `SELECT user_id, name, email, phone_number, user_type, method,
                 CASE
                   WHEN credit_expires_at IS NOT NULL AND credit_expires_at <= NOW()
                     THEN 0
@@ -182,14 +180,13 @@ router.get(
                 created_at, updated_at
          FROM users
          WHERE user_type = 'parent'`,
-      );
-      return res.status(200).json(allParents.rows);
-    } catch (error) {
-      console.error("ERROR in /admins/getAllParents", error.message);
-      res.status(500).json({ error: error.message });
-    }
-  },
-);
+    );
+    return res.status(200).json(allParents.rows);
+  } catch (error) {
+    console.error("ERROR in /admins/getAllParents", error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 router.get("/getAllChildren", authorization, adminOnly, async (req, res) => {
   // TODO: use middleware to check if user is superadmin
@@ -367,7 +364,12 @@ router.patch(
   adminOnly,
   async (req, res) => {
     const { accountType, accountId } = req.params;
-    const { suspended, reason, expires_at: expiresAt, acknowledge_upcoming_bookings: acknowledged } = req.body || {};
+    const {
+      suspended,
+      reason,
+      expires_at: expiresAt,
+      acknowledge_upcoming_bookings: acknowledged,
+    } = req.body || {};
     const accountConfig = {
       parent: { table: "users", idColumn: "user_id" },
       partner: { table: "partners", idColumn: "partner_id" },
@@ -449,7 +451,14 @@ router.patch(
         `INSERT INTO account_suspension_audit
            (account_type, account_id, action, reason, expires_at, changed_by)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [accountType, accountId, suspended ? "suspended" : "restored", suspended ? reason.trim() : null, expiry, req.user],
+        [
+          accountType,
+          accountId,
+          suspended ? "suspended" : "restored",
+          suspended ? reason.trim() : null,
+          expiry,
+          req.user,
+        ],
       );
       await db.query("COMMIT");
 
@@ -457,20 +466,31 @@ router.patch(
         try {
           let cursor = "0";
           do {
-            const [nextCursor, keys] = await redisClient.scan(cursor, "MATCH", "*listings*", "COUNT", 100);
+            const [nextCursor, keys] = await redisClient.scan(
+              cursor,
+              "MATCH",
+              "*listings*",
+              "COUNT",
+              100,
+            );
             cursor = nextCursor;
             if (keys.length) await redisClient.del(...keys);
           } while (cursor !== "0");
           await redisClient.del(`/partners/${accountId}`);
         } catch (cacheError) {
-          console.error("Suspension cache invalidation failed:", cacheError.message);
+          console.error(
+            "Suspension cache invalidation failed:",
+            cacheError.message,
+          );
         }
       }
 
       return res.json({
         ...updated.rows[0],
         upcoming_booking_count: upcomingBookingCount,
-        message: suspended ? "Account suspended" : "Account restored",
+        message: suspended
+          ? "Account Suspend. Contact Admin for more information"
+          : "Account restored",
       });
     } catch (error) {
       await db.query("ROLLBACK");
@@ -711,36 +731,34 @@ router.put(
 );
 
 // Create/Invite new partner
-router.post(
-  "/createPartner",
-  authorization,
-  adminOnly,
-  async (req, res) => {
-    const { email, partner_name } = req.body;
+router.post("/createPartner", authorization, adminOnly, async (req, res) => {
+  const { email, partner_name } = req.body;
 
-    try {
-      // Validate email
-      if (!email || !email.includes("@")) {
-        return res.status(400).json({ message: "Valid email is required" });
-      }
+  try {
+    // Validate email
+    if (!email || !email.includes("@")) {
+      return res.status(400).json({ message: "Valid email is required" });
+    }
 
-      // Check if email already exists
-      const existingPartner = await pool.query(
-        "SELECT partner_id FROM partners WHERE email = $1",
-        [email]
-      );
+    // Check if email already exists
+    const existingPartner = await pool.query(
+      "SELECT partner_id FROM partners WHERE email = $1",
+      [email],
+    );
 
-      if (existingPartner.rows.length > 0) {
-        return res.status(400).json({ message: "A partner with this email already exists" });
-      }
+    if (existingPartner.rows.length > 0) {
+      return res
+        .status(400)
+        .json({ message: "A partner with this email already exists" });
+    }
 
-      // Generate secure random password (12 characters)
-      const tempPassword = crypto.randomBytes(6).toString("base64").slice(0, 12);
-      const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    // Generate secure random password (12 characters)
+    const tempPassword = crypto.randomBytes(6).toString("base64").slice(0, 12);
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
-      // Create minimal partner record with temporary data
-      const newPartner = await pool.query(
-        `INSERT INTO partners (
+    // Create minimal partner record with temporary data
+    const newPartner = await pool.query(
+      `INSERT INTO partners (
           partner_name,
           email,
           password,
@@ -750,21 +768,21 @@ router.post(
           requires_password_change
         ) VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING partner_id, email, partner_name`,
-        [
-          partner_name || "New Partner", // Temporary name
-          email,
-          hashedPassword,
-          [], // Default category
-          "Profile setup in progress", // Temporary description
-          false, // Profile not complete
-          true // Requires password change
-        ]
-      );
+      [
+        partner_name || "New Partner", // Temporary name
+        email,
+        hashedPassword,
+        [], // Default category
+        "Profile setup in progress", // Temporary description
+        false, // Profile not complete
+        true, // Requires password change
+      ],
+    );
 
-      const partner = newPartner.rows[0];
+    const partner = newPartner.rows[0];
 
-      // Send invitation email
-      const emailHTML = `
+    // Send invitation email
+    const emailHTML = `
         <!DOCTYPE html>
         <html>
         <head>
@@ -792,7 +810,7 @@ router.post(
             </div>
 
             <div class="content">
-              <p>Hello${partner_name ? ` <strong>${partner_name}</strong>` : ''},</p>
+              <p>Hello${partner_name ? ` <strong>${partner_name}</strong>` : ""},</p>
 
               <p>You've been invited to join JuniorPASS as a partner organization! We're excited to have you on board.</p>
 
@@ -847,27 +865,27 @@ router.post(
         </html>
       `;
 
-      await sendEmail(
-        email,
-        "Welcome to JuniorPASS - Your Partner Portal Access",
-        emailHTML
-      );
+    await sendEmail(
+      email,
+      "Welcome to JuniorPASS - Your Partner Portal Access",
+      emailHTML,
+    );
 
-      return res.status(201).json({
-        success: true,
-        message: "Partner invitation sent successfully",
-        partner: {
-          partner_id: partner.partner_id,
-          email: partner.email,
-          partner_name: partner.partner_name
-        }
-      });
-
-    } catch (error) {
-      console.error("ERROR in /admins/createPartner:", error);
-      res.status(500).json({ message: error.message || "Failed to create partner" });
-    }
+    return res.status(201).json({
+      success: true,
+      message: "Partner invitation sent successfully",
+      partner: {
+        partner_id: partner.partner_id,
+        email: partner.email,
+        partner_name: partner.partner_name,
+      },
+    });
+  } catch (error) {
+    console.error("ERROR in /admins/createPartner:", error);
+    res
+      .status(500)
+      .json({ message: error.message || "Failed to create partner" });
   }
-);
+});
 
 module.exports = router;

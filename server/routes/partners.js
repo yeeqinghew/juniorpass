@@ -78,7 +78,7 @@ router.post("/login", partnerLoginLimiter, async (req, res) => {
         new Date(partner.rows[0].suspension_expires_at) > new Date())
     ) {
       return res.status(403).json({
-        message: "Account suspended",
+        message: "Account Suspend. Contact Admin for more information",
         code: "ACCOUNT_SUSPENDED",
         suspension_expires_at: partner.rows[0].suspension_expires_at,
       });
@@ -237,14 +237,7 @@ router.patch("/:id", authorization, async (req, res) => {
                    rating, credit, picture, contact_number,
                    is_profile_complete,
                    requires_password_change, created_at, updated_at`,
-        [
-          partner_name,
-          description,
-          picture,
-          contact_number,
-          website,
-          id,
-        ],
+        [partner_name, description, picture, contact_number, website, id],
       );
 
       if (parsedCategoryIds) {

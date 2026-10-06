@@ -99,9 +99,13 @@ function createAuthorization(allowedRoles = ALL_AUTH_ROLES) {
           .json({ error: "Forbidden for this account type" });
       }
 
-      if (payloadRole === AUTH_ROLES.USER || payloadRole === AUTH_ROLES.PARTNER) {
+      if (
+        payloadRole === AUTH_ROLES.USER ||
+        payloadRole === AUTH_ROLES.PARTNER
+      ) {
         const table = payloadRole === AUTH_ROLES.USER ? "users" : "partners";
-        const idColumn = payloadRole === AUTH_ROLES.USER ? "user_id" : "partner_id";
+        const idColumn =
+          payloadRole === AUTH_ROLES.USER ? "user_id" : "partner_id";
         const account = await pool.query(
           `SELECT is_suspended, suspension_expires_at FROM ${table} WHERE ${idColumn} = $1`,
           [payload.user],
@@ -116,7 +120,7 @@ function createAuthorization(allowedRoles = ALL_AUTH_ROLES) {
             new Date(suspension.suspension_expires_at) > new Date())
         ) {
           return res.status(403).json({
-            error: "Account suspended",
+            error: "Account Suspend. Contact Admin for more information",
             code: "ACCOUNT_SUSPENDED",
             suspension_expires_at: suspension.suspension_expires_at,
           });

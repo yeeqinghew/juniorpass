@@ -178,7 +178,7 @@ router.post("/login", userLoginLimiter, validInfo, async (req, res) => {
         new Date(user.rows[0].suspension_expires_at) > new Date())
     ) {
       return res.status(403).json({
-        message: "Account suspended",
+        message: "Account Suspend. Contact Admin for more information",
         code: "ACCOUNT_SUSPENDED",
         suspension_expires_at: user.rows[0].suspension_expires_at,
       });
@@ -242,7 +242,7 @@ router.post("/login/google", googleLoginLimiter, async (req, res) => {
         new Date(existingUser.rows[0].suspension_expires_at) > new Date())
     ) {
       return res.status(403).json({
-        message: "Account suspended",
+        message: "Account Suspend. Contact Admin for more information",
         code: "ACCOUNT_SUSPENDED",
         suspension_expires_at: existingUser.rows[0].suspension_expires_at,
       });
