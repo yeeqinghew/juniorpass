@@ -29,7 +29,7 @@ import InfoCard from "../../utils/InfoCard";
 import "./index.css";
 import useWindowDimensions from "../../hooks/useWindowDimensions";
 import logo from "../../images/logopngResize.png";
-import video from "../../videos/homepage-webp.webp";
+import homepageVideo from "../../videos/homepage.mp4";
 
 const { Header, Content } = Layout;
 const { Text, Title } = Typography;
@@ -263,23 +263,18 @@ function HomePage() {
             <Outlet />
             <div className="headline-div">
               {/* Background Video */}
-              {/* <video
+              <video
                 autoPlay
                 muted
                 loop
+                playsInline
+                preload="auto"
                 className="video-src"
-                playsinline
-                webkit-playsinline
+                aria-label="Kids learning and playing"
               >
                 <source src={homepageVideo} type="video/mp4" />
                 Your browser does not support the video tag.
-              </video> */}
-              <Image
-                className="video-src"
-                src={video}
-                alt="Kids learning and playing"
-                preview={false}
-              />
+              </video>
               {/* Overlay Content */}
               <div className="overlay-homepage">
                 <div className="headline-content-wrapper">
