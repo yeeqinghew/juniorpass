@@ -17,6 +17,8 @@ import toast from "react-hot-toast";
 import { GoogleLogin } from "@react-oauth/google";
 import { fetchWithAuth, API_ENDPOINTS } from "../utils/api";
 import { strongPasswordRule } from "../utils/passwordValidation";
+import useHandleLogin from "../hooks/useHandleLogin";
+import usePageScrollLock from "../hooks/usePageScrollLock";
 import "../Login.css";
 
 const { Title, Text } = Typography;
@@ -28,12 +30,18 @@ const Register = () => {
 
   // UI State
   const [isSendingOTP, setIsSendingOTP] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [isEmailValid, setIsEmailValid] = useState(false);
   const [isEmailDuplicate, setIsEmailDuplicate] = useState(false);
 
   // Referral State
   const [referralCode, setReferralCode] = useState(null);
   const [referrerName, setReferrerName] = useState(null);
+  const { handleGoogleLogin } = useHandleLogin({
+    from: "/profile",
+    setLoading: setGoogleLoading,
+  });
+  usePageScrollLock(googleLoading);
 
   // Check for referral code in URL on mount
   useEffect(() => {
@@ -163,8 +171,8 @@ const Register = () => {
           {/* Google Login */}
           <div className="google-login-wrapper">
             <GoogleLogin
-              onSuccess={() => {}}
-              onError={() => {}}
+              onSuccess={handleGoogleLogin}
+              onError={() => toast.error("Google sign-up could not be completed.")}
               theme="outline"
               size="large"
               width="100%"
