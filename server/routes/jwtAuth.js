@@ -162,11 +162,13 @@ router.post("/register", registerLimiter, validInfo, async (req, res) => {
 
 router.post("/login", userLoginLimiter, validInfo, async (req, res) => {
   const { email, password } = req.body;
+  const normalizedEmail = email.trim().toLowerCase();
 
   try {
-    const user = await pool.query("SELECT * FROM users WHERE email = $1", [
-      email,
-    ]);
+    const user = await pool.query(
+      "SELECT * FROM users WHERE LOWER(email) = $1",
+      [normalizedEmail],
+    );
 
     if (user.rows.length === 0) {
       return res.status(401).json("Invalid Credential");

@@ -34,11 +34,12 @@ const Login = () => {
 
   const handleLogin = async (values) => {
     try {
+      const email = values.email.trim().toLowerCase();
       const { password } = values;
       const encryptedPassword = CryptoJS.SHA256(password).toString(
         CryptoJS.enc.Hex
       );
-      const loginData = { ...values, password: encryptedPassword };
+      const loginData = { email, password: encryptedPassword };
 
       const response = await fetchWithAuth(API_ENDPOINTS.LOGIN, {
         method: "POST",
@@ -117,6 +118,7 @@ const Login = () => {
           <Form
             name="normal_login"
             className="login-form"
+            autoComplete="on"
             initialValues={{
               remember: true,
             }}
@@ -140,6 +142,7 @@ const Login = () => {
               <Input
                 prefix={<MailOutlined className="input-icon" />}
                 type="email"
+                autoComplete="email"
                 size="large"
                 className="login-input"
               />
@@ -158,6 +161,7 @@ const Login = () => {
               <Input.Password
                 prefix={<LockOutlined className="input-icon" />}
                 type="password"
+                autoComplete="current-password"
                 size="large"
                 className="login-input"
                 iconRender={(visible) =>

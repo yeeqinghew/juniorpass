@@ -45,7 +45,9 @@ const useHandleLogin = ({ from, fromState, setLoading }) => {
         }, 4000); // Wait for the toast to finish before navigating
       } else {
         setAuth(false);
-        toast.error(parseRes.message || "Invalid credentials");
+        const message =
+          typeof parseRes === "string" ? parseRes : parseRes.message;
+        toast.error(message || "Invalid credentials");
       }
     } catch (error) {
       console.error("Error parsing response:", error.message);
