@@ -5,7 +5,7 @@ import {
   Form,
   Input,
   Modal,
-  Spin,
+  Skeleton,
   Tag,
   Typography,
 } from "antd";
@@ -30,7 +30,7 @@ const { Text, Title } = Typography;
 const Referrals = () => {
   const { user } = useUserContext();
   const [referralData, setReferralData] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [form] = Form.useForm();
@@ -41,9 +41,6 @@ const Referrals = () => {
     let cancelled = false;
 
     const fetchReferralData = async () => {
-      await Promise.resolve();
-      if (cancelled) return;
-
       setLoading(true);
       try {
         const res = await fetchWithAuth(API_ENDPOINTS.MY_REFERRAL);
@@ -178,8 +175,15 @@ const Referrals = () => {
         </span>
       </div>
 
-      <Spin spinning={loading}>
-        {referralData && (
+      {loading ? (
+        <Skeleton
+          active
+          avatar
+          className="rf-loading-skeleton"
+          paragraph={{ rows: 18 }}
+        />
+      ) : (
+        referralData && (
           <>
             <section className="rf-hero">
               <div className="rf-hero-copy">
@@ -384,8 +388,8 @@ const Referrals = () => {
               </aside>
             </div>
           </>
-        )}
-      </Spin>
+        )
+      )}
 
       <Modal
         title={null}

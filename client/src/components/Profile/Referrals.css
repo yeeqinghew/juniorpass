@@ -57,6 +57,10 @@
   font-weight: var(--font-weight-semibold);
 }
 
+.rf-loading-skeleton {
+  min-height: 640px;
+}
+
 .rf-hero {
   position: relative;
   display: grid;
@@ -738,6 +742,10 @@
 }
 
 @media (max-width: 1023px) {
+  .rf-loading-skeleton {
+    min-height: 770px;
+  }
+
   .rf-hero {
     grid-template-columns: 1fr;
   }
@@ -752,6 +760,10 @@
 }
 
 @media (max-width: 767px) {
+  .rf-loading-skeleton {
+    min-height: 760px;
+  }
+
   .rf-page-header {
     flex-direction: column;
     margin-bottom: var(--spacing-md);
