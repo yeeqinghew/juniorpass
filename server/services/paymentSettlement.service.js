@@ -70,6 +70,28 @@ async function insertReferralNotifications(client, referral) {
   );
 }
 
+async function insertPaymentCompletedNotification(client, payment) {
+  await client.query(
+    `INSERT INTO notifications
+       (recipient_type, recipient_id, type, title, message, data)
+     VALUES
+       ($1, $2, 'payment_completed', 'Credits added',
+        $3::integer || ' credits were added to your wallet.',
+        jsonb_build_object(
+          'credits', $3::integer,
+          'payment_request_id', $4,
+          'reference_number', $5
+        ))`,
+    [
+      AUTH_ROLES.USER,
+      payment.user_id,
+      payment.credits,
+      payment.request_id,
+      payment.reference_number,
+    ],
+  );
+}
+
 async function awardLockedReferral(client, referral, paymentRequestId) {
   if (referral.referrer_id === referral.referee_id) {
     await client.query(
@@ -281,6 +303,10 @@ async function settleCompletedPayment({
        VALUES ($1, NULL, NULL, $2, 'CREDIT', $3)`,
       [payment.user_id, payment.credits, payment.request_id],
     );
+
+    // This notification is part of the same locked transaction as the wallet
+    // update, so settlement retries cannot create duplicate success messages.
+    await insertPaymentCompletedNotification(client, payment);
 
     const referralRewarded = referral
       ? await awardLockedReferral(client, referral, payment.request_id)

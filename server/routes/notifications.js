@@ -8,6 +8,62 @@ const userOrPartnerAuthorization = authorization.forRoles(
   AUTH_ROLES.PARTNER,
 );
 
+const validateNotificationRole = (req, res, type) => {
+  if (!type || ![AUTH_ROLES.USER, AUTH_ROLES.PARTNER].includes(type)) {
+    res.status(400).json({
+      error: "Invalid or missing type. Use 'user' or 'partner'.",
+    });
+    return false;
+  }
+  if (type !== req.authRole) {
+    res.status(403).json({ error: "Notification role mismatch" });
+    return false;
+  }
+  return true;
+};
+
+const parsePositiveInteger = (value, fallback, maximum) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, maximum);
+};
+
+router.get("/unread-count", userOrPartnerAuthorization, async (req, res) => {
+  const type = req.query.type;
+  if (!validateNotificationRole(req, res, type)) return;
+
+  try {
+    const result = await pool.query(
+      `SELECT COUNT(*)::integer AS unread_count
+       FROM notifications
+       WHERE recipient_type = $1 AND recipient_id = $2 AND is_read = false`,
+      [type, req.user],
+    );
+    res.json({ unread_count: result.rows[0].unread_count });
+  } catch (error) {
+    console.error("ERROR in GET /notifications/unread-count", error.message);
+    res.status(500).json({ error: "Unable to load notification count" });
+  }
+});
+
+router.patch("/read-all", userOrPartnerAuthorization, async (req, res) => {
+  const type = req.body.type;
+  if (!validateNotificationRole(req, res, type)) return;
+
+  try {
+    const result = await pool.query(
+      `UPDATE notifications
+       SET is_read = true
+       WHERE recipient_type = $1 AND recipient_id = $2 AND is_read = false`,
+      [type, req.user],
+    );
+    res.json({ updated_count: result.rowCount });
+  } catch (error) {
+    console.error("ERROR in PATCH /notifications/read-all", error.message);
+    res.status(500).json({ error: "Unable to mark notifications as read" });
+  }
+});
+
 /**
  * Fetch notifications for the authenticated user or partner.
  * Query params:
@@ -18,18 +74,12 @@ const userOrPartnerAuthorization = authorization.forRoles(
 router.get("/", userOrPartnerAuthorization, async (req, res) => {
   const recipient_id = req.user;
   const { type } = req.query;
-  const page = Math.max(parseInt(req.query.page || "1", 10), 1);
-  const limit = Math.max(parseInt(req.query.limit || "10", 10), 1);
+  const page = parsePositiveInteger(req.query.page, 1, 100000);
+  const limit = parsePositiveInteger(req.query.limit, 10, 50);
+  const unreadOnly = req.query.unread === "true";
   const offset = (page - 1) * limit;
 
-  if (!type || ![AUTH_ROLES.USER, AUTH_ROLES.PARTNER].includes(type)) {
-    return res
-      .status(400)
-      .json({ error: "Invalid or missing type. Use 'user' or 'partner'." });
-  }
-  if (type !== req.authRole) {
-    return res.status(403).json({ error: "Notification role mismatch" });
-  }
+  if (!validateNotificationRole(req, res, type)) return;
 
   try {
     const list = await pool.query(
@@ -37,25 +87,32 @@ router.get("/", userOrPartnerAuthorization, async (req, res) => {
       SELECT notification_id, recipient_type, recipient_id, type, title, message, data, is_read, created_at
       FROM notifications
       WHERE recipient_type = $1 AND recipient_id = $2
+        AND ($3::boolean = false OR is_read = false)
       ORDER BY created_at DESC
-      LIMIT $3 OFFSET $4
+      LIMIT $4 OFFSET $5
       `,
-      [type, recipient_id, limit, offset],
+      [type, recipient_id, unreadOnly, limit, offset],
     );
 
     const count = await pool.query(
       `
-      SELECT COUNT(*) AS total
+      SELECT COUNT(*)::integer AS all_total,
+             COUNT(*) FILTER (WHERE is_read = false)::integer AS unread_total
       FROM notifications
       WHERE recipient_type = $1 AND recipient_id = $2
       `,
       [type, recipient_id],
     );
 
+    const allTotal = count.rows[0].all_total;
+    const unreadTotal = count.rows[0].unread_total;
+
     return res.status(200).json({
       page,
       limit,
-      total: parseInt(count.rows[0].total, 10),
+      total: unreadOnly ? unreadTotal : allTotal,
+      all_total: allTotal,
+      unread_total: unreadTotal,
       data: list.rows,
     });
   } catch (error) {
@@ -76,14 +133,7 @@ router.patch("/:id/read", userOrPartnerAuthorization, async (req, res) => {
   const { id } = req.params;
   const { type } = req.body;
 
-  if (!type || ![AUTH_ROLES.USER, AUTH_ROLES.PARTNER].includes(type)) {
-    return res
-      .status(400)
-      .json({ error: "Invalid or missing type. Use 'user' or 'partner'." });
-  }
-  if (type !== req.authRole) {
-    return res.status(403).json({ error: "Notification role mismatch" });
-  }
+  if (!validateNotificationRole(req, res, type)) return;
 
   try {
     const result = await pool.query(

@@ -1,14 +1,28 @@
 const { Resend } = require("resend");
-const resend = new Resend(process.env.RESEND_API_KEY);
 
-const sendEmail = async (to, subject, html) => {
+let resend;
+
+const getEmailClient = () => {
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY is required to send email");
+  }
+  if (!resend) resend = new Resend(process.env.RESEND_API_KEY);
+  return resend;
+};
+
+const sendEmail = async (to, subject, html, options = {}) => {
   try {
-    const { data, error } = await resend.emails.send({
-      from: "JuniorPass <admin@juniorpass.sg>",
-      to,
-      subject,
-      html,
-    });
+    const { data, error } = await getEmailClient().emails.send(
+      {
+        from: "JuniorPass <admin@juniorpass.sg>",
+        to,
+        subject,
+        html,
+      },
+      options.idempotencyKey
+        ? { idempotencyKey: options.idempotencyKey }
+        : undefined,
+    );
 
     if (error) {
       throw new Error(

@@ -92,6 +92,18 @@ test("settles payment and first-purchase referral in one locked transaction", as
     },
     { match: /INSERT INTO transactions .*payment_request_id/ },
     {
+      match: /INSERT INTO notifications .*'payment_completed'/,
+      check(params) {
+        assert.deepEqual(params, [
+          "user",
+          USER_ID,
+          20,
+          PAYMENT_ID,
+          "reference-1",
+        ]);
+      },
+    },
+    {
       match: /UPDATE referrals SET status = 'completed'/,
       result: result([{ id: 7 }]),
     },
@@ -246,6 +258,7 @@ test("any referral-side failure rolls the whole payment settlement back", async 
       result: result([{ credit: 120 }]),
     },
     { match: /INSERT INTO transactions .*payment_request_id/ },
+    { match: /INSERT INTO notifications .*'payment_completed'/ },
     {
       match: /UPDATE referrals SET status = 'completed'/,
       result: result([{ id: 7 }]),

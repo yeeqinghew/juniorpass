@@ -25,6 +25,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 import "./index.css";
 import ForgotPassword from "../components/ForgotPassword";
 import ResetPassword from "../components/ResetPassword";
+import Notifications from "../components/Notifications";
 
 const { Title, Text } = Typography;
 
@@ -187,6 +188,7 @@ const Routers = () => {
 
           <Route element={<AuthenticatedRoute />}>
             <Route path="/profile" element={<Profile />} />
+            <Route path="/notifications" element={<Notifications />} />
           </Route>
         </Route>
       </Routes>

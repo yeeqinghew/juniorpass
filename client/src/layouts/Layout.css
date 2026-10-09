@@ -84,6 +84,18 @@
     color: var(--primary-color);
 }
 
+.header-notification-icon {
+    font-size: var(--font-size-xl);
+}
+
+.drawer-menu-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    font-weight: var(--font-weight-semibold);
+}
+
 /* Hamburger menu */
 .hamburger-menu {
     display: none;

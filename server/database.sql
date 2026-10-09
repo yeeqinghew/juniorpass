@@ -828,3 +828,26 @@ CREATE TRIGGER set_timestamp_notifications
 -- Helpful indexes to fetch notifications by recipient
 CREATE INDEX idx_notifications_recipient ON notifications (recipient_type, recipient_id);
 CREATE INDEX idx_notifications_created_at ON notifications (created_at);
+
+-- CLASS REMINDERS: prevents duplicate in-app and email reminders across retries.
+CREATE TABLE class_reminders (
+    reminder_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    occurrence_id UUID NOT NULL REFERENCES class_occurrences(occurrence_id) ON DELETE CASCADE,
+    scheduled_for TIMESTAMP NOT NULL,
+    notification_id UUID REFERENCES notifications(notification_id) ON DELETE SET NULL,
+    email_sent_at TIMESTAMPTZ,
+    email_attempt_count SMALLINT NOT NULL DEFAULT 0 CHECK (email_attempt_count >= 0),
+    last_email_error TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (occurrence_id, scheduled_for)
+);
+
+CREATE INDEX class_reminders_pending_email_idx
+    ON class_reminders (scheduled_for, email_attempt_count)
+    WHERE email_sent_at IS NULL;
+
+CREATE TRIGGER set_timestamp_class_reminders
+    BEFORE UPDATE ON class_reminders
+    FOR EACH ROW
+    EXECUTE FUNCTION trigger_set_timestamp();

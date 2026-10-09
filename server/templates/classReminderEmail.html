@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="supported-color-schemes" content="light" />
+    <title>JuniorPASS class reminder</title>
+    <style>
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fcfbf8;
+      }
+
+      table {
+        border-collapse: collapse;
+      }
+
+      img {
+        display: block;
+        border: 0;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      @media only screen and (max-width: 620px) {
+        .email-shell {
+          width: 100% !important;
+        }
+
+        .email-gutter {
+          padding-right: 16px !important;
+          padding-left: 16px !important;
+        }
+
+        .email-card-content {
+          padding: 32px 24px !important;
+        }
+
+        .email-heading {
+          font-size: 27px !important;
+        }
+
+        .email-button {
+          display: block !important;
+          text-align: center !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      style="display: none; max-height: 0; overflow: hidden; opacity: 0; color: transparent"
+    >
+      {{childName}}’s {{classTitle}} class starts within the next 24 hours.
+    </div>
+
+    <table role="presentation" width="100%" style="width: 100%; background: #fcfbf8">
+      <tr>
+        <td class="email-gutter" align="center" style="padding: 40px 24px">
+          <table
+            role="presentation"
+            class="email-shell"
+            width="600"
+            style="width: 600px; max-width: 600px"
+          >
+            <tr>
+              <td align="center" style="padding: 0 0 24px">
+                <img
+                  src="{{logoUrl}}"
+                  width="112"
+                  alt="JuniorPASS"
+                  style="width: 112px; max-width: 112px; height: auto"
+                />
+              </td>
+            </tr>
+
+            <tr>
+              <td
+                style="overflow: hidden; background: #ffffff; border: 1px solid #f0f0f0; border-radius: 20px; box-shadow: 0 8px 24px rgba(26, 26, 46, 0.08)"
+              >
+                <table role="presentation" width="100%" style="width: 100%">
+                  <tr>
+                    <td width="50%" style="height: 7px; background: #98bdd2; font-size: 0">&nbsp;</td>
+                    <td width="50%" style="height: 7px; background: #f3a5c7; font-size: 0">&nbsp;</td>
+                  </tr>
+                  <tr>
+                    <td class="email-card-content" colspan="2" style="padding: 44px 48px 48px">
+                      <p
+                        style="margin: 0 0 12px; color: #6aa4c3; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase"
+                      >
+                        Class reminder
+                      </p>
+                      <h1
+                        class="email-heading"
+                        style="margin: 0 0 16px; color: #1a1a2e; font-family: 'Segoe UI', Arial, sans-serif; font-size: 32px; line-height: 1.2"
+                      >
+                        Your class is coming up
+                      </h1>
+                      <p
+                        style="margin: 0 0 28px; color: #555555; font-family: 'Segoe UI', Arial, sans-serif; font-size: 16px; line-height: 1.7"
+                      >
+                        Hi {{parentName}}, this is a friendly reminder that
+                        <strong style="color: #1a1a2e">{{childName}}</strong>
+                        has an upcoming JuniorPASS class.
+                      </p>
+
+                      <table
+                        role="presentation"
+                        width="100%"
+                        style="width: 100%; background: #f8fcff; border: 1px solid #dcecf4; border-radius: 16px"
+                      >
+                        <tr>
+                          <td style="padding: 24px 24px 8px">
+                            <p
+                              style="margin: 0 0 5px; color: #6aa4c3; font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase"
+                            >
+                              Class
+                            </p>
+                            <p
+                              style="margin: 0; color: #1a1a2e; font-family: 'Segoe UI', Arial, sans-serif; font-size: 18px; font-weight: 700; line-height: 1.45"
+                            >
+                              {{classTitle}}
+                            </p>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 16px 24px; border-top: 1px solid #e8f2f7">
+                            <p
+                              style="margin: 0 0 5px; color: #666666; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; font-weight: 600"
+                            >
+                              Date &amp; time
+                            </p>
+                            <p
+                              style="margin: 0; color: #333333; font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; font-weight: 600; line-height: 1.55"
+                            >
+                              {{classTime}}
+                            </p>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 16px 24px; border-top: 1px solid #e8f2f7">
+                            <p
+                              style="margin: 0 0 5px; color: #666666; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; font-weight: 600"
+                            >
+                              Location
+                            </p>
+                            <p
+                              style="margin: 0; color: #333333; font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; line-height: 1.55"
+                            >
+                              {{location}}
+                            </p>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 16px 24px 24px; border-top: 1px solid #e8f2f7">
+                            <p
+                              style="margin: 0 0 5px; color: #666666; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; font-weight: 600"
+                            >
+                              Activity partner
+                            </p>
+                            <p
+                              style="margin: 0; color: #333333; font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; line-height: 1.55"
+                            >
+                              {{partnerName}}
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <table role="presentation" style="margin-top: 28px">
+                        <tr>
+                          <td
+                            align="center"
+                            style="background: #98bdd2; border-radius: 10px; box-shadow: 0 4px 12px rgba(152, 189, 210, 0.35)"
+                          >
+                            <a
+                              class="email-button"
+                              href="{{manageBookingsUrl}}"
+                              style="display: inline-block; padding: 14px 24px; color: #1a1a2e; font-family: 'Segoe UI', Arial, sans-serif; font-size: 15px; font-weight: 700; text-decoration: none"
+                            >
+                              View your booking
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <p
+                        style="margin: 28px 0 0; color: #555555; font-family: 'Segoe UI', Arial, sans-serif; font-size: 14px; line-height: 1.65"
+                      >
+                        We look forward to seeing you there!<br />
+                        <strong style="color: #1a1a2e">The JuniorPASS team</strong>
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr>
+              <td align="center" style="padding: 24px 24px 0">
+                <p
+                  style="margin: 0 0 8px; color: #777777; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; line-height: 1.6"
+                >
+                  This reminder was sent for a class booked through JuniorPASS.
+                </p>
+                <p
+                  style="margin: 0; color: #999999; font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; line-height: 1.6"
+                >
+                  © {{currentYear}} Junior Pass · Singapore
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

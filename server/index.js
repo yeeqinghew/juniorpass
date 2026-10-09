@@ -103,8 +103,21 @@ const server = app.listen(port, () => {
   console.log(`Server has started on port ${port}`);
 });
 
+const {
+  shouldRunClassReminders,
+  startClassReminderScheduler,
+} = require("./services/classReminder.service");
+let stopClassReminderScheduler = () => {};
+
+if (shouldRunClassReminders(process.env)) {
+  stopClassReminderScheduler = startClassReminderScheduler({
+    env: process.env,
+  });
+}
+
 // Properly handle shutdown
 const shutdown = () => {
+  stopClassReminderScheduler();
   server.close(() => {
     console.log("HTTP server closed.");
     client.quit(() => {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Layout,
   Menu,
@@ -7,6 +7,7 @@ import {
   Drawer,
   Typography,
   Space,
+  Badge,
 } from "antd";
 import { Outlet, Link, useNavigate } from "react-router-dom";
 import { MenuOutlined, createFromIconfontCN } from "@ant-design/icons";
@@ -30,6 +31,37 @@ const OverallLayout = () => {
   const [drawerVisible, setDrawerVisible] = useState(false);
   const { user, isAuthenticated, setAuth, setLoading } = useUserContext();
   const navigate = useNavigate();
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  const loadUnreadNotifications = useCallback(async () => {
+    if (!isAuthenticated) {
+      setUnreadNotifications(0);
+      return;
+    }
+
+    try {
+      const response = await fetchWithAuth(
+        `${API_ENDPOINTS.GET_UNREAD_COUNT}?type=user`,
+      );
+      if (!response.ok) return;
+      const data = await response.json();
+      setUnreadNotifications(Number(data.unread_count || 0));
+    } catch (error) {
+      console.error("Unable to load unread notifications:", error);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    const requestId = window.setTimeout(loadUnreadNotifications, 0);
+    window.addEventListener("notifications:updated", loadUnreadNotifications);
+    return () => {
+      window.clearTimeout(requestId);
+      window.removeEventListener(
+        "notifications:updated",
+        loadUnreadNotifications,
+      );
+    };
+  }, [loadUnreadNotifications]);
 
   const showDrawer = () => {
     setDrawerVisible(true);
@@ -152,6 +184,18 @@ const OverallLayout = () => {
                       Credits: {user?.credit}
                     </Link>
                   </Menu.Item>
+                  <Menu.Item key="notifications">
+                    <Link to="/notifications" className="drawer-menu-link">
+                      Notifications
+                      {unreadNotifications > 0 && (
+                        <Badge
+                          count={unreadNotifications}
+                          overflowCount={99}
+                          size="small"
+                        />
+                      )}
+                    </Link>
+                  </Menu.Item>
                   <Menu.Item key="logout" onClick={handleLogout}>
                     <span style={{ fontWeight: "600" }}>Logout</span>
                   </Menu.Item>
@@ -194,11 +238,22 @@ const OverallLayout = () => {
                     <Text strong>{user?.credit}</Text>
                   </Space>
                 </Menu.Item>
-                <Menu.Item key="notification" className="icon-menu-item">
-                  <IconFont
-                    type="icon-notification"
-                    style={{ fontSize: "18px" }}
-                  />
+                <Menu.Item
+                  key="notification"
+                  className="icon-menu-item"
+                  onClick={() => navigate("/notifications")}
+                  aria-label="Notifications"
+                >
+                  <Badge
+                    count={unreadNotifications}
+                    overflowCount={99}
+                    size="small"
+                  >
+                    <IconFont
+                      type="icon-notification"
+                      className="header-notification-icon"
+                    />
+                  </Badge>
                 </Menu.Item>
                 <Menu.Item
                   key="logout"
