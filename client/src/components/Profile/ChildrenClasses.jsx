@@ -28,6 +28,7 @@ import {
   DeleteOutlined,
   TeamOutlined,
   SearchOutlined,
+  SwapOutlined,
 } from "@ant-design/icons";
 import dayjs from "../../utils/dayjs";
 import {
@@ -100,6 +101,10 @@ const ChildrenClasses = () => {
   const [children, setChildren] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [occurrences, setOccurrences] = useState([]);
+  const [makeupRequests, setMakeupRequests] = useState([]);
+  const [makeupOccurrence, setMakeupOccurrence] = useState(null);
+  const [isMakeupModalOpen, setIsMakeupModalOpen] = useState(false);
+  const [makeupLoading, setMakeupLoading] = useState(false);
   const [filterType, setFilterType] = useState("upcoming");
   const [isAddChildModalOpen, setIsAddChildModalOpen] = useState(false);
   const [editingChild, setEditingChild] = useState(null);
@@ -114,6 +119,7 @@ const ChildrenClasses = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("list");
   const [form] = Form.useForm();
+  const [makeupForm] = Form.useForm();
 
   const filteredBookings = useMemo(() => {
     if (!searchTerm.trim()) return bookings;
@@ -142,12 +148,13 @@ const ChildrenClasses = () => {
   const fetchChildrenAndBookings = useCallback(async () => {
     setLoading(true);
     try {
-      const [cr, br, or] = await Promise.all([
+      const [cr, br, or, mr] = await Promise.all([
         fetchWithAuth(API_ENDPOINTS.GET_CHILDREN(user.user_id), {
           method: "GET",
         }),
         fetchWithAuth(API_ENDPOINTS.GET_BOOKINGS, { method: "GET" }),
         fetchWithAuth(API_ENDPOINTS.GET_CLASS_OCCURRENCES, { method: "GET" }),
+        fetchWithAuth(API_ENDPOINTS.GET_USER_MAKEUP_REQUESTS, { method: "GET" }),
       ]);
       if (cr.ok && br.ok) {
         setChildren(await cr.json());
@@ -155,6 +162,9 @@ const ChildrenClasses = () => {
       }
       if (or.ok) {
         setOccurrences((await or.json()).occurrences || []);
+      }
+      if (mr.ok) {
+        setMakeupRequests((await mr.json()).requests || []);
       }
     } catch {
       toast.error("Failed to fetch data");
@@ -328,6 +338,63 @@ const ChildrenClasses = () => {
       toast.error("Failed to cancel booking");
     } finally {
       setCancelLoading(false);
+    }
+  };
+
+  const openMakeupRequest = (occurrence) => {
+    setMakeupOccurrence(occurrence);
+    makeupForm.resetFields();
+    setIsMakeupModalOpen(true);
+  };
+
+  const submitMakeupRequest = async (values) => {
+    if (!makeupOccurrence) return;
+    setMakeupLoading(true);
+    try {
+      const response = await fetchWithAuth(API_ENDPOINTS.CREATE_MAKEUP_REQUEST, {
+        method: "POST",
+        body: JSON.stringify({
+          occurrence_id: makeupOccurrence.occurrence_id,
+          reason: values.reason,
+          preferred_dates: values.preferred_date
+            ? [values.preferred_date.format("YYYY-MM-DD")]
+            : [],
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to submit request");
+      toast.success("Make-up request sent to the activity partner");
+      setIsMakeupModalOpen(false);
+      setMakeupOccurrence(null);
+      makeupForm.resetFields();
+      await fetchChildrenAndBookings();
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setMakeupLoading(false);
+    }
+  };
+
+  const updateMakeupRequest = async (request, action) => {
+    setMakeupLoading(true);
+    try {
+      const endpoint =
+        action === "confirm"
+          ? API_ENDPOINTS.CONFIRM_MAKEUP_REQUEST(request.request_id)
+          : API_ENDPOINTS.WITHDRAW_MAKEUP_REQUEST(request.request_id);
+      const response = await fetchWithAuth(endpoint, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to update request");
+      toast.success(
+        action === "confirm"
+          ? "Replacement date confirmed"
+          : "Make-up request withdrawn",
+      );
+      await fetchChildrenAndBookings();
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setMakeupLoading(false);
     }
   };
 
@@ -717,7 +784,63 @@ const ChildrenClasses = () => {
         <CalendarView
           bookings={filteredBookings}
           occurrences={filteredOccurrences}
+          makeupRequests={makeupRequests}
+          onRequestMakeup={openMakeupRequest}
         />
+      )}
+
+      {makeupRequests.length > 0 && (
+        <section className="cc-panel cc-makeup-panel" aria-labelledby="makeup-heading">
+          <div className="cc-panel-header">
+            <div>
+              <span className="cc-panel-eyebrow">Make-up requests</span>
+              <h4 id="makeup-heading">Replacement date updates</h4>
+            </div>
+            <span className="cc-count-pill">{makeupRequests.length}</span>
+          </div>
+          <div className="cc-makeup-list">
+            {makeupRequests.map((request) => (
+              <article className="cc-makeup-item" key={request.request_id}>
+                <div className="cc-makeup-copy">
+                  <div className="cc-makeup-title-row">
+                    <strong>{request.listing_title}</strong>
+                    <Tag className={`cc-makeup-status is-${request.status}`}>
+                      {request.status}
+                    </Tag>
+                  </div>
+                  <span>
+                    Original class: {formatDate(request.original_start_date)}, {formatTime(request.original_start_date)}
+                  </span>
+                  {request.offered_start_date && (
+                    <span className="cc-makeup-offer">
+                      Offered: {formatDate(request.offered_start_date)}, {formatTime(request.offered_start_date)}
+                    </span>
+                  )}
+                  {request.partner_response && <span>{request.partner_response}</span>}
+                </div>
+                <div className="cc-makeup-actions">
+                  {request.status === "offered" && (
+                    <Button
+                      type="primary"
+                      loading={makeupLoading}
+                      onClick={() => updateMakeupRequest(request, "confirm")}
+                    >
+                      Confirm date
+                    </Button>
+                  )}
+                  {["pending", "offered"].includes(request.status) && (
+                    <Button
+                      loading={makeupLoading}
+                      onClick={() => updateMakeupRequest(request, "withdraw")}
+                    >
+                      Withdraw
+                    </Button>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
       )}
 
       {activeTab === "list" && (
@@ -754,6 +877,77 @@ const ChildrenClasses = () => {
           )}
         </Spin>
       )}
+
+      <Modal
+        open={isMakeupModalOpen}
+        onCancel={() => {
+          if (makeupLoading) return;
+          setIsMakeupModalOpen(false);
+          setMakeupOccurrence(null);
+          makeupForm.resetFields();
+        }}
+        footer={null}
+        centered
+        width={500}
+        maskClosable={false}
+        className="cc-modal cc-makeup-modal"
+        title={null}
+      >
+        <div className="cc-modal-stack">
+          <div className="cc-modal-heading">
+            <div className="cc-modal-icon success"><SwapOutlined /></div>
+            <h3>Request another class date</h3>
+            <p>{makeupOccurrence?.listing_title}</p>
+          </div>
+          {makeupOccurrence && (
+            <Alert
+              type="info"
+              showIcon
+              message={`Current class: ${formatDate(makeupOccurrence.scheduled_date)}, ${formatTime(makeupOccurrence.scheduled_date)}`}
+              description={`Submit at least ${getBookingPolicy(makeupOccurrence).makeup_notice_hours} hours before class. The activity partner will offer a date for you to confirm.`}
+            />
+          )}
+          <Form
+            form={makeupForm}
+            layout="vertical"
+            onFinish={submitMakeupRequest}
+            requiredMark={false}
+            className="cc-modal-form"
+          >
+            <Form.Item label="Preferred date (optional)" name="preferred_date">
+              <DatePicker
+                format="DD/MM/YYYY"
+                placeholder="Suggest a date"
+                disabledDate={(date) => date && date.isBefore(dayjs().startOf("day"), "day")}
+                className="cc-full-width-control"
+              />
+            </Form.Item>
+            <Form.Item label="Reason (optional)" name="reason">
+              <Input.TextArea
+                rows={3}
+                maxLength={1000}
+                showCount
+                placeholder="Tell the partner why another date would help"
+              />
+            </Form.Item>
+          </Form>
+          <div className="cc-modal-btns">
+            <Button
+              disabled={makeupLoading}
+              onClick={() => setIsMakeupModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="primary"
+              loading={makeupLoading}
+              onClick={() => makeupForm.submit()}
+            >
+              Send request
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* ══ Add / Edit child ══ */}
       <Modal

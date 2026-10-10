@@ -122,6 +122,14 @@ export const API_ENDPOINTS = {
   CREATE_BOOKING: "/bookings",
   CANCEL_BOOKING: (bookingId) => `/bookings/${bookingId}`,
 
+  // Make-up requests
+  GET_USER_MAKEUP_REQUESTS: "/makeup-requests/user",
+  CREATE_MAKEUP_REQUEST: "/makeup-requests",
+  CONFIRM_MAKEUP_REQUEST: (requestId) =>
+    `/makeup-requests/${requestId}/confirm`,
+  WITHDRAW_MAKEUP_REQUEST: (requestId) =>
+    `/makeup-requests/${requestId}/withdraw`,
+
   // Classes/Listings
   GET_ALL_LISTINGS: "/listings",
   GET_LISTING: (listingId) => `/listings/${listingId}`,

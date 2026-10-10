@@ -686,6 +686,64 @@
   line-height: var(--line-height-normal);
 }
 
+.cc-makeup-panel {
+  margin-top: var(--spacing-md);
+}
+
+.cc-makeup-list {
+  display: grid;
+  gap: 10px;
+  padding: var(--spacing-md);
+}
+
+.cc-makeup-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid var(--border-color-medium);
+  border-radius: var(--radius-md);
+  background: var(--bg-white);
+}
+
+.cc-makeup-copy,
+.cc-modal-stack,
+.cc-modal-heading {
+  display: flex;
+  flex-direction: column;
+}
+
+.cc-makeup-copy { gap: 4px; min-width: 0; }
+.cc-makeup-copy > span { color: var(--text-secondary); font-size: var(--font-size-sm); }
+.cc-makeup-offer { color: var(--primary-dark) !important; font-weight: 600; }
+
+.cc-makeup-title-row,
+.cc-makeup-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cc-makeup-title-row { flex-wrap: wrap; }
+.cc-makeup-status { margin: 0; text-transform: capitalize; }
+.cc-makeup-status.is-pending { color: #8a5a00; background: #fff8e1; }
+.cc-makeup-status.is-offered { color: var(--primary-dark); background: var(--bg-light-blue); }
+.cc-makeup-status.is-confirmed { color: #237804; background: #f6ffed; }
+.cc-makeup-status.is-rejected,
+.cc-makeup-status.is-withdrawn { color: var(--text-secondary); background: #f5f5f5; }
+
+.cc-modal-stack { gap: 20px; }
+.cc-modal-heading { align-items: center; text-align: center; }
+.cc-modal-heading h3 { margin: 8px 0 4px; }
+.cc-modal-heading p { margin: 0; color: var(--text-secondary); }
+.cc-full-width-control { width: 100%; }
+
+@media (max-width: 640px) {
+  .cc-makeup-item { align-items: stretch; flex-direction: column; }
+  .cc-makeup-actions .ant-btn { flex: 1; }
+}
+
 .cc-empty-card {
   display: flex;
   min-height: 286px;

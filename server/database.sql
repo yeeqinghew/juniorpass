@@ -865,3 +865,35 @@ CREATE TRIGGER set_timestamp_class_reminders
     BEFORE UPDATE ON class_reminders
     FOR EACH ROW
     EXECUTE FUNCTION trigger_set_timestamp();
+
+CREATE TABLE makeup_requests (
+    request_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    booking_id UUID NOT NULL REFERENCES bookings(booking_id) ON DELETE CASCADE,
+    occurrence_id UUID NOT NULL REFERENCES class_occurrences(occurrence_id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    partner_id UUID NOT NULL REFERENCES partners(partner_id) ON DELETE CASCADE,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending'
+      CHECK (status IN ('pending', 'offered', 'confirmed', 'rejected', 'withdrawn', 'expired')),
+    reason VARCHAR(1000),
+    preferred_dates JSONB NOT NULL DEFAULT '[]'::jsonb,
+    original_start_date TIMESTAMP NOT NULL,
+    original_end_date TIMESTAMP NOT NULL,
+    offered_start_date TIMESTAMP,
+    offered_end_date TIMESTAMP,
+    partner_response VARCHAR(1000),
+    reviewed_at TIMESTAMP,
+    confirmed_at TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_makeup_requests_active_occurrence
+  ON makeup_requests (occurrence_id)
+  WHERE status IN ('pending', 'offered', 'confirmed');
+CREATE INDEX idx_makeup_requests_user ON makeup_requests (user_id, created_at DESC);
+CREATE INDEX idx_makeup_requests_partner ON makeup_requests (partner_id, status, created_at DESC);
+
+CREATE TRIGGER set_timestamp_makeup_requests
+    BEFORE UPDATE ON makeup_requests
+    FOR EACH ROW
+    EXECUTE FUNCTION trigger_set_timestamp();

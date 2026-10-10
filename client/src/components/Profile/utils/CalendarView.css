@@ -329,6 +329,24 @@
   gap: 5px;
 }
 
+.jp-agenda-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.jp-makeup-tag {
+  margin: 0;
+  text-align: center;
+  text-transform: capitalize;
+}
+
+.jp-makeup-tag.is-pending { color: #8a5a00; background: #fff8e1; }
+.jp-makeup-tag.is-offered { color: var(--primary-dark); background: var(--bg-light-blue); }
+.jp-makeup-tag.is-confirmed { color: #237804; background: #f6ffed; }
+.jp-makeup-tag.is-rejected,
+.jp-makeup-tag.is-withdrawn { color: var(--text-secondary); background: #f5f5f5; }
+
 @media (max-width: 1100px) {
   .jp-calendar-layout { grid-template-columns: 1fr; }
   .jp-agenda-card { position: static; }
@@ -359,8 +377,12 @@
     gap: 10px;
   }
 
-  .jp-calendar-layout.is-desktop .jp-agenda-item > .ant-btn {
+  .jp-calendar-layout.is-desktop .jp-agenda-actions {
     grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .jp-calendar-layout.is-desktop .jp-agenda-actions .ant-btn {
     width: 100%;
   }
 }
@@ -488,10 +510,12 @@
     grid-template-columns: 46px minmax(0, 1fr);
   }
 
-  .jp-agenda-item > .ant-btn {
+  .jp-agenda-actions {
     grid-column: 1 / -1;
     width: 100%;
   }
+
+  .jp-agenda-actions .ant-btn { width: 100%; }
 
   .jp-mobile-agenda-modal {
     max-width: 100%;

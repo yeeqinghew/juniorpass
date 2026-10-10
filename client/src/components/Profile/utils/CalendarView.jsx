@@ -69,7 +69,25 @@ const getStatus = (item) => {
   return "upcoming";
 };
 
-const CalendarView = ({ bookings = [], occurrences = [], onAddToEmail }) => {
+const getMakeupPolicy = (item) => {
+  let policy = item?.policy_snapshot;
+  if (typeof policy === "string") {
+    try {
+      policy = JSON.parse(policy);
+    } catch {
+      policy = null;
+    }
+  }
+  return policy || {};
+};
+
+const CalendarView = ({
+  bookings = [],
+  occurrences = [],
+  makeupRequests = [],
+  onRequestMakeup,
+  onAddToEmail,
+}) => {
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [calendarValue, setCalendarValue] = useState(dayjs());
   const [nextClassIndex, setNextClassIndex] = useState(0);
@@ -83,12 +101,53 @@ const CalendarView = ({ bookings = [], occurrences = [], onAddToEmail }) => {
       if (!event.matches) setIsMobileAgendaOpen(false);
     };
 
-    setIsMobile(mediaQuery.matches);
     mediaQuery.addEventListener("change", updateLayout);
     return () => mediaQuery.removeEventListener("change", updateLayout);
   }, []);
 
   const displayData = occurrences.length > 0 ? occurrences : bookings;
+  const makeupByOccurrence = useMemo(() => {
+    const activeRequests = new Map();
+    makeupRequests.forEach((request) => {
+      if (
+        ["pending", "offered", "confirmed"].includes(request.status) &&
+        !activeRequests.has(request.occurrence_id)
+      ) {
+        activeRequests.set(request.occurrence_id, request);
+      }
+    });
+    return activeRequests;
+  }, [makeupRequests]);
+
+  const renderEventActions = (item, status, mobile = false) => {
+    if (status === "past" || status === "cancelled") return null;
+    const request = makeupByOccurrence.get(item.occurrence_id);
+    const policy = getMakeupPolicy(item);
+    const requestDeadline = asLocalTime(getStart(item)).subtract(
+      Number(policy.makeup_notice_hours || 0),
+      "hour",
+    );
+    const canRequestMakeup =
+      policy.makeup_allowed && dayjs().isBefore(requestDeadline);
+    return (
+      <div className="jp-agenda-actions">
+        {request ? (
+          <Tag className={`jp-makeup-tag is-${request.status}`}>
+            Make-up {request.status}
+          </Tag>
+        ) : canRequestMakeup && item.occurrence_id ? (
+          <Button onClick={() => onRequestMakeup?.(item)}>Request make-up</Button>
+        ) : null}
+        <Button
+          type={mobile ? "primary" : "default"}
+          icon={<CalendarOutlined />}
+          onClick={() => addToCalendar(item)}
+        >
+          {mobile ? "Add to calendar" : "Add"}
+        </Button>
+      </div>
+    );
+  };
 
   const eventsByDate = useMemo(() => {
     const grouped = {};
@@ -383,14 +442,7 @@ const CalendarView = ({ bookings = [], occurrences = [], onAddToEmail }) => {
                       <Text type="secondary"><EnvironmentOutlined /> {item.outlet_address}</Text>
                     )}
                   </div>
-                  {status !== "past" && status !== "cancelled" && (
-                    <Button
-                      icon={<CalendarOutlined />}
-                      onClick={() => addToCalendar(item)}
-                    >
-                      Add
-                    </Button>
-                  )}
+                  {renderEventActions(item, status)}
                 </article>
               );
             })}
@@ -450,15 +502,7 @@ const CalendarView = ({ bookings = [], occurrences = [], onAddToEmail }) => {
                     </Text>
                   )}
                 </div>
-                {status !== "past" && status !== "cancelled" && (
-                  <Button
-                    type="primary"
-                    icon={<CalendarOutlined />}
-                    onClick={() => addToCalendar(item)}
-                  >
-                    Add to calendar
-                  </Button>
-                )}
+                {renderEventActions(item, status, true)}
               </article>
             );
           })}

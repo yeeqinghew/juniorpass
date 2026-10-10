@@ -77,6 +77,7 @@ apiRouter.use("/children", require("./routes/children"));
 apiRouter.use("/payment", require("./routes/payment"));
 apiRouter.use("/bookings", require("./routes/bookings"));
 apiRouter.use("/class-occurrences", require("./routes/classOccurrences"));
+apiRouter.use("/makeup-requests", require("./routes/makeupRequests"));
 apiRouter.use("/transactions", require("./routes/transactions"));
 apiRouter.use("/notifications", require("./routes/notifications"));
 apiRouter.use("/outlets", require("./routes/outlets"));
