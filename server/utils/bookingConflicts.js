@@ -42,7 +42,12 @@ const buildOccurrenceWindows = ({ startDate, endDate, classCount, frequency }) =
   });
 };
 
-const findChildBookingConflicts = async (db, childId, occurrences) => {
+const findChildBookingConflicts = async (
+  db,
+  childId,
+  occurrences,
+  excludeOccurrenceId = null,
+) => {
   const result = await db.query(
     `WITH proposed AS (
        SELECT start_at, end_at
@@ -72,6 +77,7 @@ const findChildBookingConflicts = async (db, childId, occurrences) => {
        JOIN listings l ON l.listing_id = b.listing_id
        WHERE b.status = 'confirmed'
          AND co.status IN ('scheduled', 'rescheduled')
+         AND ($3::uuid IS NULL OR co.occurrence_id <> $3)
      )
      SELECT DISTINCT ON (existing.occurrence_id)
             existing.occurrence_id,
@@ -85,7 +91,7 @@ const findChildBookingConflicts = async (db, childId, occurrences) => {
        ON existing.child_id = $1
       AND existing.start_at::date = proposed.start_at::date
      ORDER BY existing.occurrence_id, is_overlap DESC, existing.start_at`,
-    [childId, JSON.stringify(occurrences)],
+    [childId, JSON.stringify(occurrences), excludeOccurrenceId],
   );
 
   return result.rows;

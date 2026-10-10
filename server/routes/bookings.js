@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const redisClient = require("../utils/redisClient");
 const { AUTH_ROLES } = require("../constants/auth");
 const {
   getPackageClassCount,
@@ -397,6 +398,20 @@ router.post("/", userAuthorization, async (req, res) => {
 
       await client.query("COMMIT");
 
+      // Booking history changes the partner edit permissions exposed by the
+      // listing endpoint, so do not leave a pre-booking response cached.
+      try {
+        await Promise.all([
+          redisClient.del(`/listings/${listing_id}`),
+          redisClient.del("/listings"),
+        ]);
+      } catch (cacheError) {
+        console.error(
+          `Booking ${booking_id} succeeded but listing cache invalidation failed:`,
+          cacheError.message,
+        );
+      }
+
       // Insert partner notification for new booking
       try {
         await pool.query(
@@ -593,6 +608,7 @@ router.get("/user/occurrences", userAuthorization, async (req, res) => {
         b.listing_id,
         b.enrolled_package_type,
         b.classes_total,
+        b.policy_snapshot,
         l.listing_title,
         l.images,
         p.partner_name,

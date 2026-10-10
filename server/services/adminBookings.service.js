@@ -76,6 +76,30 @@ const bookingRowsSql = `
       COALESCE(os.completed_count, 0) AS completed_count,
       COALESCE(os.upcoming_count, 0) AS upcoming_count,
       COALESCE(os.occurrences, '[]'::jsonb) AS occurrences,
+      COALESCE(
+        (
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'request_id', mr.request_id,
+              'occurrence_id', mr.occurrence_id,
+              'status', mr.status,
+              'reason', mr.reason,
+              'preferred_dates', mr.preferred_dates,
+              'original_start_date', mr.original_start_date,
+              'offered_start_date', mr.offered_start_date,
+              'offered_end_date', mr.offered_end_date,
+              'partner_response', mr.partner_response,
+              'reviewed_at', mr.reviewed_at,
+              'confirmed_at', mr.confirmed_at,
+              'created_at', mr.created_at
+            )
+            ORDER BY mr.created_at DESC
+          )
+          FROM makeup_requests mr
+          WHERE mr.booking_id = b.booking_id
+        ),
+        '[]'::jsonb
+      ) AS makeup_requests,
       CASE
         WHEN b.status = 'cancelled' THEN 'cancelled'
         WHEN COALESCE(os.occurrence_count, 0) > 0

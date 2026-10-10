@@ -15,6 +15,10 @@ const {
 const { parseCategoryIds } = require("../utils/categories");
 const { withMinimumListingCredits } = require("../utils/listingPricing");
 const { normalizeBookingPolicy } = require("../utils/bookingPolicy");
+const {
+  dateOnly,
+  hasStructuralScheduleChange,
+} = require("../utils/listingScheduleEdits");
 
 require("dotenv").config();
 router.use(etagMiddleware);
@@ -510,6 +514,10 @@ router.get("/:id([0-9a-fA-F-]{36})", cacheMiddleware, async (req, res) => {
           WHERE b.listing_id = l.listing_id
             AND b.status = 'confirmed'
         ) AS signup_count,
+        EXISTS (
+          SELECT 1 FROM bookings booking_history
+          WHERE booking_history.listing_id = l.listing_id
+        ) AS has_booking_history,
         COALESCE((
           SELECT jsonb_agg(ac.name ORDER BY ac.display_order, ac.name)
           FROM listing_activity_categories lac
@@ -627,6 +635,10 @@ router.get("/partner/:partnerId", async (req, res) => {
           WHERE b.listing_id = l.listing_id
             AND b.status = 'confirmed'
         ) AS signup_count,
+        EXISTS (
+          SELECT 1 FROM bookings booking_history
+          WHERE booking_history.listing_id = l.listing_id
+        ) AS has_booking_history,
         COALESCE((
           SELECT jsonb_agg(ac.name ORDER BY ac.display_order, ac.name)
           FROM listing_activity_categories lac
@@ -854,31 +866,60 @@ router.patch("/:id", authorization, async (req, res) => {
 
 router.delete("/:id", authorization, async (req, res) => {
   const id = req.params.id;
+  let db;
   try {
-    // retrieve image URLs from the DB
-    const { rows } = await pool.query(
-      `SELECT images, partner_id FROM listings WHERE listing_id = $1`,
+    db = await pool.connect();
+    await db.query("BEGIN");
+
+    // Lock the listing so a booking cannot be inserted between this check and
+    // the delete. A booking's foreign-key check conflicts with this row lock.
+    const { rows } = await db.query(
+      `SELECT l.images,
+              l.partner_id,
+              EXISTS (
+                SELECT 1
+                FROM bookings b
+                WHERE b.listing_id = l.listing_id
+              ) AS has_booking_history
+       FROM listings l
+       WHERE l.listing_id = $1
+       FOR UPDATE`,
       [id],
     );
 
     if (rows.length === 0) {
+      await db.query("ROLLBACK");
       return res.status(404).json({ error: "Listing not found" });
     }
     if (rows[0].partner_id !== req.user) {
+      await db.query("ROLLBACK");
       return res
         .status(403)
         .json({ error: "Not authorized to delete this listing" });
     }
-
-    // Extract image URLs from the database result
-    const imageURLs = rows[0].images;
-    if (Array.isArray(imageURLs) && imageURLs.length > 0) {
-      // Delete images from Cloudinary
-      await deleteCloudinaryImage(imageURLs);
+    if (rows[0].has_booking_history) {
+      await db.query("ROLLBACK");
+      return res.status(409).json({
+        error:
+          "Listings with booking history cannot be deleted. Keep the listing for your records or make it inactive when no upcoming confirmed bookings remain.",
+        code: "ENROLLED_LISTING_DELETE_BLOCKED",
+      });
     }
 
-    // delete listing from DB
-    await pool.query(`DELETE FROM listings WHERE listing_id = $1`, [id]);
+    const imageURLs = rows[0].images;
+    await db.query(`DELETE FROM listings WHERE listing_id = $1`, [id]);
+    await db.query("COMMIT");
+
+    if (Array.isArray(imageURLs) && imageURLs.length > 0) {
+      try {
+        await deleteCloudinaryImage(imageURLs);
+      } catch (imageError) {
+        console.error(
+          `Listing ${id} was deleted but its remote images could not be removed:`,
+          imageError.message,
+        );
+      }
+    }
 
     // Invalidate the cache
     await client.del(`/listings/${id}`);
@@ -890,8 +931,11 @@ router.delete("/:id", authorization, async (req, res) => {
       message: "Listing has been deleted!",
     });
   } catch (error) {
+    if (db) await db.query("ROLLBACK").catch(() => {});
     console.error(`ERROR in /listings/${id} DELETE`, error.message);
     res.status(500).json({ error: error.message });
+  } finally {
+    db?.release();
   }
 });
 
@@ -961,7 +1005,9 @@ router.patch("/:listing_id/status", authorization, async (req, res) => {
 
 /**
  * Partner: Edit schedules for a listing
- * Replaces schedule groups for provided outlets atomically. Validates partner ownership.
+ * Updates schedule groups atomically. Once a listing has bookings, existing
+ * outlet and schedule structures are immutable; only future pricing and new
+ * outlets may be changed.
  * Payload:
  * {
  *   "outlets": [
@@ -995,23 +1041,61 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
       return res.status(400).json({ error: "No outlets/schedules provided" });
     }
 
-    // Validate partner owns the listing
-    const listingOwner = await pool.query(
-      "SELECT partner_id FROM listings WHERE listing_id = $1",
-      [listing_id],
-    );
-    if (listingOwner.rowCount === 0) {
-      return res.status(404).json({ error: "Listing not found" });
-    }
-    if (listingOwner.rows[0].partner_id !== req.user) {
-      return res
-        .status(403)
-        .json({ error: "Not authorized to modify this listing" });
-    }
-
     const tx = await pool.connect();
     try {
       await tx.query("BEGIN");
+
+      // Serialize structural edits with booking creation. PostgreSQL's foreign
+      // key check takes a conflicting key-share lock on this listing row.
+      const listingOwner = await tx.query(
+        `SELECT partner_id
+         FROM listings
+         WHERE listing_id = $1
+         FOR UPDATE`,
+        [listing_id],
+      );
+      if (listingOwner.rowCount === 0) {
+        await tx.query("ROLLBACK");
+        return res.status(404).json({ error: "Listing not found" });
+      }
+      if (listingOwner.rows[0].partner_id !== req.user) {
+        await tx.query("ROLLBACK");
+        return res
+          .status(403)
+          .json({ error: "Not authorized to modify this listing" });
+      }
+
+      const bookingState = await tx.query(
+        `SELECT EXISTS (
+           SELECT 1 FROM bookings WHERE listing_id = $1
+         ) AS has_bookings`,
+        [listing_id],
+      );
+      const listingHasBookings = bookingState.rows[0].has_bookings;
+      const existingOutletMappings = await tx.query(
+        `SELECT listing_outlet_id, outlet_id
+         FROM listingOutlets
+         WHERE listing_id = $1`,
+        [listing_id],
+      );
+      const existingOutletByOutletId = new Map(
+        existingOutletMappings.rows.map((row) => [row.outlet_id, row]),
+      );
+
+      if (listingHasBookings) {
+        const submittedOutletIds = new Set(outlets.map((outlet) => outlet.outlet_id));
+        const removedExistingOutlet = existingOutletMappings.rows.some(
+          (mapping) => !submittedOutletIds.has(mapping.outlet_id),
+        );
+        if (removedExistingOutlet) {
+          await tx.query("ROLLBACK");
+          return res.status(409).json({
+            code: "ENROLLED_LISTING_STRUCTURE_LOCKED",
+            error:
+              "Existing outlets cannot be removed after the listing has bookings. Add a new outlet or deactivate the listing instead.",
+          });
+        }
+      }
 
       for (const outlet of outlets) {
         const { outlet_id, schedules } = outlet;
@@ -1021,10 +1105,10 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
         }
 
         // Ensure listingOutlets mapping exists, else create
-        const loResult = await tx.query(
-          `SELECT listing_outlet_id FROM listingOutlets WHERE listing_id = $1 AND outlet_id = $2`,
-          [listing_id, outlet_id],
-        );
+        const existingOutletMapping = existingOutletByOutletId.get(outlet_id);
+        const loResult = existingOutletMapping
+          ? { rowCount: 1, rows: [existingOutletMapping] }
+          : { rowCount: 0, rows: [] };
         let listing_outlet_id;
         if (loResult.rowCount === 0) {
           const insertLO = await tx.query(
@@ -1039,7 +1123,10 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
         // Retain each program's original pricing rate when a partner edits
         // non-price details. Newly added programs use the active rate.
         const existingRatesResult = await tx.query(
-          `SELECT schedule_group_id, pricing_dollars_per_credit,
+          `SELECT schedule_group_id, listing_outlet_id,
+                  package_types, is_progressive, capacity, frequency,
+                  full_term_class_count, short_term_class_count,
+                  pricing_dollars_per_credit,
                   price_payg, price_fullterm, price_shortterm,
                   full_term_start_date
            FROM schedule_groups WHERE listing_outlet_id = $1`,
@@ -1049,11 +1136,67 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
           existingRatesResult.rows.map((row) => [row.schedule_group_id, row]),
         );
 
-        // Delete existing schedule_groups (cascades to schedules)
-        await tx.query(
-          `DELETE FROM schedule_groups WHERE listing_outlet_id = $1`,
+        const existingSlotsResult = await tx.query(
+          `SELECT schedule_id, schedule_group_id, day, start_time, end_time, slots
+           FROM schedules
+           WHERE listing_outlet_id = $1`,
           [listing_outlet_id],
         );
+        const slotsByGroup = new Map();
+        existingSlotsResult.rows.forEach((slot) => {
+          const slots = slotsByGroup.get(slot.schedule_group_id) || [];
+          slots.push(slot);
+          slotsByGroup.set(slot.schedule_group_id, slots);
+        });
+
+        if (listingHasBookings && existingOutletMapping) {
+          const submittedExistingIds = new Set(
+            schedules
+              .map((schedule) => schedule.schedule_group_id)
+              .filter(Boolean),
+          );
+          const removedGroup = existingRatesResult.rows.some(
+            (group) => !submittedExistingIds.has(group.schedule_group_id),
+          );
+          const addedGroup = schedules.some(
+            (schedule) => !schedule.schedule_group_id,
+          );
+          if (removedGroup || addedGroup) {
+            await tx.query("ROLLBACK");
+            return res.status(409).json({
+              code: "ENROLLED_OUTLET_STRUCTURE_LOCKED",
+              error:
+                "Schedules cannot be added to or removed from an existing outlet after the listing has bookings. Add a new outlet instead.",
+            });
+          }
+
+          for (const schedule of schedules) {
+            const existingSchedule = existingRates.get(
+              schedule.schedule_group_id,
+            );
+            if (
+              !existingSchedule ||
+              hasStructuralScheduleChange(
+                existingSchedule,
+                schedule,
+                slotsByGroup.get(schedule.schedule_group_id) || [],
+              )
+            ) {
+              await tx.query("ROLLBACK");
+              return res.status(409).json({
+                code: "ENROLLED_SCHEDULE_STRUCTURE_LOCKED",
+                error:
+                  "Package types, programme type, frequency, class count, capacity, start date, and class times cannot change after enrolment. Pricing may still be updated for future purchases.",
+              });
+            }
+          }
+        } else {
+          // Safe only when the listing has never had a booking.
+          await tx.query(
+            `DELETE FROM schedule_groups WHERE listing_outlet_id = $1`,
+            [listing_outlet_id],
+          );
+        }
 
         // Insert new schedule groups and their time slots
         for (const schedule of schedules) {
@@ -1073,12 +1216,19 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
           } = schedule;
           const existingPricing = existingRates.get(existingScheduleGroupId);
 
-          const submittedStartDate = full_term_start_date
-            ? String(full_term_start_date).slice(0, 10)
-            : null;
-          const existingStartDate = existingPricing?.full_term_start_date
-            ? String(existingPricing.full_term_start_date).slice(0, 10)
-            : null;
+          if (
+            existingScheduleGroupId &&
+            !existingPricing &&
+            existingOutletMapping
+          ) {
+            await tx.query("ROLLBACK");
+            return res.status(400).json({ error: "Unknown schedule group" });
+          }
+
+          const submittedStartDate = dateOnly(full_term_start_date);
+          const existingStartDate = dateOnly(
+            existingPricing?.full_term_start_date,
+          );
 
           if (
             is_progressive &&
@@ -1112,6 +1262,25 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
           ) {
             await tx.query("ROLLBACK");
             return res.status(400).json({ error: "Invalid schedule payload" });
+          }
+
+          if (listingHasBookings && existingOutletMapping) {
+            await tx.query(
+              `UPDATE schedule_groups
+               SET price_payg = $1,
+                   price_fullterm = $2,
+                   price_shortterm = $3,
+                   pricing_dollars_per_credit = $4
+               WHERE schedule_group_id = $5`,
+              [
+                price_payg ?? null,
+                price_fullterm ?? null,
+                price_shortterm ?? null,
+                pricingDollarsPerCredit,
+                existingScheduleGroupId,
+              ],
+            );
+            continue;
           }
 
           // Insert schedule_group
