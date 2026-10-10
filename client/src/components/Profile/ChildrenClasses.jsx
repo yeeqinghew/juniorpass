@@ -30,6 +30,10 @@ import {
   SearchOutlined,
 } from "@ant-design/icons";
 import dayjs from "../../utils/dayjs";
+import {
+  formatClassScheduleTime,
+  parseClassScheduleTime,
+} from "../../utils/classScheduleTime";
 import toast from "react-hot-toast";
 import { useUserContext } from "../UserContext";
 import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
@@ -140,9 +144,11 @@ const ChildrenClasses = () => {
   };
 
   const handleDeleteChild = (child) => {
-    const now = new Date();
+    const now = dayjs();
     const upcoming = bookings.filter(
-      (b) => b.child_id === child.child_id && new Date(b.start_date) >= now,
+      (b) =>
+        b.child_id === child.child_id &&
+        parseClassScheduleTime(b.start_date).isSameOrAfter(now),
     );
     if (upcoming.length > 0) {
       Modal.error({
@@ -224,15 +230,15 @@ const ChildrenClasses = () => {
   };
 
   const handleCancelBooking = (booking) => {
-    const classStart = new Date(booking.start_date);
-    const now = new Date();
+    const classStart = parseClassScheduleTime(booking.start_date);
+    const now = dayjs();
 
-    const hoursUntil = (classStart - now) / (1000 * 60 * 60);
+    const hoursUntil = classStart.diff(now, "hour", true);
 
     const isProgressive = booking.is_progressive === true;
 
     if (isProgressive) {
-      if (now >= classStart) {
+      if (now.isSameOrAfter(classStart)) {
         Modal.error({
           title: "Cannot Cancel Programme",
           content:
@@ -292,26 +298,23 @@ const ChildrenClasses = () => {
   };
 
   const formatDate = (s) =>
-    new Date(s).toLocaleDateString("en-US", {
+    parseClassScheduleTime(s).toDate().toLocaleDateString("en-US", {
       weekday: "short",
       year: "numeric",
       month: "short",
       day: "numeric",
     });
-  const formatTime = (s) =>
-    new Date(s).toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
+  const formatTime = formatClassScheduleTime;
 
   const getFilteredBookings = (childId) => {
-    const now = new Date();
+    const now = dayjs();
     let list = filteredBookings.filter((b) => b.child_id === childId);
     if (filterType === "upcoming")
-      list = list.filter((b) => new Date(b.start_date) >= now);
+      list = list.filter((b) =>
+        parseClassScheduleTime(b.start_date).isSameOrAfter(now),
+      );
     else if (filterType === "past")
-      list = list.filter((b) => new Date(b.start_date) < now);
+      list = list.filter((b) => parseClassScheduleTime(b.start_date).isBefore(now));
     return list;
   };
 
@@ -340,15 +343,17 @@ const ChildrenClasses = () => {
       imageUrl = booking.partner_picture;
     }
 
-    const now = new Date();
-    const classStart = new Date(booking.start_date);
+    const now = dayjs();
+    const classStart = parseClassScheduleTime(booking.start_date);
 
-    const hoursUntilClass = (classStart - now) / (1000 * 60 * 60);
+    const hoursUntilClass = classStart.diff(now, "hour", true);
 
     const isProgressive = booking.is_progressive;
-    const hasStarted = now >= classStart;
+    const hasStarted = now.isSameOrAfter(classStart);
 
-    const canCancel = isProgressive ? now < classStart : hoursUntilClass >= 24;
+    const canCancel = isProgressive
+      ? now.isBefore(classStart)
+      : hoursUntilClass >= 24;
 
     const statusLabel = isProgressive
       ? hasStarted
@@ -523,9 +528,10 @@ const ChildrenClasses = () => {
   };
 
   const visibleBookingCount = filteredBookings.filter((booking) => {
-    const startDate = new Date(booking.start_date);
-    if (filterType === "upcoming") return startDate >= new Date();
-    if (filterType === "past") return startDate < new Date();
+    const startDate = parseClassScheduleTime(booking.start_date);
+    const now = dayjs();
+    if (filterType === "upcoming") return startDate.isSameOrAfter(now);
+    if (filterType === "past") return startDate.isBefore(now);
     return true;
   }).length;
 

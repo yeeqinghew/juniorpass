@@ -9,16 +9,14 @@ import {
   TeamOutlined,
 } from "@ant-design/icons";
 import dayjs from "../../../utils/dayjs";
+import { parseClassScheduleTime } from "../../../utils/classScheduleTime";
 import boy from "../../../images/profile/boys/boy0.png";
 import girl from "../../../images/profile/girls/girl0.png";
 import "./CalendarView.css";
 
 const { Text, Title } = Typography;
 
-const asLocalTime = (value) => {
-  if (dayjs.isDayjs(value)) return value;
-  return dayjs(value);
-};
+const asLocalTime = parseClassScheduleTime;
 
 const ChildIcon = ({ item, compact = false }) => {
   const isMale = item.child_gender === "M";
