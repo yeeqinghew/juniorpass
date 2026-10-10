@@ -14,6 +14,21 @@ const { getDollarsPerCredit } = require("../utils/platformSettings");
 const { issueAuthSession, revokeAuthSession } = require("../utils/authSession");
 const { adminLoginLimiter } = require("../middleware/authRateLimiters");
 const redisClient = require("../utils/redisClient");
+const { listAdminBookings } = require("../services/adminBookings.service");
+
+const ADMIN_BOOKING_STATUSES = new Set([
+  "all",
+  "upcoming",
+  "in_progress",
+  "completed",
+  "cancelled",
+]);
+
+const parsePositiveInteger = (value, fallback, maximum) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, maximum);
+};
 
 router.use(etagMiddleware);
 
@@ -196,6 +211,37 @@ router.get("/getAllChildren", authorization, adminOnly, async (req, res) => {
   } catch (error) {
     console.error("ERROR in /admins/getAllChildren", error.message);
     res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Paginated, read-only operations view for bookings. A booking's operational
+ * status is derived from its date range and occurrence history because legacy
+ * booking rows do not have a dedicated status column.
+ */
+router.get("/bookings", authorization, adminOnly, async (req, res) => {
+  const page = parsePositiveInteger(req.query.page, 1, 100000);
+  const limit = parsePositiveInteger(req.query.limit, 20, 50);
+  const status = String(req.query.status || "all").trim().toLowerCase();
+  const search = String(req.query.search || "").trim().slice(0, 100);
+  const offset = (page - 1) * limit;
+
+  if (!ADMIN_BOOKING_STATUSES.has(status)) {
+    return res.status(400).json({ error: "Invalid booking status filter" });
+  }
+
+  try {
+    const result = await listAdminBookings({
+      search,
+      status,
+      page,
+      limit,
+      offset,
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("ERROR in GET /admins/bookings", error.message);
+    return res.status(500).json({ error: "Unable to load bookings" });
   }
 });
 
