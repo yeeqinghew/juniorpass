@@ -15,3 +15,6 @@ export const parseClassScheduleTime = (value) => {
 
 export const formatClassScheduleTime = (value) =>
   parseClassScheduleTime(value).format("HH:mm");
+
+export const formatClassScheduleTime12Hour = (value) =>
+  parseClassScheduleTime(value).format("h:mm a");

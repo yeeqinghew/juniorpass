@@ -16,6 +16,7 @@ import toast from "react-hot-toast";
 import "./BuyNow.css";
 import Map, { Marker } from "react-map-gl";
 import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
+import { formatClassScheduleTime12Hour } from "../../utils/classScheduleTime";
 
 const { Text } = Typography;
 
@@ -57,13 +58,7 @@ const formatBookingDate = (value) => {
   }).format(date);
 };
 
-const formatConflictTime = (value) =>
-  new Intl.DateTimeFormat("en-SG", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-    timeZone: "Asia/Singapore",
-  }).format(new Date(value));
+const formatConflictTime = formatClassScheduleTime12Hour;
 
 const BuyNow = ({
   isBuyNowModalOpen,
