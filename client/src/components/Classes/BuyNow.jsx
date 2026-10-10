@@ -10,6 +10,8 @@ import {
   EnvironmentOutlined,
   ClockCircleOutlined,
   CalendarOutlined,
+  CheckCircleOutlined,
+  SafetyCertificateOutlined,
   TagOutlined,
 } from "@ant-design/icons";
 import toast from "react-hot-toast";
@@ -59,6 +61,40 @@ const formatBookingDate = (value) => {
 };
 
 const formatConflictTime = formatClassScheduleTime12Hour;
+
+const getBookingPolicy = (listing) => ({
+  version: 1,
+  cancellation_notice_hours: Number(
+    listing?.cancellation_notice_hours ?? 24,
+  ),
+  refund_before_deadline_percent: Number(
+    listing?.refund_before_deadline_percent ?? 100,
+  ),
+  refund_after_deadline_percent: Number(
+    listing?.refund_after_deadline_percent ?? 0,
+  ),
+  makeup_allowed: listing?.makeup_allowed === true,
+  makeup_notice_hours: Number(listing?.makeup_notice_hours ?? 24),
+  class_requirements: listing?.class_requirements || "",
+});
+
+const formatCancellationDeadline = (date, startTime, noticeHours) => {
+  if (!date || !startTime) return "the stated cancellation deadline";
+  const classStart = new Date(`${date}T${startTime}:00+08:00`);
+  if (Number.isNaN(classStart.getTime())) {
+    return "the stated cancellation deadline";
+  }
+  const deadline = new Date(classStart.getTime() - noticeHours * 60 * 60 * 1000);
+  return new Intl.DateTimeFormat("en-SG", {
+    timeZone: "Asia/Singapore",
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(deadline);
+};
 
 const BuyNow = ({
   isBuyNowModalOpen,
@@ -160,6 +196,25 @@ const BuyNow = ({
   const hasMapCoordinates =
     Number.isFinite(longitude) && Number.isFinite(latitude);
   const bookingDate = formatBookingDate(selected?.selectedDate);
+  const bookingPolicy = getBookingPolicy(listing);
+  const cancellationDeadline = formatCancellationDeadline(
+    selected?.selectedDate,
+    selected?.location?.timeslot?.[0],
+    bookingPolicy.cancellation_notice_hours,
+  );
+  const beforeDeadlineRefund = hasValidPackagePrice
+    ? Math.floor(
+        (Number(displayPrice) *
+          bookingPolicy.refund_before_deadline_percent) /
+          100,
+      )
+    : null;
+  const afterDeadlineRefund = hasValidPackagePrice
+    ? Math.floor(
+        (Number(displayPrice) * bookingPolicy.refund_after_deadline_percent) /
+          100,
+      )
+    : null;
   const confirmButtonLabel =
     !selectedChildId || !effectivePackageType
       ? "Confirm Booking"
@@ -215,6 +270,7 @@ const BuyNow = ({
           child_id: selectedChildId,
           package_type: effectivePackageType,
           acknowledge_same_day_booking: acknowledgeSameDayBooking,
+          acknowledged_policy: bookingPolicy,
         }),
       });
 
@@ -405,6 +461,52 @@ const BuyNow = ({
                 label: child?.name,
               }))}
             />
+          </section>
+
+          <section className="buynow-section buynow-policy-section">
+            <div className="buynow-section-heading">
+              <span className="buynow-step">3</span>
+              <div>
+                <h3>Review booking policy</h3>
+                <p>These terms are saved with your booking.</p>
+              </div>
+            </div>
+
+            <div className="buynow-policy-list">
+              <div className="buynow-policy-item">
+                <SafetyCertificateOutlined />
+                <div>
+                  <strong>Cancellation and refund</strong>
+                  <span>
+                    Cancel by {cancellationDeadline} to receive{" "}
+                    {beforeDeadlineRefund ?? "the applicable"} credits back.
+                    After the deadline, {afterDeadlineRefund ?? 0} credits will
+                    be refunded.
+                  </span>
+                </div>
+              </div>
+              <div className="buynow-policy-item">
+                <CalendarOutlined />
+                <div>
+                  <strong>Make-up policy</strong>
+                  <span>
+                    {bookingPolicy.makeup_allowed
+                      ? `Make-up requests are allowed with at least ${bookingPolicy.makeup_notice_hours} hours’ notice, subject to availability.`
+                      : "Make-up requests are not available for this class."}
+                  </span>
+                </div>
+              </div>
+              <div className="buynow-policy-item">
+                <CheckCircleOutlined />
+                <div>
+                  <strong>Class requirements</strong>
+                  <span>
+                    {bookingPolicy.class_requirements ||
+                      "No additional class requirements were provided."}
+                  </span>
+                </div>
+              </div>
+            </div>
           </section>
 
           <div

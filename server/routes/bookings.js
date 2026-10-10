@@ -13,6 +13,12 @@ const {
   buildOccurrenceWindows,
   findChildBookingConflicts,
 } = require("../utils/bookingConflicts");
+const {
+  bookingPolicyFromListing,
+  bookingPolicyFromSnapshot,
+  calculateCancellation,
+  normalizeBookingPolicy,
+} = require("../utils/bookingPolicy");
 
 router.post("/", userAuthorization, async (req, res) => {
   const {
@@ -75,6 +81,24 @@ router.post("/", userAuthorization, async (req, res) => {
 
     if (user.rows.length === 0) {
       return res.status(404).json({ error: "User not found" });
+    }
+
+    const currentBookingPolicy = bookingPolicyFromListing(listing.rows[0]);
+    if (req.body.acknowledged_policy) {
+      const acknowledgedPolicy = normalizeBookingPolicy(
+        req.body.acknowledged_policy,
+      );
+      if (
+        !acknowledgedPolicy ||
+        JSON.stringify(acknowledgedPolicy) !==
+          JSON.stringify(currentBookingPolicy)
+      ) {
+        return res.status(409).json({
+          code: "BOOKING_POLICY_CHANGED",
+          error:
+            "The booking policy changed while you were booking. Please review the updated terms and try again.",
+        });
+      }
     }
 
     // Optional: validate child belongs to this parent if provided
@@ -186,11 +210,13 @@ router.post("/", userAuthorization, async (req, res) => {
       isProgressive
         ? `SELECT COUNT(*) AS count
            FROM bookings
-           WHERE schedule_group_id = $1`
+           WHERE schedule_group_id = $1
+             AND status = 'confirmed'`
         : `SELECT COUNT(*) AS count
            FROM bookings
            WHERE schedule_id = $1
-             AND DATE(start_date) = DATE($2::timestamp)`,
+             AND DATE(start_date) = DATE($2::timestamp)
+             AND status = 'confirmed'`,
       isProgressive
         ? [schedule_group_id]
         : [schedule_id, start_date],
@@ -258,11 +284,13 @@ router.post("/", userAuthorization, async (req, res) => {
         isProgressive
           ? `SELECT COUNT(*)::integer AS count
              FROM bookings
-             WHERE schedule_group_id = $1`
+             WHERE schedule_group_id = $1
+               AND status = 'confirmed'`
           : `SELECT COUNT(*)::integer AS count
              FROM bookings
              WHERE schedule_id = $1
-               AND DATE(start_date) = DATE($2::timestamp)`,
+               AND DATE(start_date) = DATE($2::timestamp)
+               AND status = 'confirmed'`,
         isProgressive
           ? [schedule_group_id]
           : [schedule_id, start_date],
@@ -300,15 +328,18 @@ router.post("/", userAuthorization, async (req, res) => {
         [creditCost, listing.rows[0].partner_id],
       );
 
+      // Capture the policy now so later listing edits cannot alter this booking's terms.
+      const policySnapshot = currentBookingPolicy;
+
       // Create booking record with package info
       const newBooking = await client.query(
         `
         INSERT INTO bookings (
           listing_id, schedule_id, user_id, child_id, schedule_group_id,
           start_date, end_date, enrolled_package_type, classes_total,
-          dollars_per_credit, charged_credits
+          dollars_per_credit, charged_credits, policy_snapshot
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *
       `,
         [
@@ -323,6 +354,7 @@ router.post("/", userAuthorization, async (req, res) => {
           classes_total,
           dollarsPerCredit,
           creditCost,
+          JSON.stringify(policySnapshot),
         ],
       );
 
@@ -469,7 +501,8 @@ router.get("/availability/:scheduleId", async (req, res) => {
       `SELECT COUNT(*) as count 
        FROM bookings 
        WHERE schedule_id = $1 
-       AND DATE(start_date) = DATE($2::timestamp)`,
+       AND DATE(start_date) = DATE($2::timestamp)
+       AND status = 'confirmed'`,
       [scheduleId, start_date],
     );
 
@@ -668,35 +701,53 @@ router.get("/partner/:partnerId", partnerAuthorization, async (req, res) => {
 router.delete("/:bookingId", userAuthorization, async (req, res) => {
   const { bookingId } = req.params;
   const user_id = req.user;
+  const cancellationReason = String(
+    req.body?.reason || "Cancelled by parent",
+  )
+    .trim()
+    .slice(0, 1000);
+  let client;
 
   try {
-    // Get booking details with listing information and child_id
-    const booking = await pool.query(
+    client = await pool.connect();
+    await client.query("BEGIN");
+
+    // Lock the booking so repeated/concurrent cancellation requests can only
+    // refund it once.
+    const booking = await client.query(
       `
       SELECT
-        b.booking_id,
-        b.listing_id,
-        b.user_id,
-        b.start_date,
-        b.end_date,
-        b.created_at,
-        b.schedule_id,
-        b.charged_credits,
+        b.*,
+        b.start_date AT TIME ZONE 'Asia/Singapore' AS booking_start_utc,
         l.partner_id,
         l.listing_title,
-        sg.price_payg as schedule_credit,
-        (SELECT child_id FROM transactions WHERE parent_id = b.user_id AND listing_id = b.listing_id AND transaction_type = 'DEBIT' ORDER BY created_at DESC LIMIT 1) as child_id,
-        (SELECT used_credit FROM transactions WHERE parent_id = b.user_id AND listing_id = b.listing_id AND transaction_type = 'DEBIT' ORDER BY created_at DESC LIMIT 1) as actual_credit_charged
+        sg.is_progressive,
+        COALESCE(
+          b.charged_credits,
+          (
+            SELECT used_credit
+            FROM transactions
+            WHERE parent_id = b.user_id
+              AND listing_id = b.listing_id
+              AND transaction_type = 'DEBIT'
+              AND created_at >= b.created_at
+            ORDER BY created_at ASC
+            LIMIT 1
+          ),
+          0
+        ) AS actual_credit_charged
       FROM bookings b
       JOIN listings l ON b.listing_id = l.listing_id
       LEFT JOIN schedules s ON b.schedule_id = s.schedule_id
       LEFT JOIN schedule_groups sg ON s.schedule_group_id = sg.schedule_group_id
       WHERE b.booking_id = $1 AND b.user_id = $2
+      FOR UPDATE OF b
     `,
       [bookingId, user_id],
     );
 
     if (booking.rows.length === 0) {
+      await client.query("ROLLBACK");
       return res
         .status(404)
         .json({ error: "Booking not found or unauthorized" });
@@ -704,40 +755,38 @@ router.delete("/:bookingId", userAuthorization, async (req, res) => {
 
     const bookingData = booking.rows[0];
 
-    // Check if cancellation is within 24 hours of class start
-    const classStartTime = new Date(bookingData.start_date);
-    const now = new Date();
-    const hoursUntilClass = (classStartTime - now) / (1000 * 60 * 60);
-
-    if (hoursUntilClass < 24) {
-      return res.status(400).json({
-        error:
-          "Cancellations must be made at least 24 hours before the class starts",
-        hours_until_class: Math.round(hoursUntilClass * 10) / 10,
+    if (bookingData.status === "cancelled") {
+      await client.query("COMMIT");
+      return res.json({
+        success: true,
+        already_cancelled: true,
+        message: "Booking was already cancelled",
+        refunded_credit: Number(bookingData.refunded_credits || 0),
+        refund_percentage: Number(bookingData.refund_percentage || 0),
       });
     }
 
-    console.log(`🗑️ Cancel booking - credit calculation:`, {
-      listing_credit: bookingData.listing_credit,
-      schedule_credit: bookingData.schedule_credit,
-      actual_credit_charged: bookingData.actual_credit_charged,
+    const classStart = new Date(bookingData.booking_start_utc);
+    const now = new Date();
+    if (classStart <= now) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        error: bookingData.is_progressive
+          ? "This programme can no longer be cancelled because it has already started"
+          : "This class can no longer be cancelled because it has already started",
+      });
+    }
+
+    const policy = bookingPolicyFromSnapshot(bookingData.policy_snapshot);
+    const cancellation = calculateCancellation({
+      policy,
+      chargedCredits: bookingData.actual_credit_charged,
+      classStart,
+      now,
     });
+    const creditRefund = cancellation.refund_credits;
 
-    // Prefer the immutable booking snapshot, with the transaction retained for
-    // bookings created before snapshots were introduced.
-    const creditRefund =
-      bookingData.charged_credits || bookingData.actual_credit_charged ||
-      1;
-
-    console.log(`🗑️ Credit refund amount: ${creditRefund}`);
-
-    // Perform cancellation within transaction
-    const client = await pool.connect();
-
-    try {
-      await client.query("BEGIN");
-
-      // Refund credits to user
+    if (creditRefund > 0) {
       await client.query(
         `UPDATE users
          SET credit = CASE
@@ -754,13 +803,11 @@ router.delete("/:bookingId", userAuthorization, async (req, res) => {
         [creditRefund, user_id],
       );
 
-      // Deduct from partner balance
       await client.query(
         "UPDATE partners SET credit = credit - $1 WHERE partner_id = $2",
         [creditRefund, bookingData.partner_id],
       );
 
-      // Record refund transaction if child_id exists
       if (bookingData.child_id) {
         await client.query(
           `INSERT INTO transactions (parent_id, child_id, listing_id, used_credit, transaction_type)
@@ -774,17 +821,52 @@ router.delete("/:bookingId", userAuthorization, async (req, res) => {
           ],
         );
       }
+    }
 
-      // Delete booking
-      await client.query("DELETE FROM bookings WHERE booking_id = $1", [
+    await client.query(
+      `UPDATE bookings
+       SET status = 'cancelled',
+           cancelled_at = NOW(),
+           cancelled_by = $2,
+           cancellation_reason = $3,
+           refunded_credits = $4,
+           refund_percentage = $5
+       WHERE booking_id = $1`,
+      [
         bookingId,
-      ]);
+        AUTH_ROLES.USER,
+        cancellationReason,
+        creditRefund,
+        cancellation.refund_percent,
+      ],
+    );
 
-      await client.query("COMMIT");
+    await client.query(
+      `UPDATE class_occurrences
+       SET status = 'cancelled',
+           cancellation_reason = $2,
+           cancelled_by = $3
+       WHERE booking_id = $1
+         AND status IN ('scheduled', 'rescheduled')`,
+      [bookingId, cancellationReason, AUTH_ROLES.USER],
+    );
 
-      // Notify partner about cancellation
-      try {
-        await pool.query(
+    await client.query("COMMIT");
+
+    const notificationData = JSON.stringify({
+      user_id,
+      booking_id: bookingId,
+      credit: creditRefund,
+      refund_percentage: cancellation.refund_percent,
+    });
+    const refundMessage =
+      creditRefund > 0
+        ? `${creditRefund} credits were refunded.`
+        : "No credits were refundable under the booking policy.";
+
+    try {
+      await Promise.all([
+        pool.query(
           `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
            VALUES ($1, $2, $3, $4, $5, $6)`,
           [
@@ -792,24 +874,11 @@ router.delete("/:bookingId", userAuthorization, async (req, res) => {
             bookingData.partner_id,
             "cancellation",
             "Booking cancelled: " + bookingData.listing_title,
-            "A booking has been cancelled.",
-            JSON.stringify({
-              user_id,
-              booking_id: bookingId,
-              credit: creditRefund,
-            }),
+            refundMessage,
+            notificationData,
           ],
-        );
-      } catch (notifyErr) {
-        console.error(
-          "Failed to insert cancellation notification:",
-          notifyErr.message,
-        );
-      }
-
-      // Notify user about cancellation confirmation
-      try {
-        await pool.query(
+        ),
+        pool.query(
           `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
            VALUES ($1, $2, $3, $4, $5, $6)`,
           [
@@ -817,37 +886,30 @@ router.delete("/:bookingId", userAuthorization, async (req, res) => {
             user_id,
             "cancellation",
             "Booking cancelled",
-            "Your booking has been cancelled and credits refunded.",
-            JSON.stringify({ booking_id: bookingId, credit: creditRefund }),
+            refundMessage,
+            notificationData,
           ],
-        );
-      } catch (notifyErr) {
-        console.error(
-          "Failed to insert user cancellation notification:",
-          notifyErr.message,
-        );
-      }
-
-      res.json({
-        success: true,
-        message: "Booking cancelled successfully",
-        refunded_credit: creditRefund,
-      });
-    } catch (e) {
-      console.error("❌ Error during booking cancellation transaction:", e);
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
+        ),
+      ]);
+    } catch (notifyErr) {
+      console.error("Failed to insert cancellation notification:", notifyErr.message);
     }
+
+    return res.json({
+      success: true,
+      message: "Booking cancelled successfully",
+      refunded_credit: creditRefund,
+      refund_percentage: cancellation.refund_percent,
+      cancellation_deadline: cancellation.cancellation_deadline.toISOString(),
+    });
   } catch (error) {
+    await client?.query("ROLLBACK").catch(() => {});
     console.error("❌ Cancel booking error:", error.message);
-    console.error("Stack:", error.stack);
     res.status(500).json({
       error: "Server error",
-      message: error.message,
-      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
+  } finally {
+    client?.release();
   }
 });
 
@@ -888,13 +950,10 @@ router.get(
         s.day as schedule_day
       FROM bookings b
       JOIN users u ON u.user_id = b.user_id
-      LEFT JOIN children c ON c.child_id = (
-        SELECT child_id FROM transactions 
-        WHERE listing_id = b.listing_id AND parent_id = b.user_id 
-        LIMIT 1
-      )
+      LEFT JOIN children c ON c.child_id = b.child_id
       LEFT JOIN schedules s ON s.schedule_id = b.schedule_id
       WHERE b.listing_id = $1
+        AND b.status = 'confirmed'
       ORDER BY b.created_at DESC`,
       [listing_id],
     );

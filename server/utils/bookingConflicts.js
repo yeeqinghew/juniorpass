@@ -70,7 +70,8 @@ const findChildBookingConflicts = async (db, childId, occurrences) => {
        FROM class_occurrences co
        JOIN bookings b ON b.booking_id = co.booking_id
        JOIN listings l ON l.listing_id = b.listing_id
-       WHERE co.status IN ('scheduled', 'rescheduled')
+       WHERE b.status = 'confirmed'
+         AND co.status IN ('scheduled', 'rescheduled')
      )
      SELECT DISTINCT ON (existing.occurrence_id)
             existing.occurrence_id,

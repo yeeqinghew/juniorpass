@@ -671,6 +671,21 @@
   font-size: 11px;
 }
 
+.cc-booking-policy-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px var(--spacing-md);
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border-light);
+}
+
+.cc-booking-policy-summary span {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: var(--line-height-normal);
+}
+
 .cc-empty-card {
   display: flex;
   min-height: 286px;
@@ -763,6 +778,10 @@
   border: 1px solid var(--border-color-medium);
   border-radius: var(--radius-md);
   background: var(--bg-light-blue);
+}
+
+.cc-cancellation-alert {
+  border-radius: var(--radius-md) !important;
 }
 
 .cc-modal-btns {
@@ -964,6 +983,11 @@
     flex-direction: column;
     gap: 5px;
     margin-top: 8px;
+  }
+
+  .cc-booking-policy-summary {
+    flex-direction: column;
+    gap: 4px;
   }
 
   .cc-booking-cancel {

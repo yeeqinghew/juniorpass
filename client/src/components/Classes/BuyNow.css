@@ -389,6 +389,53 @@
   overflow-wrap: anywhere;
 }
 
+.buynow-policy-section {
+  border-color: rgba(152, 189, 210, 0.5);
+  background: var(--bg-light-blue);
+}
+
+.buynow-policy-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.buynow-policy-item {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: var(--spacing-sm);
+  align-items: start;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg-white);
+}
+
+.buynow-policy-item > .anticon {
+  margin-top: 2px;
+  color: var(--primary-dark);
+  font-size: var(--font-size-md);
+}
+
+.buynow-policy-item div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.buynow-policy-item strong {
+  color: var(--text-dark);
+  font-size: var(--font-size-xs);
+}
+
+.buynow-policy-item span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: var(--line-height-relaxed);
+  overflow-wrap: anywhere;
+}
+
 .buynow-modal .ant-modal-footer {
   flex: none;
   margin: 0;

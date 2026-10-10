@@ -207,6 +207,12 @@ CREATE TABLE listings (
     images JSONB,
     registered_parents VARCHAR(500),
     active BOOLEAN,
+    cancellation_notice_hours INTEGER NOT NULL DEFAULT 24 CHECK (cancellation_notice_hours BETWEEN 0 AND 720),
+    refund_before_deadline_percent INTEGER NOT NULL DEFAULT 100 CHECK (refund_before_deadline_percent BETWEEN 0 AND 100),
+    refund_after_deadline_percent INTEGER NOT NULL DEFAULT 0 CHECK (refund_after_deadline_percent BETWEEN 0 AND 100),
+    makeup_allowed BOOLEAN NOT NULL DEFAULT false,
+    makeup_notice_hours INTEGER NOT NULL DEFAULT 24 CHECK (makeup_notice_hours BETWEEN 0 AND 720),
+    class_requirements VARCHAR(2000) NOT NULL DEFAULT '',
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -748,6 +754,13 @@ CREATE TABLE bookings (
     upgraded_from_booking_id UUID REFERENCES bookings(booking_id),
     dollars_per_credit DECIMAL(10, 4),
     charged_credits INTEGER,
+    status VARCHAR(20) NOT NULL DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'cancelled')),
+    policy_snapshot JSONB NOT NULL DEFAULT '{"version":1,"cancellation_notice_hours":24,"refund_before_deadline_percent":100,"refund_after_deadline_percent":0,"makeup_allowed":false,"makeup_notice_hours":24,"class_requirements":""}'::jsonb,
+    cancelled_at TIMESTAMP,
+    cancelled_by VARCHAR(20),
+    cancellation_reason VARCHAR(1000),
+    refunded_credits INTEGER CHECK (refunded_credits IS NULL OR refunded_credits >= 0),
+    refund_percentage INTEGER CHECK (refund_percentage IS NULL OR refund_percentage BETWEEN 0 AND 100),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -761,6 +774,7 @@ CREATE TRIGGER set_timestamp_bookings
 CREATE INDEX idx_bookings_user_date ON bookings (user_id, start_date, end_date);
 -- Index for checking schedule capacity
 CREATE INDEX idx_bookings_schedule_date ON bookings (schedule_id, start_date, end_date);
+CREATE INDEX idx_bookings_active_schedule_date ON bookings (schedule_id, start_date, end_date) WHERE status = 'confirmed';
 -- Keep schedule_id for tracking which specific time slots were attended
 CREATE INDEX idx_bookings_schedule_group ON bookings(schedule_group_id);
 

@@ -41,6 +41,13 @@ const bookingRowsSql = `
       b.classes_remaining,
       b.charged_credits,
       b.dollars_per_credit,
+      b.status,
+      b.policy_snapshot,
+      b.cancelled_at,
+      b.cancelled_by,
+      b.cancellation_reason,
+      b.refunded_credits,
+      b.refund_percentage,
       b.created_at,
       b.updated_at,
       u.user_id,
@@ -70,6 +77,7 @@ const bookingRowsSql = `
       COALESCE(os.upcoming_count, 0) AS upcoming_count,
       COALESCE(os.occurrences, '[]'::jsonb) AS occurrences,
       CASE
+        WHEN b.status = 'cancelled' THEN 'cancelled'
         WHEN COALESCE(os.occurrence_count, 0) > 0
           AND os.cancelled_count = os.occurrence_count THEN 'cancelled'
         WHEN b.start_date > NOW() THEN 'upcoming'

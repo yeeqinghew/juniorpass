@@ -245,7 +245,8 @@ const runClassReminders = async ({
        JOIN schedules s ON s.schedule_id = b.schedule_id
        JOIN listingOutlets lo ON lo.listing_outlet_id = s.listing_outlet_id
        JOIN outlets o ON o.outlet_id = lo.outlet_id
-       WHERE co.status IN ('scheduled', 'rescheduled')
+       WHERE b.status = 'confirmed'
+         AND co.status IN ('scheduled', 'rescheduled')
          AND co.scheduled_date > NOW()
          AND co.scheduled_date <= NOW() + ($1 * INTERVAL '1 hour')
        ORDER BY co.scheduled_date, co.occurrence_id`,

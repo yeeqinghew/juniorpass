@@ -14,6 +14,7 @@ const {
 } = require("../services/storage/storage.service");
 const { parseCategoryIds } = require("../utils/categories");
 const { withMinimumListingCredits } = require("../utils/listingPricing");
+const { normalizeBookingPolicy } = require("../utils/bookingPolicy");
 
 require("dotenv").config();
 router.use(etagMiddleware);
@@ -72,6 +73,15 @@ router.post("", authorization, async (req, res) => {
 
     const partnerIdFromToken = req.user;
     const parsedCategoryIds = parseCategoryIds(category_ids);
+    const bookingPolicy = normalizeBookingPolicy(req.body);
+
+    if (!bookingPolicy) {
+      return res.status(400).json({
+        error: "Invalid booking policy",
+        details:
+          "Policy hours must be between 0 and 720, refund percentages between 0 and 100, and requirements no longer than 2,000 characters.",
+      });
+    }
 
     // Validation: Check for required fields
     if (
@@ -199,8 +209,14 @@ router.post("", authorization, async (req, res) => {
         age_groups,
         rating,
         images,
-        active
-      ) VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        active,
+        cancellation_notice_hours,
+        refund_before_deadline_percent,
+        refund_after_deadline_percent,
+        makeup_allowed,
+        makeup_notice_hours,
+        class_requirements
+      ) VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
       [
         partnerIdFromToken,
         title,
@@ -210,6 +226,12 @@ router.post("", authorization, async (req, res) => {
         0,
         images,
         true,
+        bookingPolicy.cancellation_notice_hours,
+        bookingPolicy.refund_before_deadline_percent,
+        bookingPolicy.refund_after_deadline_percent,
+        bookingPolicy.makeup_allowed,
+        bookingPolicy.makeup_notice_hours,
+        bookingPolicy.class_requirements,
       ],
     );
 
@@ -486,6 +508,7 @@ router.get("/:id([0-9a-fA-F-]{36})", cacheMiddleware, async (req, res) => {
           SELECT COUNT(*)::integer
           FROM bookings b
           WHERE b.listing_id = l.listing_id
+            AND b.status = 'confirmed'
         ) AS signup_count,
         COALESCE((
           SELECT jsonb_agg(ac.name ORDER BY ac.display_order, ac.name)
@@ -602,6 +625,7 @@ router.get("/partner/:partnerId", async (req, res) => {
           SELECT COUNT(*)::integer
           FROM bookings b
           WHERE b.listing_id = l.listing_id
+            AND b.status = 'confirmed'
         ) AS signup_count,
         COALESCE((
           SELECT jsonb_agg(ac.name ORDER BY ac.display_order, ac.name)
@@ -709,6 +733,15 @@ router.patch("/:id", authorization, async (req, res) => {
         .json({ error: "Not authorized to modify this listing" });
     }
 
+    const bookingPolicy = normalizeBookingPolicy(req.body, listing);
+    if (!bookingPolicy) {
+      return res.status(400).json({
+        error: "Invalid booking policy",
+        details:
+          "Policy hours must be between 0 and 720, refund percentages between 0 and 100, and requirements no longer than 2,000 characters.",
+      });
+    }
+
     // Merge existing data with new data (partial update)
     const updatedData = {
       listing_title: req.body.listing_title ?? listing.listing_title,
@@ -767,13 +800,25 @@ router.patch("/:id", authorization, async (req, res) => {
         listing_title = $1,
         description = $2,
         age_groups = $3,
-        images = $4
-      WHERE listing_id = $5 RETURNING *`,
+        images = $4,
+        cancellation_notice_hours = $5,
+        refund_before_deadline_percent = $6,
+        refund_after_deadline_percent = $7,
+        makeup_allowed = $8,
+        makeup_notice_hours = $9,
+        class_requirements = $10
+      WHERE listing_id = $11 RETURNING *`,
       [
         updatedData.listing_title,
         updatedData.description,
         updatedData.age_groups,
         JSON.stringify(updatedData.images),
+        bookingPolicy.cancellation_notice_hours,
+        bookingPolicy.refund_before_deadline_percent,
+        bookingPolicy.refund_after_deadline_percent,
+        bookingPolicy.makeup_allowed,
+        bookingPolicy.makeup_notice_hours,
+        bookingPolicy.class_requirements,
         id,
       ],
     );
@@ -867,7 +912,9 @@ router.patch("/:listing_id/status", authorization, async (req, res) => {
          AND (
            $1::boolean = true
            OR NOT EXISTS (
-             SELECT 1 FROM bookings b WHERE b.listing_id = listings.listing_id
+             SELECT 1 FROM bookings b
+             WHERE b.listing_id = listings.listing_id
+               AND b.status = 'confirmed'
            )
          )
        RETURNING listing_id`,
@@ -878,7 +925,9 @@ router.patch("/:listing_id/status", authorization, async (req, res) => {
       const listingCheck = await pool.query(
         `SELECT
            EXISTS (
-             SELECT 1 FROM bookings b WHERE b.listing_id = l.listing_id
+             SELECT 1 FROM bookings b
+             WHERE b.listing_id = l.listing_id
+               AND b.status = 'confirmed'
            ) AS has_signups
          FROM listings l
          WHERE l.listing_id = $1 AND l.partner_id = $2`,
@@ -1154,7 +1203,8 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
           `SELECT DISTINCT user_id
            FROM bookings
            WHERE listing_id = $1
-             AND start_date >= NOW()`,
+             AND start_date >= NOW()
+             AND status = 'confirmed'`,
           [listing_id],
         );
 

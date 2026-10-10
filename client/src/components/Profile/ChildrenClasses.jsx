@@ -46,6 +46,53 @@ const { Text } = Typography;
 const { Panel } = Collapse;
 const { Option } = Select;
 
+const getBookingPolicy = (booking) => {
+  let snapshot = booking?.policy_snapshot;
+  if (typeof snapshot === "string") {
+    try {
+      snapshot = JSON.parse(snapshot);
+    } catch {
+      snapshot = null;
+    }
+  }
+
+  return {
+    cancellation_notice_hours: Number(
+      snapshot?.cancellation_notice_hours ?? 24,
+    ),
+    refund_before_deadline_percent: Number(
+      snapshot?.refund_before_deadline_percent ?? 100,
+    ),
+    refund_after_deadline_percent: Number(
+      snapshot?.refund_after_deadline_percent ?? 0,
+    ),
+    makeup_allowed: snapshot?.makeup_allowed === true,
+    makeup_notice_hours: Number(snapshot?.makeup_notice_hours ?? 24),
+    class_requirements: snapshot?.class_requirements || "",
+  };
+};
+
+const getCancellationTerms = (booking) => {
+  const policy = getBookingPolicy(booking);
+  const classStart = parseClassScheduleTime(booking.start_date);
+  const deadline = classStart.subtract(
+    policy.cancellation_notice_hours,
+    "hour",
+  );
+  const beforeDeadline = !dayjs().isAfter(deadline);
+  const refundPercentage = beforeDeadline
+    ? policy.refund_before_deadline_percent
+    : policy.refund_after_deadline_percent;
+  const chargedCredits = Math.max(0, Number(booking.charged_credits) || 0);
+
+  return {
+    ...policy,
+    deadline,
+    refundPercentage,
+    refundCredits: Math.floor((chargedCredits * refundPercentage) / 100),
+  };
+};
+
 const ChildrenClasses = () => {
   const { user, reauthenticate } = useUserContext();
   const navigate = useNavigate();
@@ -148,6 +195,7 @@ const ChildrenClasses = () => {
     const upcoming = bookings.filter(
       (b) =>
         b.child_id === child.child_id &&
+        b.status !== "cancelled" &&
         parseClassScheduleTime(b.start_date).isSameOrAfter(now),
     );
     if (upcoming.length > 0) {
@@ -233,37 +281,23 @@ const ChildrenClasses = () => {
     const classStart = parseClassScheduleTime(booking.start_date);
     const now = dayjs();
 
-    const hoursUntil = classStart.diff(now, "hour", true);
-
-    const isProgressive = booking.is_progressive === true;
-
-    if (isProgressive) {
-      if (now.isSameOrAfter(classStart)) {
-        Modal.error({
-          title: "Cannot Cancel Programme",
-          content:
-            "This progressive programme can no longer be cancelled because the first lesson has already started.",
-          okText: "Understood",
-          centered: true,
-        });
-
-        return;
-      }
-    } else if (hoursUntil < 24) {
+    if (now.isSameOrAfter(classStart)) {
       Modal.error({
         title: "Cannot Cancel Booking",
         content:
-          "Cancellations must be made at least 24 hours before the class.",
+          "This booking can no longer be cancelled because the class or programme has already started.",
         okText: "Understood",
         centered: true,
       });
-
       return;
     }
+
+    const cancellationTerms = getCancellationTerms(booking);
 
     setBookingToCancel({
       bookingId: booking.booking_id,
       bookingTitle: booking.listing_title,
+      ...cancellationTerms,
     });
 
     setIsCancelModalOpen(true);
@@ -310,8 +344,10 @@ const ChildrenClasses = () => {
     const now = dayjs();
     let list = filteredBookings.filter((b) => b.child_id === childId);
     if (filterType === "upcoming")
-      list = list.filter((b) =>
-        parseClassScheduleTime(b.start_date).isSameOrAfter(now),
+      list = list.filter(
+        (b) =>
+          b.status !== "cancelled" &&
+          parseClassScheduleTime(b.start_date).isSameOrAfter(now),
       );
     else if (filterType === "past")
       list = list.filter((b) => parseClassScheduleTime(b.start_date).isBefore(now));
@@ -345,17 +381,18 @@ const ChildrenClasses = () => {
 
     const now = dayjs();
     const classStart = parseClassScheduleTime(booking.start_date);
-
-    const hoursUntilClass = classStart.diff(now, "hour", true);
+    const bookingPolicy = getBookingPolicy(booking);
+    const cancellationTerms = getCancellationTerms(booking);
 
     const isProgressive = booking.is_progressive;
     const hasStarted = now.isSameOrAfter(classStart);
 
-    const canCancel = isProgressive
-      ? now.isBefore(classStart)
-      : hoursUntilClass >= 24;
+    const canCancel =
+      booking.status !== "cancelled" && now.isBefore(classStart);
 
-    const statusLabel = isProgressive
+    const statusLabel = booking.status === "cancelled"
+      ? "Cancelled"
+      : isProgressive
       ? hasStarted
         ? "In Progress"
         : "Confirmed"
@@ -363,7 +400,9 @@ const ChildrenClasses = () => {
         ? "Completed"
         : "Confirmed";
 
-    const statusColor = isProgressive
+    const statusColor = booking.status === "cancelled"
+      ? "red"
+      : isProgressive
       ? hasStarted
         ? "blue"
         : "green"
@@ -429,6 +468,27 @@ const ChildrenClasses = () => {
                 {formatTime(booking.start_date)} –{" "}
                 {formatTime(booking.end_date)}
               </span>
+            </div>
+
+            <div className="cc-booking-policy-summary">
+              {booking.status === "cancelled" ? (
+                <span>
+                  Cancellation refund: {Number(booking.refunded_credits || 0)} credits
+                </span>
+              ) : (
+                <span>
+                  Cancellation: {cancellationTerms.refundCredits} credits back
+                  until {cancellationTerms.deadline.format("DD MMM YYYY, h:mm A")}
+                </span>
+              )}
+              <span>
+                Make-up requests: {bookingPolicy.makeup_allowed
+                  ? `allowed with ${bookingPolicy.makeup_notice_hours} hours’ notice`
+                  : "not available"}
+              </span>
+              {bookingPolicy.class_requirements && (
+                <span>Requirements: {bookingPolicy.class_requirements}</span>
+              )}
             </div>
           </div>
         </div>
@@ -530,7 +590,9 @@ const ChildrenClasses = () => {
   const visibleBookingCount = filteredBookings.filter((booking) => {
     const startDate = parseClassScheduleTime(booking.start_date);
     const now = dayjs();
-    if (filterType === "upcoming") return startDate.isSameOrAfter(now);
+    if (filterType === "upcoming") {
+      return booking.status !== "cancelled" && startDate.isSameOrAfter(now);
+    }
     if (filterType === "past") return startDate.isBefore(now);
     return true;
   }).length;
@@ -891,11 +953,19 @@ const ChildrenClasses = () => {
             </div>
           )}
           <Alert
-            message="Credits will be automatically refunded"
-            description="Refunded credits are available immediately for other bookings"
-            type="success"
+            message={
+              bookingToCancel?.refundCredits > 0
+                ? `${bookingToCancel.refundCredits} credits will be refunded`
+                : "This cancellation is non-refundable"
+            }
+            description={
+              bookingToCancel?.refundCredits > 0
+                ? `${bookingToCancel.refundPercentage}% of the booking credits will be returned immediately.`
+                : `The refund deadline was ${bookingToCancel?.deadline?.format("DD MMM YYYY, h:mm A")}. You may still cancel to release the place.`
+            }
+            type={bookingToCancel?.refundCredits > 0 ? "success" : "warning"}
             showIcon
-            style={{ borderRadius: "var(--border-radius)" }}
+            className="cc-cancellation-alert"
           />
           <div className="cc-modal-btns">
             <Button
