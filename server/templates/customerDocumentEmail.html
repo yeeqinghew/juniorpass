@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { margin: 0; background: #f7f6f3; color: #202033; font-family: Poppins, Arial, sans-serif; }
+      .shell { width: 100%; padding: 32px 12px; }
+      .card { width: 100%; max-width: 620px; margin: 0 auto; overflow: hidden; border: 1px solid #e7e5e0; border-radius: 20px; background: #ffffff; }
+      .header { padding: 26px 30px; background: #eaf5fa; }
+      .logo { width: 104px; height: auto; }
+      .eyebrow { margin: 18px 0 4px; color: #5793b5; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+      h1 { margin: 0; font-size: 25px; line-height: 1.3; }
+      .body { padding: 28px 30px; }
+      .intro { margin: 0 0 22px; color: #686878; line-height: 1.7; }
+      .reference { margin-bottom: 22px; padding: 14px 16px; border-radius: 12px; background: #fcfbf8; }
+      .reference span { display: block; color: #777582; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+      .reference strong { display: block; margin-top: 4px; word-break: break-all; }
+      .details { width: 100%; border-collapse: collapse; }
+      .details th, .details td { padding: 11px 0; border-bottom: 1px solid #efede9; text-align: left; vertical-align: top; }
+      .details th { width: 42%; color: #777582; font-size: 13px; font-weight: 500; }
+      .details td { font-size: 13px; font-weight: 600; }
+      .policy { margin-top: 24px; padding: 18px; border-radius: 14px; background: #fff8fb; }
+      .policy h2 { margin: 0 0 10px; font-size: 15px; }
+      .policy p { margin: 7px 0; color: #666473; font-size: 13px; line-height: 1.6; }
+      .action { margin-top: 26px; text-align: center; }
+      .action a { display: inline-block; padding: 12px 22px; border-radius: 10px; background: #8dbbd3; color: #ffffff; font-size: 14px; font-weight: 700; text-decoration: none; }
+      .footer { padding: 20px 30px 28px; color: #888691; font-size: 12px; line-height: 1.6; text-align: center; }
+      @media (max-width: 520px) {
+        .header, .body { padding-right: 20px; padding-left: 20px; }
+        .details th { width: 46%; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="card">
+        <div class="header">
+          <img class="logo" src="{{logoUrl}}" alt="JuniorPASS" />
+          <p class="eyebrow">{{eyebrow}}</p>
+          <h1>{{title}}</h1>
+        </div>
+        <div class="body">
+          <p class="intro">Hi {{customerName}}, {{intro}}</p>
+          <div class="reference">
+            <span>{{referenceLabel}}</span>
+            <strong>{{reference}}</strong>
+          </div>
+          <table class="details" role="presentation">{{detailRows}}</table>
+          {{policySection}}
+          <div class="action"><a href="{{profileUrl}}">View in JuniorPASS</a></div>
+        </div>
+        <div class="footer">
+          This document was generated from JuniorPASS records. If anything looks incorrect,
+          contact support and include the reference above.<br />© {{currentYear}} JuniorPASS
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

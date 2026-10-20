@@ -20,6 +20,9 @@ const {
   calculateCancellation,
   normalizeBookingPolicy,
 } = require("../utils/bookingPolicy");
+const {
+  sendBookingConfirmation,
+} = require("../services/customerDocuments.service");
 
 router.post("/", userAuthorization, async (req, res) => {
   const {
@@ -409,6 +412,18 @@ router.post("/", userAuthorization, async (req, res) => {
         console.error(
           `Booking ${booking_id} succeeded but listing cache invalidation failed:`,
           cacheError.message,
+        );
+      }
+
+      try {
+        await sendBookingConfirmation({
+          bookingId: booking_id,
+          automatic: true,
+        });
+      } catch (emailError) {
+        console.error(
+          `Booking ${booking_id} succeeded but its confirmation email failed:`,
+          emailError.message,
         );
       }
 

@@ -495,6 +495,7 @@ CREATE TABLE payment_requests (
     status payment_status NOT NULL DEFAULT 'PENDING',
     webhook_received BOOLEAN NOT NULL DEFAULT FALSE,
     settled_at TIMESTAMP,
+    receipt_email_sent_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP
 );
@@ -761,6 +762,7 @@ CREATE TABLE bookings (
     cancellation_reason VARCHAR(1000),
     refunded_credits INTEGER CHECK (refunded_credits IS NULL OR refunded_credits >= 0),
     refund_percentage INTEGER CHECK (refund_percentage IS NULL OR refund_percentage BETWEEN 0 AND 100),
+    confirmation_email_sent_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );

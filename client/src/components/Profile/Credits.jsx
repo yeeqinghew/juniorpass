@@ -10,12 +10,14 @@ import {
   ShoppingCartOutlined,
   UserOutlined,
   WalletOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons";
 import toast from "react-hot-toast";
 import { useUserContext } from "../UserContext";
 import useWindowDimensions from "../../hooks/useWindowDimensions";
 import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
 import TopupModal from "./TopupModal";
+import CustomerDocumentModal from "./CustomerDocumentModal";
 import "./Credits.css";
 
 const { Title } = Typography;
@@ -38,6 +40,7 @@ const Credits = ({ openTopUpOnMount = false }) => {
   const [filterType, setFilterType] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(isMobileOrTabletPortrait ? 5 : 10);
+  const [receiptPaymentId, setReceiptPaymentId] = useState(null);
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
@@ -200,6 +203,16 @@ const Credits = ({ openTopUpOnMount = false }) => {
           <span className="cr-txn-date">
             <CalendarOutlined /> {formatDate(item.created_at)}
           </span>
+          {item.payment_request_id && item.payment_status === "COMPLETED" && (
+            <Button
+              size="small"
+              icon={<FileTextOutlined />}
+              className="cr-receipt-btn"
+              onClick={() => setReceiptPaymentId(item.payment_request_id)}
+            >
+              Receipt
+            </Button>
+          )}
         </div>
       </article>
     );
@@ -354,6 +367,12 @@ const Credits = ({ openTopUpOnMount = false }) => {
         isTopUpModalOpen={isTopUpModalOpen}
         setIsTopUpModalOpen={setIsTopUpModalOpen}
         onSuccess={fetchTransactions}
+      />
+      <CustomerDocumentModal
+        documentType="payment"
+        recordId={receiptPaymentId}
+        open={Boolean(receiptPaymentId)}
+        onClose={() => setReceiptPaymentId(null)}
       />
     </div>
   );

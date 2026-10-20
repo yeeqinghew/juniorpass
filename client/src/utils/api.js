@@ -122,6 +122,15 @@ export const API_ENDPOINTS = {
   CREATE_BOOKING: "/bookings",
   CANCEL_BOOKING: (bookingId) => `/bookings/${bookingId}`,
 
+  // Customer documents
+  GET_BOOKING_CONFIRMATION: (bookingId) => `/documents/bookings/${bookingId}`,
+  EMAIL_BOOKING_CONFIRMATION: (bookingId) =>
+    `/documents/bookings/${bookingId}/email`,
+  GET_PAYMENT_RECEIPT: (paymentRequestId) =>
+    `/documents/payments/${paymentRequestId}`,
+  EMAIL_PAYMENT_RECEIPT: (paymentRequestId) =>
+    `/documents/payments/${paymentRequestId}/email`,
+
   // Make-up requests
   GET_USER_MAKEUP_REQUESTS: "/makeup-requests/user",
   CREATE_MAKEUP_REQUEST: "/makeup-requests",

@@ -651,6 +651,13 @@
   border-radius: var(--radius-sm) !important;
 }
 
+.cc-booking-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
 .cc-booking-meta {
   display: flex;
   flex-wrap: wrap;
@@ -1030,6 +1037,12 @@
     display: block;
   }
 
+  .cc-booking-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+
   .cc-booking-title {
     overflow: visible;
     font-size: var(--font-size-sm);
@@ -1049,8 +1062,7 @@
   }
 
   .cc-booking-cancel {
-    width: 100%;
-    margin-top: 10px;
+    flex: 1;
   }
 
   .cc-empty-card {

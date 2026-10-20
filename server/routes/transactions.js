@@ -20,16 +20,22 @@ router.get("/user", authorization, async (req, res) => {
         t.listing_id,
         t.used_credit,
         t.transaction_type,
+        t.payment_request_id,
         t.created_at,
         c.name as child_name,
         l.listing_title,
         l.images,
         p.partner_name,
-        p.picture as partner_picture
+        p.picture as partner_picture,
+        pr.amount as payment_amount,
+        pr.reference_number as payment_reference,
+        pr.status as payment_status,
+        pr.settled_at as payment_settled_at
       FROM transactions t
       LEFT JOIN children c ON t.child_id = c.child_id
       LEFT JOIN listings l ON t.listing_id = l.listing_id
       LEFT JOIN partners p ON l.partner_id = p.partner_id
+      LEFT JOIN payment_requests pr ON t.payment_request_id = pr.request_id
       WHERE t.parent_id = $1
       ORDER BY t.created_at DESC
     `,

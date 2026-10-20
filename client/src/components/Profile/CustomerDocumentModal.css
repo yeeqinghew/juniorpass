@@ -1,0 +1,195 @@
+.customer-document-modal .ant-modal-content {
+  overflow: hidden;
+  padding: 0;
+  border-radius: var(--radius-xl);
+}
+
+.customer-document-print-area {
+  background: var(--bg-white);
+}
+
+.customer-document-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+  padding: 28px 30px;
+  background: var(--bg-light-blue);
+}
+
+.customer-document-brand {
+  color: var(--primary-dark);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+}
+
+.customer-document-header p {
+  margin: var(--spacing-md) 0 2px;
+  color: var(--primary-dark);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.customer-document-header h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-2xl);
+}
+
+.customer-document-close {
+  flex: 0 0 auto;
+}
+
+.customer-document-loading {
+  display: flex;
+  min-height: 300px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  color: var(--text-secondary);
+}
+
+.customer-document-body {
+  padding: 26px 30px 20px;
+}
+
+.customer-document-reference {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px var(--spacing-md);
+  padding: var(--spacing-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+
+.customer-document-reference span {
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.customer-document-reference strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.customer-document-reference .ant-tag {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  margin: 0;
+  text-transform: capitalize;
+}
+
+.customer-document-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--spacing-xl);
+  margin: var(--spacing-lg) 0 0;
+}
+
+.customer-document-detail {
+  min-width: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.customer-document-detail dt {
+  margin-bottom: 3px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.customer-document-detail dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-relaxed);
+}
+
+.customer-document-breakable {
+  overflow-wrap: anywhere;
+}
+
+.customer-document-policy {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-md);
+  background: var(--bg-light-pink);
+}
+
+.customer-document-policy h3 {
+  margin: 0 0 var(--spacing-sm);
+  font-size: var(--font-size-md);
+}
+
+.customer-document-policy p {
+  margin: 6px 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+}
+
+.customer-document-note {
+  margin-top: var(--spacing-lg);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  text-align: center;
+}
+
+.customer-document-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) 30px 24px;
+  border-top: 1px solid var(--border-light);
+}
+
+@media (max-width: 767.9px) {
+  .customer-document-header,
+  .customer-document-body {
+    padding-right: var(--spacing-lg);
+    padding-left: var(--spacing-lg);
+  }
+
+  .customer-document-details {
+    grid-template-columns: 1fr;
+  }
+
+  .customer-document-actions {
+    flex-direction: column-reverse;
+    padding-right: var(--spacing-lg);
+    padding-left: var(--spacing-lg);
+  }
+
+  .customer-document-actions .ant-btn {
+    width: 100%;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .customer-document-print-area,
+  .customer-document-print-area * {
+    visibility: visible !important;
+  }
+
+  .customer-document-print-area {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    background: #ffffff;
+  }
+
+  .customer-document-close {
+    display: none !important;
+  }
+}

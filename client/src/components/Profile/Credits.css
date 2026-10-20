@@ -576,6 +576,11 @@
   line-height: 1.4;
 }
 
+.cr-receipt-btn {
+  align-self: flex-start;
+  margin-top: var(--spacing-xs);
+}
+
 .cr-empty {
   display: flex;
   min-height: 286px;

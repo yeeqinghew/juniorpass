@@ -29,6 +29,7 @@ import {
   TeamOutlined,
   SearchOutlined,
   SwapOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons";
 import dayjs from "../../utils/dayjs";
 import {
@@ -40,6 +41,7 @@ import { useUserContext } from "../UserContext";
 import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
 import "./ChildrenClasses.css";
 import CalendarView from "./utils/CalendarView";
+import CustomerDocumentModal from "./CustomerDocumentModal";
 import boy from "../../images/profile/boys/boy0.png";
 import girl from "../../images/profile/girls/girl0.png";
 
@@ -118,6 +120,7 @@ const ChildrenClasses = () => {
   const saveChildLockRef = useRef(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("list");
+  const [confirmationBookingId, setConfirmationBookingId] = useState(null);
   const [form] = Form.useForm();
   const [makeupForm] = Form.useForm();
 
@@ -512,16 +515,25 @@ const ChildrenClasses = () => {
                 </div>
               </div>
 
-              {canCancel && (
+              <div className="cc-booking-actions">
                 <Button
-                  danger
                   size="small"
-                  className="cc-booking-cancel"
-                  onClick={() => handleCancelBooking(booking)}
+                  icon={<FileTextOutlined />}
+                  onClick={() => setConfirmationBookingId(booking.booking_id)}
                 >
-                  Cancel
+                  Confirmation
                 </Button>
-              )}
+                {canCancel && (
+                  <Button
+                    danger
+                    size="small"
+                    className="cc-booking-cancel"
+                    onClick={() => handleCancelBooking(booking)}
+                  >
+                    Cancel
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="cc-booking-meta">
@@ -1276,6 +1288,13 @@ const ChildrenClasses = () => {
           </div>
         </Space>
       </Modal>
+
+      <CustomerDocumentModal
+        documentType="booking"
+        recordId={confirmationBookingId}
+        open={Boolean(confirmationBookingId)}
+        onClose={() => setConfirmationBookingId(null)}
+      />
     </div>
   );
 };

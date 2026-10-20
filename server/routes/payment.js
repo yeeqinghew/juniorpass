@@ -15,6 +15,9 @@ const {
   settleCompletedPayment,
 } = require("../services/paymentSettlement.service");
 const { getPaymentRedirectUrl } = require("../utils/paymentRedirect");
+const {
+  sendPaymentReceipt,
+} = require("../services/customerDocuments.service");
 
 const hitpaySandboxApiKey = process.env.HITPAY_SANDBOX_API_KEY;
 const hitpaySandboxSecretKey = process.env.HITPAY_SANDBOX_SECRET_KEY;
@@ -212,12 +215,23 @@ router.post("/webhook", async (req, res) => {
   const { payment_request_id, reference_number, amount, status } = parsed;
   try {
     if (String(status).toLowerCase() === "completed") {
-      await settleCompletedPayment({
+      const settlement = await settleCompletedPayment({
         hitpayPaymentId: payment_request_id, // Use payment_request_id, not payment_id
         referenceNumber: reference_number,
         paidAmount: amount,
         source: "webhook",
       });
+      try {
+        await sendPaymentReceipt({
+          paymentRequestId: settlement.paymentRequestId,
+          automatic: true,
+        });
+      } catch (emailError) {
+        console.error(
+          `Payment ${settlement.paymentRequestId} settled but its receipt email failed:`,
+          emailError.message,
+        );
+      }
     }
   } catch (error) {
     console.error("❌ Error processing webhook:", error);
@@ -310,13 +324,24 @@ router.get("/verify/:reference_number", authorization, async (req, res) => {
     const data = await response.json();
 
     if (data.status === "completed") {
-      await settleCompletedPayment({
+      const settlement = await settleCompletedPayment({
         hitpayPaymentId: data.id,
         referenceNumber: reference_number,
         paidAmount: data.amount,
         expectedUserId: user_id,
         source: "verification",
       });
+      try {
+        await sendPaymentReceipt({
+          paymentRequestId: settlement.paymentRequestId,
+          automatic: true,
+        });
+      } catch (emailError) {
+        console.error(
+          `Payment ${settlement.paymentRequestId} settled but its receipt email failed:`,
+          emailError.message,
+        );
+      }
       return res.status(200).json({ status: "COMPLETED" });
     }
 
