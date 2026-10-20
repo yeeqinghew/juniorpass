@@ -17,6 +17,8 @@ import {
   InputNumber,
   DatePicker,
   Alert,
+  Rate,
+  Checkbox,
 } from "antd";
 import {
   CalendarOutlined,
@@ -122,8 +124,13 @@ const ChildrenClasses = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("list");
   const [confirmationBookingId, setConfirmationBookingId] = useState(null);
+  const [reviewEligibility, setReviewEligibility] = useState([]);
+  const [reviewTags, setReviewTags] = useState([]);
+  const [reviewBooking, setReviewBooking] = useState(null);
+  const [reviewSaving, setReviewSaving] = useState(false);
   const [form] = Form.useForm();
   const [makeupForm] = Form.useForm();
+  const [reviewForm] = Form.useForm();
 
   const filteredBookings = useMemo(() => {
     if (!searchTerm.trim()) return bookings;
@@ -152,13 +159,14 @@ const ChildrenClasses = () => {
   const fetchChildrenAndBookings = useCallback(async () => {
     setLoading(true);
     try {
-      const [cr, br, or, mr] = await Promise.all([
+      const [cr, br, or, mr, rr] = await Promise.all([
         fetchWithAuth(API_ENDPOINTS.GET_CHILDREN(user.user_id), {
           method: "GET",
         }),
         fetchWithAuth(API_ENDPOINTS.GET_BOOKINGS, { method: "GET" }),
         fetchWithAuth(API_ENDPOINTS.GET_CLASS_OCCURRENCES, { method: "GET" }),
         fetchWithAuth(API_ENDPOINTS.GET_USER_MAKEUP_REQUESTS, { method: "GET" }),
+        fetchWithAuth(API_ENDPOINTS.GET_REVIEW_ELIGIBILITY, { method: "GET" }),
       ]);
       if (cr.ok && br.ok) {
         setChildren(await cr.json());
@@ -169,6 +177,11 @@ const ChildrenClasses = () => {
       }
       if (mr.ok) {
         setMakeupRequests((await mr.json()).requests || []);
+      }
+      if (rr.ok) {
+        const reviewData = await rr.json();
+        setReviewEligibility(reviewData.bookings || []);
+        setReviewTags(reviewData.allowed_tags || []);
       }
     } catch {
       toast.error("Failed to fetch data");
@@ -360,6 +373,82 @@ const ChildrenClasses = () => {
     setIsMakeupModalOpen(true);
   };
 
+  const openReview = (booking) => {
+    const reviewState = reviewEligibility.find(
+      (item) => item.booking_id === booking.booking_id,
+    );
+    if (!reviewState) return;
+
+    setReviewBooking(reviewState);
+    reviewForm.setFieldsValue({
+      rating: reviewState.rating || 0,
+      comment: reviewState.comment || "",
+      tags: reviewState.tags || [],
+      attended_at_least_one: reviewState.attended_at_least_one ?? false,
+    });
+  };
+
+  const saveReview = async (values) => {
+    if (!reviewBooking) return;
+    setReviewSaving(true);
+    try {
+      const response = await fetchWithAuth(
+        reviewBooking.review_id
+          ? API_ENDPOINTS.UPDATE_REVIEW(reviewBooking.review_id)
+          : API_ENDPOINTS.CREATE_REVIEW,
+        {
+          method: reviewBooking.review_id ? "PATCH" : "POST",
+          body: JSON.stringify({
+            booking_id: reviewBooking.booking_id,
+            ...values,
+          }),
+        },
+      );
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to save review");
+      toast.success(reviewBooking.review_id ? "Review updated" : "Review published");
+      setReviewBooking(null);
+      reviewForm.resetFields();
+      await fetchChildrenAndBookings();
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setReviewSaving(false);
+    }
+  };
+
+  const deleteReview = () => {
+    if (!reviewBooking?.review_id) return;
+    Modal.confirm({
+      title: "Delete this review?",
+      content: "The review and any partner response will be removed permanently.",
+      okText: "Delete review",
+      okButtonProps: { danger: true },
+      centered: true,
+      onOk: async () => {
+        setReviewSaving(true);
+        try {
+          const response = await fetchWithAuth(
+            API_ENDPOINTS.DELETE_REVIEW(reviewBooking.review_id),
+            { method: "DELETE" },
+          );
+          if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || "Unable to delete review");
+          }
+          toast.success("Review deleted");
+          setReviewBooking(null);
+          reviewForm.resetFields();
+          await fetchChildrenAndBookings();
+        } catch (error) {
+          toast.error(error.message);
+        } finally {
+          setReviewSaving(false);
+        }
+      },
+    });
+  };
+
   const submitMakeupRequest = async (values) => {
     if (!makeupOccurrence) return;
     setMakeupLoading(true);
@@ -469,6 +558,9 @@ const ChildrenClasses = () => {
 
     const canCancel =
       booking.status !== "cancelled" && now.isBefore(classStart);
+    const reviewState = reviewEligibility.find(
+      (item) => item.booking_id === booking.booking_id,
+    );
 
     const statusLabel = booking.status === "cancelled"
       ? "Cancelled"
@@ -526,6 +618,19 @@ const ChildrenClasses = () => {
               </div>
 
               <div className="cc-booking-actions">
+                {reviewState ? (
+                  <Button
+                    size="small"
+                    onClick={() => openReview(booking)}
+                    disabled={!reviewState.can_review && !reviewState.review_id}
+                  >
+                    {reviewState.review_id
+                      ? reviewState.can_review
+                        ? "Edit review"
+                        : "View review"
+                      : "Write review"}
+                  </Button>
+                ) : null}
                 <Button
                   size="small"
                   icon={<FileTextOutlined />}
@@ -1384,6 +1489,113 @@ const ChildrenClasses = () => {
         open={Boolean(confirmationBookingId)}
         onClose={() => setConfirmationBookingId(null)}
       />
+
+      <Modal
+        open={Boolean(reviewBooking)}
+        onCancel={() => {
+          if (reviewSaving) return;
+          setReviewBooking(null);
+          reviewForm.resetFields();
+        }}
+        footer={null}
+        centered
+        maskClosable={false}
+        className="cc-modal cc-review-modal"
+        title={null}
+      >
+        <div className="cc-review-modal-content">
+          <div className="cc-review-modal-heading">
+            <span className="cc-review-kicker">Verified booking</span>
+            <h3>{reviewBooking?.listing_title}</h3>
+            <p>
+              Share your experience without including children’s names or personal information.
+            </p>
+            {reviewBooking?.review_deadline ? (
+              <span className="cc-review-deadline">
+                {reviewBooking.can_review ? "Open" : "Editing closed"} · {" "}
+                {dayjs(reviewBooking.review_deadline).format("DD MMM YYYY")}
+              </span>
+            ) : null}
+          </div>
+          <Form
+            form={reviewForm}
+            layout="vertical"
+            onFinish={saveReview}
+            requiredMark={false}
+          >
+            <Form.Item
+              label="Overall rating"
+              name="rating"
+              rules={[
+                {
+                  validator: (_, value) =>
+                    Number(value) >= 1
+                      ? Promise.resolve()
+                      : Promise.reject(new Error("Choose a rating")),
+                },
+              ]}
+            >
+              <Rate
+                className="cc-review-rate"
+                disabled={Boolean(reviewBooking?.review_id && !reviewBooking?.can_review)}
+              />
+            </Form.Item>
+            <Form.Item label="What stood out?" name="tags">
+              <Checkbox.Group
+                className="cc-review-tags"
+                disabled={Boolean(reviewBooking?.review_id && !reviewBooking?.can_review)}
+              >
+                {reviewTags.map((tag) => (
+                  <Checkbox value={tag} key={tag}>
+                    {tag}
+                  </Checkbox>
+                ))}
+              </Checkbox.Group>
+            </Form.Item>
+            <Form.Item
+              label="Your review"
+              name="comment"
+              extra="Optional · maximum 1,000 characters"
+            >
+              <Input.TextArea
+                rows={5}
+                maxLength={1000}
+                showCount
+                placeholder="What did you and your child enjoy? What could be improved?"
+                disabled={Boolean(reviewBooking?.review_id && !reviewBooking?.can_review)}
+              />
+            </Form.Item>
+            <Form.Item name="attended_at_least_one" valuePropName="checked">
+              <Checkbox
+                disabled={Boolean(reviewBooking?.review_id && !reviewBooking?.can_review)}
+              >
+                My child attended at least one session
+              </Checkbox>
+            </Form.Item>
+            <div className="cc-modal-btns">
+              {reviewBooking?.review_id ? (
+                <Button danger onClick={deleteReview} disabled={reviewSaving}>
+                  Delete
+                </Button>
+              ) : null}
+              <Button
+                onClick={() => {
+                  setReviewBooking(null);
+                  reviewForm.resetFields();
+                }}
+                disabled={reviewSaving}
+              >
+                Cancel
+              </Button>
+              {reviewBooking?.can_review ? (
+                <Button type="primary" htmlType="submit" loading={reviewSaving}>
+                  {reviewBooking?.review_id ? "Update review" : "Publish review"}
+                </Button>
+              ) : null}
+            </div>
+          </Form>
+        </div>
+      </Modal>
     </div>
   );
 };

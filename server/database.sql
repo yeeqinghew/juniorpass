@@ -552,14 +552,29 @@ CREATE TRIGGER set_timestamp_transactions
 
 CREATE TABLE reviews (
     review_id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+    booking_id uuid,
     listing_id uuid REFERENCES listings(listing_id) NOT NULL,
     partner_id uuid REFERENCES partners(partner_id) NOT NULL,
     user_id uuid REFERENCES users(user_id) NOT NULL,
-    rating INTEGER NOT NULL,
+    rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
     comment VARCHAR(5000) NOT NULL,
+    tags TEXT[] NOT NULL DEFAULT '{}',
+    attended_at_least_one BOOLEAN,
+    status VARCHAR(20) NOT NULL DEFAULT 'published' CHECK (status IN ('published', 'hidden')),
+    moderation_reason VARCHAR(500),
+    moderated_at TIMESTAMPTZ,
+    moderated_by UUID,
+    partner_reply VARCHAR(1000),
+    partner_replied_at TIMESTAMPTZ,
+    review_opened_at TIMESTAMPTZ,
+    review_deadline TIMESTAMPTZ,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX reviews_booking_uidx ON reviews(booking_id) WHERE booking_id IS NOT NULL;
+CREATE INDEX reviews_listing_published_idx ON reviews(listing_id, created_at DESC) WHERE status = 'published';
+CREATE INDEX reviews_partner_idx ON reviews(partner_id, created_at DESC);
 
 CREATE TRIGGER set_timestamp_reviews
     BEFORE UPDATE ON reviews
@@ -792,6 +807,13 @@ CREATE INDEX idx_bookings_schedule_date ON bookings (schedule_id, start_date, en
 CREATE INDEX idx_bookings_active_schedule_date ON bookings (schedule_id, start_date, end_date) WHERE status = 'confirmed';
 -- Keep schedule_id for tracking which specific time slots were attended
 CREATE INDEX idx_bookings_schedule_group ON bookings(schedule_group_id);
+
+ALTER TABLE reviews
+    ADD CONSTRAINT reviews_booking_fk
+    FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE CASCADE;
+ALTER TABLE reviews
+    ADD CONSTRAINT reviews_moderator_fk
+    FOREIGN KEY (moderated_by) REFERENCES admins(admin_id);
 
 CREATE TYPE occurrence_status AS ENUM ('scheduled', 'completed', 'cancelled', 'rescheduled');
 

@@ -123,6 +123,13 @@ export const API_ENDPOINTS = {
   GET_BOOKING_WAIVER: "/bookings/waiver",
   CANCEL_BOOKING: (bookingId) => `/bookings/${bookingId}`,
 
+  // Reviews
+  GET_REVIEW_ELIGIBILITY: "/reviews/mine/eligibility",
+  CREATE_REVIEW: "/reviews",
+  UPDATE_REVIEW: (reviewId) => `/reviews/${reviewId}`,
+  DELETE_REVIEW: (reviewId) => `/reviews/${reviewId}`,
+  GET_LISTING_REVIEWS: (listingId) => `/reviews/listing/${listingId}`,
+
   // Customer documents
   GET_BOOKING_CONFIRMATION: (bookingId) => `/documents/bookings/${bookingId}`,
   EMAIL_BOOKING_CONFIRMATION: (bookingId) =>

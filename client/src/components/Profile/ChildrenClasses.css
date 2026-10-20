@@ -982,6 +982,70 @@
   font-weight: var(--font-weight-semibold) !important;
 }
 
+.cc-review-modal {
+  width: min(560px, calc(100vw - 32px)) !important;
+  max-width: none;
+}
+
+.cc-review-modal-content {
+  width: 100%;
+}
+
+.cc-review-modal-heading {
+  margin-bottom: var(--spacing-lg);
+  text-align: center;
+}
+
+.cc-review-modal-heading h3,
+.cc-review-modal-heading p {
+  margin: 0;
+}
+
+.cc-review-deadline {
+  display: inline-block;
+  margin-top: var(--spacing-sm);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.cc-review-modal-heading h3 {
+  margin-top: 4px;
+  color: var(--text-dark);
+  font-size: var(--font-size-xl);
+}
+
+.cc-review-modal-heading p {
+  margin-top: var(--spacing-xs);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.cc-review-kicker {
+  color: var(--primary-dark);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+
+.cc-review-rate {
+  color: var(--accent-gold);
+  font-size: var(--font-size-3xl);
+}
+
+.cc-review-tags {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-xs);
+}
+
+.cc-review-tags .ant-checkbox-wrapper {
+  margin-inline-start: 0;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+}
+
 @media (max-width: 1023px) {
   .cc-hero {
     grid-template-columns: 1fr;
@@ -1236,5 +1300,9 @@
 
   .cc-child-form-section {
     padding: var(--spacing-sm);
+  }
+
+  .cc-review-tags {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

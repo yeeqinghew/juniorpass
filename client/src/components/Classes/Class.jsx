@@ -16,6 +16,8 @@ import {
   Col,
   Divider,
   List,
+  Rate,
+  Empty,
 } from "antd";
 import {
   LeftOutlined,
@@ -77,6 +79,11 @@ const Class = () => {
   const [allChildren, setAllChildren] = useState([]);
   const [slotAvailability, setSlotAvailability] = useState({});
   const [userBookings, setUserBookings] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [reviewSummary, setReviewSummary] = useState({
+    count: 0,
+    average_rating: 0,
+  });
 
   const { state } = useLocation();
   const { classId } = useParams();
@@ -223,6 +230,28 @@ const Class = () => {
   };
 
   const availableTimeSlots = generateAvailableTimeSlots();
+
+  useEffect(() => {
+    let active = true;
+    const fetchReviews = async () => {
+      try {
+        const response = await fetchWithAuth(
+          API_ENDPOINTS.GET_LISTING_REVIEWS(classId),
+        );
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!active) return;
+        setReviews(data.reviews || []);
+        setReviewSummary(data.summary || { count: 0, average_rating: 0 });
+      } catch (reviewError) {
+        console.error("Unable to load reviews:", reviewError);
+      }
+    };
+    fetchReviews();
+    return () => {
+      active = false;
+    };
+  }, [classId]);
 
   useEffect(() => {
     async function fetchUserBookings() {
@@ -752,9 +781,62 @@ const Class = () => {
               className="class-content-card class-reviews-card"
             >
               <Title level={4} className="class-section-title">
-                ⭐ Reviews
+                Reviews
               </Title>
-              <Text type="secondary">Reviews coming soon...</Text>
+              {reviews.length > 0 ? (
+                <>
+                  <div className="class-review-summary">
+                    <strong>{Number(reviewSummary.average_rating).toFixed(1)}</strong>
+                    <div>
+                      <Rate
+                        disabled
+                        allowHalf
+                        value={Number(reviewSummary.average_rating)}
+                      />
+                      <span>{reviewSummary.count} verified reviews</span>
+                    </div>
+                  </div>
+                  <List
+                    className="class-review-list"
+                    dataSource={reviews}
+                    renderItem={(review) => (
+                      <List.Item className="class-review-item">
+                        <article>
+                          <div className="class-review-heading">
+                            <Avatar>{review.reviewer_name?.[0] || "J"}</Avatar>
+                            <div>
+                              <strong>{review.reviewer_name}</strong>
+                              <span>
+                                Verified booking · {dayjs(review.created_at).format("MMM YYYY")}
+                              </span>
+                            </div>
+                            <Rate disabled value={review.rating} />
+                          </div>
+                          {review.tags?.length > 0 ? (
+                            <div className="class-review-tags">
+                              {review.tags.map((tag) => (
+                                <Tag key={tag}>{tag}</Tag>
+                              ))}
+                            </div>
+                          ) : null}
+                          {review.comment ? <Paragraph>{review.comment}</Paragraph> : null}
+                          {review.partner_reply ? (
+                            <div className="class-review-reply">
+                              <strong>Response from {listing?.partner_name}</strong>
+                              <p>{review.partner_reply}</p>
+                            </div>
+                          ) : null}
+                        </article>
+                      </List.Item>
+                    )}
+                  />
+                </>
+              ) : (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="No reviews yet"
+                />
+              )}
             </Card>
           </Col>
 
