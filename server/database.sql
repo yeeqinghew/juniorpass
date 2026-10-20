@@ -90,7 +90,12 @@ CREATE TABLE children (
     name VARCHAR(100),
     date_of_birth DATE NOT NULL,
     gender genders NOT NULL,
-    special_notes TEXT
+    special_notes TEXT,
+    emergency_contact_name VARCHAR(100),
+    emergency_contact_relationship VARCHAR(60),
+    emergency_contact_phone VARCHAR(30),
+    authorized_pickups JSONB NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(authorized_pickups) = 'array'),
+    safety_updated_at TIMESTAMPTZ
 );
 
 -- a helper function to caclulate age from dob
@@ -109,7 +114,12 @@ SELECT
     date_of_birth,
     calculate_age(date_of_birth) AS age,
     gender,
-    special_notes
+    special_notes,
+    emergency_contact_name,
+    emergency_contact_relationship,
+    emergency_contact_phone,
+    authorized_pickups,
+    safety_updated_at
 FROM children;
 
 CREATE TABLE referral_codes (
@@ -757,6 +767,9 @@ CREATE TABLE bookings (
     charged_credits INTEGER,
     status VARCHAR(20) NOT NULL DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'cancelled')),
     policy_snapshot JSONB NOT NULL DEFAULT '{"version":1,"cancellation_notice_hours":24,"refund_before_deadline_percent":100,"refund_after_deadline_percent":0,"makeup_allowed":false,"makeup_notice_hours":24,"class_requirements":""}'::jsonb,
+    waiver_snapshot JSONB,
+    waiver_acknowledged_at TIMESTAMPTZ,
+    waiver_acknowledged_by UUID REFERENCES users(user_id),
     cancelled_at TIMESTAMP,
     cancelled_by VARCHAR(20),
     cancellation_reason VARCHAR(1000),

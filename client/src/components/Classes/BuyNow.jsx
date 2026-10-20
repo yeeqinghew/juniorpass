@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Modal,
   Select,
   Typography,
   Button,
   Radio,
+  Checkbox,
+  Alert,
 } from "antd";
 import {
   EnvironmentOutlined,
@@ -110,6 +112,39 @@ const BuyNow = ({
   const [isLoading, setIsLoading] = useState(false);
   const [sameDayConflict, setSameDayConflict] = useState(null);
   const [overlapConflict, setOverlapConflict] = useState(null);
+  const [waiver, setWaiver] = useState(null);
+  const [waiverAccepted, setWaiverAccepted] = useState(false);
+  const [waiverError, setWaiverError] = useState(false);
+
+  useEffect(() => {
+    if (!isBuyNowModalOpen) return;
+
+    let active = true;
+    const loadWaiver = async () => {
+      setWaiver(null);
+      setWaiverAccepted(false);
+      setWaiverError(false);
+      try {
+        const response = await fetchWithAuth(API_ENDPOINTS.GET_BOOKING_WAIVER, {
+          method: "GET",
+        });
+        const data = await response.json();
+        if (!active) return;
+        if (!response.ok || !data.waiver) {
+          setWaiverError(true);
+          return;
+        }
+        setWaiver(data.waiver);
+      } catch {
+        if (active) setWaiverError(true);
+      }
+    };
+
+    loadWaiver();
+    return () => {
+      active = false;
+    };
+  }, [isBuyNowModalOpen]);
 
   const handleCancel = () => {
     setIsBuyNowModalOpen(false);
@@ -117,6 +152,7 @@ const BuyNow = ({
     setSelectedPackageType(null);
     setSameDayConflict(null);
     setOverlapConflict(null);
+    setWaiverAccepted(false);
   };
 
   // Get pricing and details for selected package type
@@ -176,6 +212,16 @@ const BuyNow = ({
   const effectivePackageType =
     selectedPackageType || (packageTypes.length === 1 ? packageTypes[0] : null);
   const currentPackage = getPackageDetails(effectivePackageType);
+  const selectedChild = children?.find(
+    (child) => child?.child_id === selectedChildId,
+  );
+  const hasCompleteSafetyProfile = Boolean(
+    selectedChild?.emergency_contact_name &&
+      selectedChild?.emergency_contact_relationship &&
+      selectedChild?.emergency_contact_phone &&
+      Array.isArray(selectedChild?.authorized_pickups) &&
+      selectedChild.authorized_pickups.length > 0,
+  );
   const displayPrice = currentPackage?.price ?? null;
   const availableCredits = Number(user?.credit ?? 0);
   const hasValidPackagePrice =
@@ -220,9 +266,13 @@ const BuyNow = ({
       ? "Confirm Booking"
       : !hasValidPackagePrice
         ? "Credits unavailable"
-        : !hasSufficientCredits
-          ? "Insufficient credits"
-          : "Confirm Booking";
+        : selectedChildId && !hasCompleteSafetyProfile
+          ? "Complete safety details"
+          : !waiverAccepted
+            ? "Accept safety acknowledgement"
+            : !hasSufficientCredits
+              ? "Insufficient credits"
+              : "Confirm Booking";
 
   const submitBooking = async (acknowledgeSameDayBooking = false) => {
     // Validate child selection
@@ -239,6 +289,18 @@ const BuyNow = ({
 
     if (!hasValidPackagePrice) {
       toast.error("This package's credit cost is unavailable.");
+      return;
+    }
+
+    if (!hasCompleteSafetyProfile) {
+      toast.error(
+        "Complete this child's emergency contact and authorised pickup details from your profile before booking.",
+      );
+      return;
+    }
+
+    if (!waiver || !waiverAccepted) {
+      toast.error("Please review and accept the child safety acknowledgement.");
       return;
     }
 
@@ -271,6 +333,8 @@ const BuyNow = ({
           package_type: effectivePackageType,
           acknowledge_same_day_booking: acknowledgeSameDayBooking,
           acknowledged_policy: bookingPolicy,
+          waiver_accepted: true,
+          waiver_version: waiver.version,
         }),
       });
 
@@ -309,6 +373,7 @@ const BuyNow = ({
         setSelectedPackageType(null);
         setSameDayConflict(null);
         setOverlapConflict(null);
+        setWaiverAccepted(false);
 
         // Call parent callback to refresh data
         if (onBookingSuccess) {
@@ -371,6 +436,9 @@ const BuyNow = ({
               disabled={
                 !selectedChildId ||
                 !effectivePackageType ||
+                !hasCompleteSafetyProfile ||
+                !waiver ||
+                !waiverAccepted ||
                 !hasSufficientCredits
               }
             >
@@ -455,17 +523,67 @@ const BuyNow = ({
               placeholder="Select a child"
               size="large"
               value={selectedChildId}
-              onChange={(value) => setSelectedChildId(value)}
+              onChange={(value) => {
+                setSelectedChildId(value);
+                setWaiverAccepted(false);
+              }}
               options={children?.map((child) => ({
                 value: child?.child_id,
                 label: child?.name,
               }))}
             />
+            {selectedChildId && !hasCompleteSafetyProfile && (
+              <Alert
+                className="buynow-safety-alert"
+                type="warning"
+                showIcon
+                message="Safety information required"
+                description="Add an emergency contact and at least one authorised pickup person under Profile → Children & Classes before booking."
+              />
+            )}
+          </section>
+
+          <section className="buynow-section buynow-waiver-section">
+            <div className="buynow-section-heading">
+              <span className="buynow-step">3</span>
+              <div>
+                <h3>{waiver?.title || "Child safety acknowledgement"}</h3>
+                <p>Your acceptance is saved with this booking.</p>
+              </div>
+            </div>
+
+            {waiverError ? (
+              <Alert
+                type="error"
+                showIcon
+                message="Safety acknowledgement could not be loaded"
+                description="Please close this window and try again."
+              />
+            ) : waiver ? (
+              <>
+                <ul className="buynow-waiver-statements">
+                  {waiver.statements.map((statement) => (
+                    <li key={statement}>{statement}</li>
+                  ))}
+                </ul>
+                <Checkbox
+                  className="buynow-waiver-checkbox"
+                  checked={waiverAccepted}
+                  onChange={(event) => setWaiverAccepted(event.target.checked)}
+                >
+                  I have reviewed and agree to this acknowledgement.
+                </Checkbox>
+              </>
+            ) : (
+              <div className="buynow-waiver-loading" aria-live="polite">
+                Loading safety acknowledgement…
+              </div>
+            )}
           </section>
 
           <section className="buynow-section buynow-policy-section">
             <div className="buynow-section-heading">
-              <span className="buynow-step">3</span>
+              <span className="buynow-step">4</span>
               <div>
                 <h3>Review booking policy</h3>
                 <p>These terms are saved with your booking.</p>

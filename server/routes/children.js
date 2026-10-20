@@ -7,6 +7,7 @@ const authorization = require("../middleware/authorization").forRole(
   AUTH_ROLES.USER,
 );
 const client = require("../utils/redisClient");
+const { getSafetyDetails, normalizeText } = require("../utils/childSafety");
 router.use(etagMiddleware);
 
 function isValidDOB(dob) {
@@ -26,6 +27,7 @@ function isValidDOB(dob) {
 router.post("", authorization, async (req, res) => {
   const { name, date_of_birth, gender, special_notes } = req.body;
   const parent_id = req.user;
+  const safetyDetails = getSafetyDetails(req.body);
 
   // Basic validation
   if (!name || !date_of_birth || !gender) {
@@ -34,6 +36,13 @@ router.post("", authorization, async (req, res) => {
 
   if (!["M", "F"].includes(gender)) {
     return res.status(400).json({ error: "Invalid gender" });
+  }
+
+  if (!safetyDetails) {
+    return res.status(400).json({
+      error:
+        "Emergency contact and at least one valid authorised pickup person are required",
+    });
   }
 
   // Validate DOB
@@ -45,8 +54,24 @@ router.post("", authorization, async (req, res) => {
 
   try {
     const newChild = await pool.query(
-      `INSERT INTO children (name, date_of_birth, gender, special_notes, parent_id) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [name, date_of_birth, gender, special_notes, parent_id],
+      `INSERT INTO children (
+         name, date_of_birth, gender, special_notes, parent_id,
+         emergency_contact_name, emergency_contact_relationship,
+         emergency_contact_phone, authorized_pickups, safety_updated_at
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, NOW())
+       RETURNING *`,
+      [
+        name.trim(),
+        date_of_birth,
+        gender,
+        normalizeText(special_notes, 2000),
+        parent_id,
+        safetyDetails.emergencyContactName,
+        safetyDetails.emergencyContactRelationship,
+        safetyDetails.emergencyContactPhone,
+        JSON.stringify(safetyDetails.authorizedPickups),
+      ],
     );
 
     // Optionally, invalidate or update related cache entries, like the list of all listings
@@ -89,6 +114,13 @@ router.patch("/:child_id", authorization, async (req, res) => {
   const { child_id } = req.params;
   const parent_id = req.user;
   const { name, date_of_birth, gender, special_notes } = req.body;
+  const updatesSafetyDetails = [
+    "emergency_contact_name",
+    "emergency_contact_relationship",
+    "emergency_contact_phone",
+    "authorized_pickups",
+  ].some((field) => Object.prototype.hasOwnProperty.call(req.body, field));
+  const safetyDetails = updatesSafetyDetails ? getSafetyDetails(req.body) : null;
 
   try {
     // Verify child exists and is owned by requester
@@ -114,9 +146,16 @@ router.patch("/:child_id", authorization, async (req, res) => {
       typeof updates.name === "undefined" &&
       typeof updates.date_of_birth === "undefined" &&
       typeof updates.gender === "undefined" &&
-      typeof updates.special_notes === "undefined"
+      typeof updates.special_notes === "undefined" &&
+      !updatesSafetyDetails
     ) {
       return res.status(400).json({ error: "No fields provided for update" });
+    }
+    if (updatesSafetyDetails && !safetyDetails) {
+      return res.status(400).json({
+        error:
+          "Emergency contact and at least one valid authorised pickup person are required",
+      });
     }
     if (
       typeof updates.gender !== "undefined" &&
@@ -141,14 +180,25 @@ router.patch("/:child_id", authorization, async (req, res) => {
          name = COALESCE($1, name),
          date_of_birth = COALESCE($2, date_of_birth),
          gender = COALESCE($3, gender),
-         special_notes = COALESCE($4, special_notes)
-       WHERE child_id = $5
+         special_notes = CASE WHEN $4 THEN $5 ELSE special_notes END,
+         emergency_contact_name = CASE WHEN $6 THEN $7 ELSE emergency_contact_name END,
+         emergency_contact_relationship = CASE WHEN $6 THEN $8 ELSE emergency_contact_relationship END,
+         emergency_contact_phone = CASE WHEN $6 THEN $9 ELSE emergency_contact_phone END,
+         authorized_pickups = CASE WHEN $6 THEN $10::jsonb ELSE authorized_pickups END,
+         safety_updated_at = CASE WHEN $6 THEN NOW() ELSE safety_updated_at END
+       WHERE child_id = $11
        RETURNING *`,
       [
-        updates.name ?? null,
+        typeof updates.name === "string" ? updates.name.trim() : null,
         updates.date_of_birth ?? null,
         updates.gender ?? null,
-        updates.special_notes ?? null,
+        typeof updates.special_notes !== "undefined",
+        normalizeText(updates.special_notes, 2000),
+        updatesSafetyDetails,
+        safetyDetails?.emergencyContactName ?? null,
+        safetyDetails?.emergencyContactRelationship ?? null,
+        safetyDetails?.emergencyContactPhone ?? null,
+        JSON.stringify(safetyDetails?.authorizedPickups ?? []),
         child_id,
       ],
     );

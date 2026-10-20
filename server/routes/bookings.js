@@ -23,6 +23,14 @@ const {
 const {
   sendBookingConfirmation,
 } = require("../services/customerDocuments.service");
+const {
+  getSafetyWaiver,
+  isCurrentSafetyWaiverAccepted,
+} = require("../utils/safetyWaiver");
+
+router.get("/waiver", userAuthorization, (_req, res) => {
+  res.status(200).json({ waiver: getSafetyWaiver() });
+});
 
 router.post("/", userAuthorization, async (req, res) => {
   const {
@@ -33,12 +41,28 @@ router.post("/", userAuthorization, async (req, res) => {
     child_id,
     package_type,
     acknowledge_same_day_booking: acknowledgeSameDayBooking = false,
+    waiver_accepted: waiverAccepted = false,
+    waiver_version: waiverVersion,
   } = req.body;
 
   try {
     // Validate request body
     if (!listing_id || !start_date || !end_date || !child_id) {
       return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    if (
+      !isCurrentSafetyWaiverAccepted({
+        accepted: waiverAccepted,
+        version: waiverVersion,
+      })
+    ) {
+      return res.status(400).json({
+        code: "SAFETY_WAIVER_REQUIRED",
+        error:
+          "Please review and accept the current child safety acknowledgement",
+        waiver: getSafetyWaiver(),
+      });
     }
 
     // Validate schedule_id is provided
@@ -108,13 +132,23 @@ router.post("/", userAuthorization, async (req, res) => {
     // Optional: validate child belongs to this parent if provided
     if (child_id) {
       const child = await pool.query(
-        "SELECT child_id FROM children WHERE child_id = $1 AND parent_id = $2",
+        `SELECT child_id
+         FROM children
+         WHERE child_id = $1
+           AND parent_id = $2
+           AND NULLIF(BTRIM(emergency_contact_name), '') IS NOT NULL
+           AND NULLIF(BTRIM(emergency_contact_relationship), '') IS NOT NULL
+           AND NULLIF(BTRIM(emergency_contact_phone), '') IS NOT NULL
+           AND jsonb_typeof(authorized_pickups) = 'array'
+           AND jsonb_array_length(authorized_pickups) > 0`,
         [child_id, user_id],
       );
       if (child.rowCount === 0) {
-        return res
-          .status(400)
-          .json({ error: "Invalid child_id for this parent" });
+        return res.status(400).json({
+          code: "CHILD_SAFETY_PROFILE_INCOMPLETE",
+          error:
+            "Complete this child's emergency contact and authorised pickup information before booking",
+        });
       }
     }
 
@@ -341,9 +375,10 @@ router.post("/", userAuthorization, async (req, res) => {
         INSERT INTO bookings (
           listing_id, schedule_id, user_id, child_id, schedule_group_id,
           start_date, end_date, enrolled_package_type, classes_total,
-          dollars_per_credit, charged_credits, policy_snapshot
+          dollars_per_credit, charged_credits, policy_snapshot,
+          waiver_snapshot, waiver_acknowledged_at, waiver_acknowledged_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), $14)
         RETURNING *
       `,
         [
@@ -359,6 +394,8 @@ router.post("/", userAuthorization, async (req, res) => {
           dollarsPerCredit,
           creditCost,
           JSON.stringify(policySnapshot),
+          JSON.stringify(getSafetyWaiver()),
+          user_id,
         ],
       );
 
@@ -978,11 +1015,27 @@ router.get(
         c.name as child_name,
         c.date_of_birth as child_dob,
         c.gender as child_gender,
+        CASE WHEN safety_access.can_view THEN c.special_notes END as child_safety_notes,
+        CASE WHEN safety_access.can_view THEN c.emergency_contact_name END as emergency_contact_name,
+        CASE WHEN safety_access.can_view THEN c.emergency_contact_relationship END as emergency_contact_relationship,
+        CASE WHEN safety_access.can_view THEN c.emergency_contact_phone END as emergency_contact_phone,
+        CASE WHEN safety_access.can_view THEN c.authorized_pickups END as authorized_pickups,
+        CASE WHEN safety_access.can_view THEN c.safety_updated_at END as safety_updated_at,
+        CASE WHEN safety_access.can_view THEN b.waiver_acknowledged_at END as waiver_acknowledged_at,
         s.day as schedule_day
       FROM bookings b
       JOIN users u ON u.user_id = b.user_id
       LEFT JOIN children c ON c.child_id = b.child_id
       LEFT JOIN schedules s ON s.schedule_id = b.schedule_id
+      LEFT JOIN LATERAL (
+        SELECT EXISTS (
+          SELECT 1
+          FROM class_occurrences co
+          WHERE co.booking_id = b.booking_id
+            AND co.status IN ('scheduled', 'rescheduled')
+            AND co.scheduled_end_date >= NOW()
+        ) AS can_view
+      ) safety_access ON TRUE
       WHERE b.listing_id = $1
         AND b.status = 'confirmed'
       ORDER BY b.created_at DESC`,

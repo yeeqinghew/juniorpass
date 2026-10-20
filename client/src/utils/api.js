@@ -120,6 +120,7 @@ export const API_ENDPOINTS = {
   GET_BOOKINGS: "/bookings/user",
   GET_CLASS_OCCURRENCES: "/bookings/user/occurrences",
   CREATE_BOOKING: "/bookings",
+  GET_BOOKING_WAIVER: "/bookings/waiver",
   CANCEL_BOOKING: (bookingId) => `/bookings/${bookingId}`,
 
   // Customer documents

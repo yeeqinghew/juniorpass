@@ -30,6 +30,7 @@ import {
   SearchOutlined,
   SwapOutlined,
   FileTextOutlined,
+  MinusCircleOutlined,
 } from "@ant-design/icons";
 import dayjs from "../../utils/dayjs";
 import {
@@ -189,6 +190,7 @@ const ChildrenClasses = () => {
   const handleAddChild = () => {
     setEditingChild(null);
     form.resetFields();
+    form.setFieldsValue({ authorized_pickups: [{}] });
     setIsAddChildModalOpen(true);
   };
 
@@ -199,6 +201,14 @@ const ChildrenClasses = () => {
       date_of_birth: child.date_of_birth ? dayjs(child.date_of_birth) : null,
       gender: child.gender,
       special_notes: child.special_notes,
+      emergency_contact_name: child.emergency_contact_name,
+      emergency_contact_relationship: child.emergency_contact_relationship,
+      emergency_contact_phone: child.emergency_contact_phone,
+      authorized_pickups:
+        Array.isArray(child.authorized_pickups) &&
+        child.authorized_pickups.length > 0
+          ? child.authorized_pickups
+          : [{}],
     });
     setIsAddChildModalOpen(true);
   };
@@ -971,33 +981,19 @@ const ChildrenClasses = () => {
         }}
         footer={null}
         centered
-        width={500}
         maskClosable={false}
-        className="cc-modal"
+        className="cc-modal cc-child-profile-modal"
         title={null}
       >
-        <Space direction="vertical" size={20} style={{ width: "100%" }}>
-          <div style={{ textAlign: "center" }}>
+        <Space direction="vertical" size={20} className="cc-child-modal-content">
+          <div className="cc-child-modal-heading">
             <div className="cc-modal-icon success">
               <UserOutlined />
             </div>
-            <h3
-              style={{
-                margin: "0 0 4px",
-                fontSize: 18,
-                fontWeight: 700,
-                color: "var(--text-primary)",
-              }}
-            >
+            <h3 className="cc-child-modal-title">
               {editingChild ? "Edit Child Profile" : "Add Child Profile"}
             </h3>
-            <p
-              style={{
-                margin: 0,
-                fontSize: 13,
-                color: "var(--text-secondary)",
-              }}
-            >
+            <p className="cc-child-modal-description">
               {editingChild
                 ? "Update your child's information"
                 : "Add a new child to your family account"}
@@ -1019,13 +1015,7 @@ const ChildrenClasses = () => {
               <Input placeholder="Full name" size="large" />
             </Form.Item>
             {/* Date of Birth + Gender */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "0 16px",
-              }}
-            >
+            <div className="cc-child-form-grid">
               <Form.Item
                 label="Date of Birth"
                 name="date_of_birth"
@@ -1034,7 +1024,7 @@ const ChildrenClasses = () => {
                 <DatePicker
                   placeholder="Select DOB"
                   size="large"
-                  style={{ width: "100%" }}
+                  className="cc-child-date-picker"
                   disabledDate={(current) => {
                     return Boolean(
                       current &&
@@ -1056,15 +1046,114 @@ const ChildrenClasses = () => {
                 </Select>
               </Form.Item>
             </div>
+            <div className="cc-child-form-section">
+              <h4>Emergency contact</h4>
+              <p>Someone the activity partner can contact if you are unavailable.</p>
+              <Form.Item
+                label="Contact name"
+                name="emergency_contact_name"
+                rules={[{ required: true, message: "Contact name required" }]}
+              >
+                <Input placeholder="Full name" size="large" maxLength={100} />
+              </Form.Item>
+              <div className="cc-child-form-grid">
+                <Form.Item
+                  label="Relationship"
+                  name="emergency_contact_relationship"
+                  rules={[{ required: true, message: "Relationship required" }]}
+                >
+                  <Input placeholder="e.g. Parent, aunt" size="large" maxLength={60} />
+                </Form.Item>
+                <Form.Item
+                  label="Phone number"
+                  name="emergency_contact_phone"
+                  rules={[
+                    { required: true, message: "Phone number required" },
+                    {
+                      pattern: /^[+0-9()\-\s]{7,30}$/,
+                      message: "Enter a valid phone number",
+                    },
+                  ]}
+                >
+                  <Input placeholder="e.g. +65 9123 4567" size="large" maxLength={30} />
+                </Form.Item>
+              </div>
+            </div>
+
+            <div className="cc-child-form-section">
+              <h4>Authorised pickup people</h4>
+              <p>Add at least one person who may collect this child.</p>
+              <Form.List name="authorized_pickups">
+                {(fields, { add, remove }) => (
+                  <div className="cc-pickup-list">
+                    {fields.map(({ key, name, ...restField }, index) => (
+                      <div className="cc-pickup-card" key={key}>
+                        <div className="cc-pickup-card-heading">
+                          <strong>Pickup person {index + 1}</strong>
+                          {fields.length > 1 && (
+                            <Button
+                              type="text"
+                              danger
+                              icon={<MinusCircleOutlined />}
+                              onClick={() => remove(name)}
+                              aria-label={`Remove pickup person ${index + 1}`}
+                            />
+                          )}
+                        </div>
+                        <Form.Item
+                          {...restField}
+                          label="Name"
+                          name={[name, "name"]}
+                          rules={[{ required: true, message: "Name required" }]}
+                        >
+                          <Input placeholder="Full name" maxLength={100} />
+                        </Form.Item>
+                        <div className="cc-child-form-grid">
+                          <Form.Item
+                            {...restField}
+                            label="Relationship"
+                            name={[name, "relationship"]}
+                            rules={[{ required: true, message: "Relationship required" }]}
+                          >
+                            <Input placeholder="e.g. Parent" maxLength={60} />
+                          </Form.Item>
+                          <Form.Item
+                            {...restField}
+                            label="Phone number"
+                            name={[name, "phone"]}
+                            rules={[
+                              { required: true, message: "Phone required" },
+                              {
+                                pattern: /^[+0-9()\-\s]{7,30}$/,
+                                message: "Enter a valid phone number",
+                              },
+                            ]}
+                          >
+                            <Input placeholder="e.g. +65 9123 4567" maxLength={30} />
+                          </Form.Item>
+                        </div>
+                      </div>
+                    ))}
+                    {fields.length < 10 && (
+                      <Button type="dashed" onClick={() => add()} block>
+                        Add another pickup person
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </Form.List>
+            </div>
+
             <Form.Item
-              label="Special Notes"
+              label="Allergies, medical and care notes"
               name="special_notes"
-              extra="Allergies, medical conditions, dietary requirements."
+              extra="Include allergies, medication, medical conditions, dietary requirements, or care instructions. Enter “None” if there is nothing to declare."
+              rules={[{ required: true, message: "Enter safety notes or None" }]}
             >
               <Input.TextArea
-                placeholder="Any special notes…"
+                placeholder="Describe anything the activity partner should know, or enter None"
                 rows={3}
-                maxLength={1000}
+                maxLength={2000}
               />
             </Form.Item>
           </Form>

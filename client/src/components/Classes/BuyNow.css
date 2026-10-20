@@ -240,6 +240,11 @@
   width: 100%;
 }
 
+.buynow-safety-alert {
+  margin-top: var(--spacing-sm);
+  border-radius: var(--radius-md);
+}
+
 .buynow-modal .buynow-child-select .ant-select-selector {
   min-height: var(--input-height-lg);
   padding: 0 var(--spacing-sm) !important;
@@ -392,6 +397,34 @@
 .buynow-policy-section {
   border-color: rgba(152, 189, 210, 0.5);
   background: var(--bg-light-blue);
+}
+
+.buynow-waiver-section {
+  border-color: rgba(152, 189, 210, 0.5);
+}
+
+.buynow-waiver-statements {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin: 0 0 var(--spacing-md);
+  padding-left: var(--spacing-lg);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-relaxed);
+}
+
+.buynow-waiver-checkbox {
+  align-items: flex-start;
+  color: var(--text-dark);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-relaxed);
+}
+
+.buynow-waiver-loading {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
 }
 
 .buynow-policy-list {
