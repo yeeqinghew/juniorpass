@@ -109,7 +109,7 @@ const Pricing = () => {
               <Text className="tier-saving-label">
                 {index === 0
                   ? "A lovely place to start"
-                  : `Save S$ ${(10 - tier.rate).toFixed(2)}/credit`}
+                  : `Save S$ ${(CREDIT_PRICING_TIERS[0].rate - tier.rate).toFixed(2)}/credit`}
               </Text>
             </div>
           ))}
