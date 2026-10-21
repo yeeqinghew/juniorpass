@@ -952,14 +952,15 @@ html {
 
     .headline-div {
         margin-top: 68px;
+        min-height: 360px;
     }
 
     .video-src {
-        position: relative;
+        position: absolute;
+        inset: 0;
         width: 100%;
-        height: auto;
-        max-height: 65vh;
-        object-fit: contain;
+        height: 100%;
+        object-fit: cover;
     }
 
     .title {
@@ -995,7 +996,8 @@ html {
     .headline-cta {
         position: absolute;
         left: 50%;
-        top: 65%;
+        top: auto;
+        bottom: var(--spacing-md);
         transform: translateX(-50%);
         z-index: 2;
         display: flex;
