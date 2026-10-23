@@ -28,6 +28,9 @@ const {
   isCurrentSafetyWaiverAccepted,
 } = require("../utils/safetyWaiver");
 const { getPromotionPrice } = require("../services/promotionPricing.service");
+const {
+  applyScheduleExceptions,
+} = require("../services/classSessionManagement.service");
 
 router.get("/waiver", userAuthorization, (_req, res) => {
   res.status(200).json({ waiver: getSafetyWaiver() });
@@ -232,7 +235,7 @@ router.post("/", userAuthorization, async (req, res) => {
       });
     }
 
-    const occurrenceWindows = buildOccurrenceWindows({
+    let occurrenceWindows = buildOccurrenceWindows({
       startDate: start_date,
       endDate: end_date,
       classCount: classes_total,
@@ -307,6 +310,12 @@ router.post("/", userAuthorization, async (req, res) => {
           "SELECT schedule_group_id FROM schedule_groups WHERE schedule_group_id = $1 FOR UPDATE",
           [schedule_group_id],
         );
+        // Session changes belong to a specific time slot. Lock it as well so
+        // an enrolment cannot race a partner cancellation or reschedule.
+        await client.query(
+          "SELECT schedule_id FROM schedules WHERE schedule_id = $1 FOR UPDATE",
+          [schedule_id],
+        );
       } else {
         await client.query(
           "SELECT schedule_id FROM schedules WHERE schedule_id = $1 FOR UPDATE",
@@ -337,6 +346,12 @@ router.post("/", userAuthorization, async (req, res) => {
           max_slots: maxSlots,
         });
       }
+
+      occurrenceWindows = await applyScheduleExceptions(
+        client,
+        schedule_id,
+        occurrenceWindows,
+      );
 
       // Lock and re-evaluate the promotion inside the booking transaction.
       // This makes the redemption limit and the charged price authoritative
@@ -455,7 +470,7 @@ router.post("/", userAuthorization, async (req, res) => {
             occurrence.start_at,
             occurrence.end_at,
             index + 1,
-            "scheduled",
+            occurrence.status,
           ],
         );
       }

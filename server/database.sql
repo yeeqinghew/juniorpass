@@ -330,6 +330,8 @@ CREATE TABLE scheduleExceptions (
     exception_date DATE NOT NULL,
     exception_type VARCHAR(20) CHECK (exception_type IN ('cancelled', 'rescheduled')) NOT NULL,
     reason VARCHAR(255),
+    replacement_start_date TIMESTAMP,
+    replacement_end_date TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
     UNIQUE (schedule_id, exception_date)
@@ -894,6 +896,10 @@ CREATE TABLE class_occurrences (
     cancellation_reason TEXT,
     cancelled_by VARCHAR(50), -- 'partner' or 'user'
 
+    -- Links a partner-created replacement class to the cancelled occurrence.
+    -- The unique index below makes make-up creation idempotent.
+    makeup_for_occurrence_id UUID REFERENCES class_occurrences(occurrence_id),
+
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),
 
@@ -905,6 +911,9 @@ CREATE TABLE class_occurrences (
 CREATE INDEX idx_occurrences_booking ON class_occurrences(booking_id);
 CREATE INDEX idx_occurrences_scheduled_date ON class_occurrences(scheduled_date);
 CREATE INDEX idx_occurrences_status ON class_occurrences(status);
+CREATE UNIQUE INDEX idx_occurrences_makeup_source
+    ON class_occurrences(makeup_for_occurrence_id)
+    WHERE makeup_for_occurrence_id IS NOT NULL;
 
 -- Trigger for updated_at
 CREATE TRIGGER set_timestamp_class_occurrences
