@@ -162,7 +162,7 @@ CREATE TABLE partners (
     description VARCHAR(1000) DEFAULT 'Profile setup in progress',
     website VARCHAR(1000),
     rating BIGINT DEFAULT 0,
-    credit INTEGER DEFAULT 0,  -- Partner's credit balance from bookings
+    credit NUMERIC(12, 4) DEFAULT 0,  -- Unsettled partner credit balance
     picture VARCHAR(1000),
     contact_number VARCHAR(8),
     categories categories[],
@@ -939,6 +939,53 @@ CREATE TRIGGER set_timestamp_notifications
     BEFORE UPDATE ON notifications
     FOR EACH ROW
     EXECUTE FUNCTION trigger_set_timestamp();
+
+-- Partner settlement ledger. Earnings are recognized per delivered session and
+-- locked into immutable payout batches before a manual bank transfer is recorded.
+CREATE TABLE partner_payouts (
+    payout_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    partner_id UUID NOT NULL REFERENCES partners(partner_id) ON DELETE RESTRICT,
+    period_start TIMESTAMPTZ NOT NULL,
+    period_end TIMESTAMPTZ NOT NULL,
+    total_credits NUMERIC(12, 4) NOT NULL DEFAULT 0 CHECK (total_credits >= 0),
+    gross_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (gross_amount >= 0),
+    adjustment_amount NUMERIC(12, 2) NOT NULL DEFAULT 0,
+    net_amount NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (net_amount >= 0),
+    status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'PAID', 'VOID')),
+    transfer_reference VARCHAR(255),
+    notes VARCHAR(1000),
+    generated_by UUID NOT NULL REFERENCES admins(admin_id) ON DELETE RESTRICT,
+    paid_by UUID REFERENCES admins(admin_id) ON DELETE RESTRICT,
+    paid_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (period_end > period_start)
+);
+
+CREATE TABLE partner_earnings (
+    earning_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    partner_id UUID NOT NULL REFERENCES partners(partner_id) ON DELETE RESTRICT,
+    booking_id UUID REFERENCES bookings(booking_id) ON DELETE RESTRICT,
+    occurrence_id UUID REFERENCES class_occurrences(occurrence_id) ON DELETE RESTRICT,
+    source TEXT NOT NULL CHECK (source IN ('BOOKING_OCCURRENCE', 'OPENING_BALANCE')),
+    listing_id UUID REFERENCES listings(listing_id) ON DELETE RESTRICT,
+    credits NUMERIC(12, 4) NOT NULL CHECK (credits >= 0),
+    dollars_per_credit NUMERIC(10, 4) NOT NULL CHECK (dollars_per_credit > 0),
+    gross_amount NUMERIC(12, 2) NOT NULL CHECK (gross_amount >= 0),
+    status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'AVAILABLE', 'IN_PAYOUT', 'SETTLED', 'REVERSED')),
+    occurrence_number INTEGER CHECK (occurrence_number IS NULL OR occurrence_number > 0),
+    available_at TIMESTAMPTZ,
+    settled_at TIMESTAMPTZ,
+    payout_id UUID REFERENCES partner_payouts(payout_id) ON DELETE RESTRICT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX partner_earnings_occurrence_uidx
+    ON partner_earnings(occurrence_id) WHERE occurrence_id IS NOT NULL;
+CREATE INDEX partner_earnings_partner_status_available_idx
+    ON partner_earnings(partner_id, status, available_at);
+CREATE INDEX partner_earnings_payout_idx ON partner_earnings(payout_id);
 
 -- Helpful indexes to fetch notifications by recipient
 CREATE INDEX idx_notifications_recipient ON notifications (recipient_type, recipient_id);

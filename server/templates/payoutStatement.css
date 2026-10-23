@@ -1,0 +1,61 @@
+body {
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 0 24px;
+  color: #202033;
+  font-family: Arial, sans-serif;
+}
+
+header {
+  margin-bottom: 28px;
+  padding-bottom: 20px;
+  border-bottom: 3px solid #8dbbd2;
+}
+
+h1 {
+  margin: 0 0 8px;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 8px;
+}
+
+dt {
+  font-weight: 700;
+}
+
+dd {
+  margin: 0;
+}
+
+table {
+  width: 100%;
+  margin-top: 28px;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 10px;
+  border-bottom: 1px solid #ddd;
+  text-align: left;
+}
+
+th {
+  background: #eef7fb;
+}
+
+.total {
+  margin-top: 24px;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: right;
+}
+
+@media print {
+  button {
+    display: none;
+  }
+}

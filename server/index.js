@@ -86,6 +86,7 @@ apiRouter.use("/referrals", require("./routes/referrals"));
 apiRouter.use("/categories", require("./routes/categories"));
 apiRouter.use("/reviews", require("./routes/reviews"));
 apiRouter.use("/promotions", require("./routes/promotions"));
+apiRouter.use("/payouts", require("./routes/payouts"));
 
 // health check endpoint
 apiRouter.get("/health", (req, res) => {
