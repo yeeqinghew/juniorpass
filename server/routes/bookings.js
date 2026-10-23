@@ -969,6 +969,7 @@ router.delete("/:bookingId", userAuthorization, async (req, res) => {
     const notificationData = JSON.stringify({
       user_id,
       booking_id: bookingId,
+      listing_id: bookingData.listing_id,
       credit: creditRefund,
       refund_percentage: cancellation.refund_percent,
     });

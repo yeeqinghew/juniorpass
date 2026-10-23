@@ -1048,7 +1048,7 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
       // Serialize structural edits with booking creation. PostgreSQL's foreign
       // key check takes a conflicting key-share lock on this listing row.
       const listingOwner = await tx.query(
-        `SELECT partner_id
+        `SELECT partner_id, listing_title
          FROM listings
          WHERE listing_id = $1
          FOR UPDATE`,
@@ -1365,6 +1365,27 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
       await client.del("/listings");
 
       await tx.query("COMMIT");
+
+      try {
+        await pool.query(
+          `INSERT INTO notifications (
+             recipient_type, recipient_id, type, title, message, data
+           ) VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            AUTH_ROLES.PARTNER,
+            req.user,
+            "schedule_update",
+            "Schedule updated",
+            `The schedule for ${listingOwner.rows[0].listing_title} was updated successfully.`,
+            JSON.stringify({ listing_id }),
+          ],
+        );
+      } catch (notifyErr) {
+        console.error(
+          "Schedule updated but partner notification failed:",
+          notifyErr.message,
+        );
+      }
 
       // Notify users with upcoming bookings for this listing about schedule changes
       try {
