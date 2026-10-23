@@ -294,6 +294,10 @@ router.patch("/admin/:payoutId/void", adminAuthorization, async (req, res) => {
       await client.query("ROLLBACK");
       return res.status(404).json({ error: "Payout not found" });
     }
+    if (payout.rows[0].status === "VOID") {
+      await client.query("ROLLBACK");
+      return res.json({ payout: payout.rows[0], already_void: true });
+    }
     if (payout.rows[0].status !== "DRAFT") {
       await client.query("ROLLBACK");
       return res.status(409).json({ error: "Only a draft payout can be voided" });

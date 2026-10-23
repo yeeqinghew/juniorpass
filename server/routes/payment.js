@@ -18,6 +18,10 @@ const { getPaymentRedirectUrl } = require("../utils/paymentRedirect");
 const {
   sendPaymentReceipt,
 } = require("../services/customerDocuments.service");
+const {
+  completeWebhookEvent,
+  recordWebhookEvent,
+} = require("../services/paymentWebhookAudit.service");
 
 const hitpaySandboxApiKey = process.env.HITPAY_SANDBOX_API_KEY;
 const hitpaySandboxSecretKey = process.env.HITPAY_SANDBOX_SECRET_KEY;
@@ -172,6 +176,23 @@ router.post(
 );
 
 // updates payment and credit if successful.
+const safelyRecordWebhookEvent = async (details) => {
+  try {
+    return await recordWebhookEvent(details);
+  } catch (error) {
+    console.error("Unable to write payment webhook audit event:", error.message);
+    return null;
+  }
+};
+
+const safelyCompleteWebhookEvent = async (eventId, details) => {
+  try {
+    await completeWebhookEvent(eventId, details);
+  } catch (error) {
+    console.error("Unable to update payment webhook audit event:", error.message);
+  }
+};
+
 router.post("/webhook", async (req, res) => {
   const secret = hitpaySandboxSecretKey;
 
@@ -185,6 +206,13 @@ router.post("/webhook", async (req, res) => {
 
   if (!receivedHmac) {
     console.error("❌ No HMAC received");
+    await safelyRecordWebhookEvent({
+      parsed,
+      signatureValid: false,
+      processingStatus: "REJECTED",
+      responseCode: 400,
+      errorCode: "MISSING_HMAC",
+    });
     return res.status(400).send("Bad Request - No HMAC");
   }
 
@@ -206,15 +234,33 @@ router.post("/webhook", async (req, res) => {
     .update(concatenatedString)
     .digest("hex");
 
-  if (calculatedHmac !== receivedHmac) {
+  const calculatedBuffer = Buffer.from(calculatedHmac, "utf8");
+  const receivedBuffer = Buffer.from(String(receivedHmac), "utf8");
+  const signatureValid =
+    calculatedBuffer.length === receivedBuffer.length &&
+    crypto.timingSafeEqual(calculatedBuffer, receivedBuffer);
+
+  if (!signatureValid) {
     console.error("❌ Invalid HMAC!");
-    console.error("String used for HMAC calculation:", concatenatedString);
+    await safelyRecordWebhookEvent({
+      parsed,
+      signatureValid: false,
+      processingStatus: "REJECTED",
+      responseCode: 401,
+      errorCode: "INVALID_HMAC",
+    });
     return res.status(401).send("Unauthorized");
   }
 
   const { payment_request_id, reference_number, amount, status } = parsed;
+  const webhookEventId = await safelyRecordWebhookEvent({
+    parsed,
+    signatureValid: true,
+    processingStatus: "RECEIVED",
+  });
   try {
-    if (String(status).toLowerCase() === "completed") {
+    const normalisedStatus = String(status).toLowerCase();
+    if (normalisedStatus === "completed") {
       const settlement = await settleCompletedPayment({
         hitpayPaymentId: payment_request_id, // Use payment_request_id, not payment_id
         referenceNumber: reference_number,
@@ -232,12 +278,77 @@ router.post("/webhook", async (req, res) => {
           emailError.message,
         );
       }
+      await safelyCompleteWebhookEvent(webhookEventId, {
+        processingStatus: "PROCESSED",
+        responseCode: 200,
+      });
+    } else if (
+      ["failed", "cancelled", "canceled", "expired"].includes(
+        normalisedStatus,
+      )
+    ) {
+      const failedPayment = await pool.query(
+        `UPDATE payment_requests
+         SET status = 'FAILED', webhook_received = TRUE, updated_at = NOW()
+         WHERE reference_number = $1
+           AND hitpay_payment_id = $2
+           AND status IN ('PENDING', 'FAILED')
+         RETURNING request_id`,
+        [reference_number, payment_request_id],
+      );
+      if (failedPayment.rowCount === 0) {
+        const existingPayment = await pool.query(
+          `SELECT status
+           FROM payment_requests
+           WHERE reference_number = $1 AND hitpay_payment_id = $2`,
+          [reference_number, payment_request_id],
+        );
+        if (existingPayment.rowCount === 0) {
+          await safelyCompleteWebhookEvent(webhookEventId, {
+            processingStatus: "REJECTED",
+            responseCode: 400,
+            errorCode: "PAYMENT_NOT_FOUND",
+          });
+          return res.status(400).send("Unknown payment request");
+        }
+        await safelyCompleteWebhookEvent(webhookEventId, {
+          processingStatus: "IGNORED",
+          responseCode: 200,
+          errorCode: "PAYMENT_ALREADY_COMPLETED",
+        });
+        return res.status(200).send("OK");
+      }
+      await safelyCompleteWebhookEvent(webhookEventId, {
+        processingStatus: "PROCESSED",
+        responseCode: 200,
+      });
+    } else {
+      await pool.query(
+        `UPDATE payment_requests
+         SET webhook_received = TRUE, updated_at = NOW()
+         WHERE reference_number = $1 AND hitpay_payment_id = $2`,
+        [reference_number, payment_request_id],
+      );
+      await safelyCompleteWebhookEvent(webhookEventId, {
+        processingStatus: "IGNORED",
+        responseCode: 200,
+      });
     }
   } catch (error) {
     console.error("❌ Error processing webhook:", error);
     if (error instanceof PaymentSettlementError) {
+      await safelyCompleteWebhookEvent(webhookEventId, {
+        processingStatus: "REJECTED",
+        responseCode: 400,
+        errorCode: error.code || "INVALID_SETTLEMENT",
+      });
       return res.status(400).send("Invalid payment settlement data");
     }
+    await safelyCompleteWebhookEvent(webhookEventId, {
+      processingStatus: "FAILED",
+      responseCode: 500,
+      errorCode: "PROCESSING_ERROR",
+    });
     // A transient database failure must remain retryable by HitPay.
     return res.status(500).send("Unable to settle payment");
   }

@@ -526,6 +526,30 @@ CREATE INDEX payment_requests_completed_user_idx
     ON payment_requests(user_id, created_at, request_id)
     WHERE status = 'COMPLETED';
 
+-- Stores a sanitised audit trail of HitPay delivery attempts. Raw request
+-- bodies and HMAC signatures are deliberately excluded.
+CREATE TABLE payment_webhook_events (
+    webhook_event_id BIGSERIAL PRIMARY KEY,
+    payment_request_id UUID REFERENCES payment_requests(request_id) ON DELETE SET NULL,
+    reference_number VARCHAR(255),
+    hitpay_payment_id VARCHAR(255),
+    payment_status VARCHAR(50),
+    amount NUMERIC(10, 2),
+    signature_valid BOOLEAN NOT NULL,
+    processing_status VARCHAR(20) NOT NULL
+        CHECK (processing_status IN ('RECEIVED', 'PROCESSED', 'IGNORED', 'REJECTED', 'FAILED')),
+    response_code INTEGER,
+    error_code VARCHAR(100),
+    received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    processed_at TIMESTAMPTZ
+);
+
+CREATE INDEX payment_webhook_events_received_idx
+    ON payment_webhook_events(received_at DESC);
+
+CREATE INDEX payment_webhook_events_payment_idx
+    ON payment_webhook_events(payment_request_id, received_at DESC);
+
 CREATE TABLE transactions (
     transaction_id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     parent_id uuid REFERENCES parents(parent_id) NOT NULL,
