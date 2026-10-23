@@ -212,6 +212,17 @@
   white-space: nowrap;
 }
 
+.buynow-promotion-label {
+  grid-column: 1 / -1;
+  color: var(--color-success);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.buynow-promotion-alert {
+  border-radius: var(--radius-lg);
+}
+
 .buynow-empty-state,
 .buynow-map-placeholder {
   display: grid;

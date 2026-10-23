@@ -808,6 +808,61 @@ CREATE INDEX idx_bookings_active_schedule_date ON bookings (schedule_id, start_d
 -- Keep schedule_id for tracking which specific time slots were attended
 CREATE INDEX idx_bookings_schedule_group ON bookings(schedule_group_id);
 
+CREATE TABLE promotions (
+  promotion_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  partner_id UUID NOT NULL REFERENCES partners(partner_id) ON DELETE CASCADE,
+  listing_id UUID NOT NULL REFERENCES listings(listing_id) ON DELETE CASCADE,
+  schedule_group_id UUID NOT NULL REFERENCES schedule_groups(schedule_group_id) ON DELETE CASCADE,
+  package_type package_types NOT NULL,
+  promotional_credit_cost INTEGER NOT NULL CHECK (promotional_credit_cost > 0),
+  starts_at TIMESTAMPTZ NOT NULL,
+  ends_at TIMESTAMPTZ NOT NULL,
+  max_redemptions INTEGER NOT NULL CHECK (max_redemptions > 0),
+  eligibility VARCHAR(30) NOT NULL CHECK (eligibility IN ('first_time_customer', 'everyone', 'selected_users')),
+  status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'paused', 'rejected')),
+  funded_by VARCHAR(20) CHECK (funded_by IN ('partner', 'platform')),
+  reviewed_by UUID REFERENCES admins(admin_id),
+  reviewed_at TIMESTAMPTZ,
+  rejection_reason VARCHAR(500),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CHECK (ends_at > starts_at)
+);
+
+CREATE TRIGGER set_timestamp_promotions
+  BEFORE UPDATE ON promotions
+  FOR EACH ROW
+  EXECUTE FUNCTION trigger_set_timestamp();
+
+CREATE TABLE promotion_allowed_users (
+  promotion_id UUID NOT NULL REFERENCES promotions(promotion_id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  PRIMARY KEY (promotion_id, user_id)
+);
+
+ALTER TABLE bookings
+  ADD COLUMN promotion_id UUID REFERENCES promotions(promotion_id),
+  ADD COLUMN standard_credits INTEGER,
+  ADD COLUMN partner_credited_credits INTEGER;
+
+CREATE TABLE promotion_redemptions (
+  redemption_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  promotion_id UUID NOT NULL REFERENCES promotions(promotion_id) ON DELETE RESTRICT,
+  user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE RESTRICT,
+  booking_id UUID NOT NULL REFERENCES bookings(booking_id) ON DELETE RESTRICT,
+  charged_credits INTEGER NOT NULL CHECK (charged_credits > 0),
+  standard_credits INTEGER NOT NULL CHECK (standard_credits > 0),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (promotion_id, user_id),
+  UNIQUE (booking_id)
+);
+
+CREATE INDEX promotions_partner_idx ON promotions(partner_id, created_at DESC);
+CREATE INDEX promotions_active_lookup_idx
+  ON promotions(schedule_group_id, package_type, starts_at, ends_at)
+  WHERE status = 'approved';
+CREATE INDEX promotion_redemptions_promotion_idx ON promotion_redemptions(promotion_id);
+
 ALTER TABLE reviews
     ADD CONSTRAINT reviews_booking_fk
     FOREIGN KEY (booking_id) REFERENCES bookings(booking_id) ON DELETE CASCADE;

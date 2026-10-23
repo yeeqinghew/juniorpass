@@ -27,6 +27,7 @@ const {
   getSafetyWaiver,
   isCurrentSafetyWaiverAccepted,
 } = require("../utils/safetyWaiver");
+const { getPromotionPrice } = require("../services/promotionPricing.service");
 
 router.get("/waiver", userAuthorization, (_req, res) => {
   res.status(200).json({ waiver: getSafetyWaiver() });
@@ -43,6 +44,7 @@ router.post("/", userAuthorization, async (req, res) => {
     acknowledge_same_day_booking: acknowledgeSameDayBooking = false,
     waiver_accepted: waiverAccepted = false,
     waiver_version: waiverVersion,
+    promotion_id: expectedPromotionId,
   } = req.body;
 
   try {
@@ -218,23 +220,16 @@ router.post("/", userAuthorization, async (req, res) => {
     );
     // Use the rate captured when this package price was saved.
     const dollarsPerCredit = Number(scheduleGroup.pricing_dollars_per_credit);
-    const creditCost = getPackageCreditCost(
+    const standardCreditCost = getPackageCreditCost(
       scheduleGroup,
       enrolledPackageType,
       dollarsPerCredit,
     );
 
-    if (!creditCost || !Number.isInteger(classes_total) || classes_total < 1) {
+    if (!standardCreditCost || !Number.isInteger(classes_total) || classes_total < 1) {
       return res.status(400).json({
         error: "This package's credit cost is unavailable",
       });
-    }
-
-    const userCredits = Number(user.rows[0].credit);
-
-    // Check user's credit balance
-    if (userCredits < creditCost) {
-      return res.status(400).json({ error: "Insufficient credits" });
     }
 
     const occurrenceWindows = buildOccurrenceWindows({
@@ -343,6 +338,29 @@ router.post("/", userAuthorization, async (req, res) => {
         });
       }
 
+      // Lock and re-evaluate the promotion inside the booking transaction.
+      // This makes the redemption limit and the charged price authoritative
+      // even when several parents book the final promotional places together.
+      const promotionPricing = await getPromotionPrice(client, {
+        userId: user_id,
+        scheduleGroupId: schedule_group_id,
+        packageType: enrolledPackageType,
+        standardCredits: standardCreditCost,
+        lock: true,
+      });
+      const creditCost = promotionPricing.chargedCredits;
+      const partnerCreditedCredits = promotionPricing.partnerCreditedCredits;
+      if (
+        expectedPromotionId &&
+        promotionPricing.promotion?.promotion_id !== expectedPromotionId
+      ) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          code: "PROMOTION_UNAVAILABLE",
+          error: "This promotion has just ended or reached its redemption limit. Please review the updated price.",
+        });
+      }
+
       // Deduct credits only if the balance still covers the package. This
       // prevents concurrent booking requests from taking the balance negative.
       const debitResult = await client.query(
@@ -363,7 +381,7 @@ router.post("/", userAuthorization, async (req, res) => {
       // Credit partner balance
       await client.query(
         "UPDATE partners SET credit = credit + $1 WHERE partner_id = $2",
-        [creditCost, listing.rows[0].partner_id],
+        [partnerCreditedCredits, listing.rows[0].partner_id],
       );
 
       // Capture the policy now so later listing edits cannot alter this booking's terms.
@@ -375,10 +393,11 @@ router.post("/", userAuthorization, async (req, res) => {
         INSERT INTO bookings (
           listing_id, schedule_id, user_id, child_id, schedule_group_id,
           start_date, end_date, enrolled_package_type, classes_total,
-          dollars_per_credit, charged_credits, policy_snapshot,
+          dollars_per_credit, charged_credits, standard_credits,
+          partner_credited_credits, promotion_id, policy_snapshot,
           waiver_snapshot, waiver_acknowledged_at, waiver_acknowledged_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), $14)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), $17)
         RETURNING *
       `,
         [
@@ -393,6 +412,9 @@ router.post("/", userAuthorization, async (req, res) => {
           classes_total,
           dollarsPerCredit,
           creditCost,
+          standardCreditCost,
+          partnerCreditedCredits,
+          promotionPricing.promotion?.promotion_id || null,
           JSON.stringify(policySnapshot),
           JSON.stringify(getSafetyWaiver()),
           user_id,
@@ -400,6 +422,21 @@ router.post("/", userAuthorization, async (req, res) => {
       );
 
       const booking_id = newBooking.rows[0].booking_id;
+
+      if (promotionPricing.promotion) {
+        await client.query(
+          `INSERT INTO promotion_redemptions (
+             promotion_id, user_id, booking_id, charged_credits, standard_credits
+           ) VALUES ($1, $2, $3, $4, $5)`,
+          [
+            promotionPricing.promotion.promotion_id,
+            user_id,
+            booking_id,
+            creditCost,
+            standardCreditCost,
+          ],
+        );
+      }
 
       // Generate class occurrences based on frequency
       console.log(
@@ -873,7 +910,15 @@ router.delete("/:bookingId", userAuthorization, async (req, res) => {
 
       await client.query(
         "UPDATE partners SET credit = credit - $1 WHERE partner_id = $2",
-        [creditRefund, bookingData.partner_id],
+        [
+          Math.floor(
+            (Number(
+              bookingData.partner_credited_credits || bookingData.charged_credits || 0,
+            ) * cancellation.refund_percent) /
+              100,
+          ),
+          bookingData.partner_id,
+        ],
       );
 
       if (bookingData.child_id) {

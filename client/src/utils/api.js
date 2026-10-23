@@ -129,6 +129,8 @@ export const API_ENDPOINTS = {
   UPDATE_REVIEW: (reviewId) => `/reviews/${reviewId}`,
   DELETE_REVIEW: (reviewId) => `/reviews/${reviewId}`,
   GET_LISTING_REVIEWS: (listingId) => `/reviews/listing/${listingId}`,
+  GET_ELIGIBLE_PROMOTION: (scheduleId, packageType) =>
+    `/promotions/eligible/${scheduleId}/${packageType}`,
 
   // Customer documents
   GET_BOOKING_CONFIRMATION: (bookingId) => `/documents/bookings/${bookingId}`,

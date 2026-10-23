@@ -115,6 +115,7 @@ const BuyNow = ({
   const [waiver, setWaiver] = useState(null);
   const [waiverAccepted, setWaiverAccepted] = useState(false);
   const [waiverError, setWaiverError] = useState(false);
+  const [promotionPricing, setPromotionPricing] = useState(null);
 
   useEffect(() => {
     if (!isBuyNowModalOpen) return;
@@ -153,6 +154,7 @@ const BuyNow = ({
     setSameDayConflict(null);
     setOverlapConflict(null);
     setWaiverAccepted(false);
+    setPromotionPricing(null);
   };
 
   // Get pricing and details for selected package type
@@ -212,6 +214,32 @@ const BuyNow = ({
   const effectivePackageType =
     selectedPackageType || (packageTypes.length === 1 ? packageTypes[0] : null);
   const currentPackage = getPackageDetails(effectivePackageType);
+
+  useEffect(() => {
+    const scheduleId = selected?.location?.schedule_id;
+    if (!isBuyNowModalOpen || !scheduleId || !effectivePackageType) {
+      setPromotionPricing(null);
+      return;
+    }
+
+    let active = true;
+    setPromotionPricing(null);
+    const loadPromotion = async () => {
+      try {
+        const response = await fetchWithAuth(
+          API_ENDPOINTS.GET_ELIGIBLE_PROMOTION(scheduleId, effectivePackageType),
+        );
+        const data = await response.json();
+        if (active && response.ok) setPromotionPricing(data);
+      } catch {
+        if (active) setPromotionPricing(null);
+      }
+    };
+    loadPromotion();
+    return () => {
+      active = false;
+    };
+  }, [effectivePackageType, isBuyNowModalOpen, selected?.location?.schedule_id]);
   const selectedChild = children?.find(
     (child) => child?.child_id === selectedChildId,
   );
@@ -222,7 +250,7 @@ const BuyNow = ({
       Array.isArray(selectedChild?.authorized_pickups) &&
       selectedChild.authorized_pickups.length > 0,
   );
-  const displayPrice = currentPackage?.price ?? null;
+  const displayPrice = promotionPricing?.effective_credits ?? currentPackage?.price ?? null;
   const availableCredits = Number(user?.credit ?? 0);
   const hasValidPackagePrice =
     Number.isFinite(Number(displayPrice)) && Number(displayPrice) > 0;
@@ -335,6 +363,7 @@ const BuyNow = ({
           acknowledged_policy: bookingPolicy,
           waiver_accepted: true,
           waiver_version: waiver.version,
+          promotion_id: promotionPricing?.promotion?.promotion_id || null,
         }),
       });
 
@@ -364,6 +393,12 @@ const BuyNow = ({
             ? `${formatConflictTime(conflict.start_at)}–${formatConflictTime(conflict.end_at)}`
             : "the selected time",
         });
+      } else if (
+        response.status === 409 &&
+        data.code === "PROMOTION_UNAVAILABLE"
+      ) {
+        setPromotionPricing(null);
+        toast.error(data.error);
       } else if (response.ok) {
         toast.success(
           "Booking confirmed! Class has been added to your schedule.",
@@ -491,9 +526,18 @@ const BuyNow = ({
                       </span>
                       <strong className="buynow-package-price">
                         {details?.price
-                          ? `${details.price} credits`
+                          ? `${
+                              isSelected && promotionPricing?.promotion
+                                ? promotionPricing.effective_credits
+                                : details.price
+                            } credits`
                           : "Unavailable"}
                       </strong>
+                      {isSelected && promotionPricing?.promotion ? (
+                        <span className="buynow-promotion-label">
+                          Limited offer · usually {promotionPricing.standard_credits} credits
+                        </span>
+                      ) : null}
                     </Radio>
                   );
                 })}
@@ -647,6 +691,15 @@ const BuyNow = ({
                   : "Select a package"}
             </span>
           </div>
+          {promotionPricing?.promotion ? (
+            <Alert
+              className="buynow-promotion-alert"
+              type="success"
+              showIcon
+              message="Promotional price applied"
+              description={`You save ${promotionPricing.standard_credits - promotionPricing.effective_credits} credits. ${promotionPricing.promotion.remaining_redemptions} redemptions remain.`}
+            />
+          ) : null}
         </div>
 
         <aside className="buynow-summary-column">
