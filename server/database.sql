@@ -1014,6 +1014,9 @@ CREATE INDEX partner_earnings_payout_idx ON partner_earnings(payout_id);
 -- Helpful indexes to fetch notifications by recipient
 CREATE INDEX idx_notifications_recipient ON notifications (recipient_type, recipient_id);
 CREATE INDEX idx_notifications_created_at ON notifications (created_at);
+CREATE UNIQUE INDEX notifications_recipient_event_uidx
+    ON notifications (recipient_type, recipient_id, (data->>'event_key'))
+    WHERE data ? 'event_key';
 
 -- CLASS REMINDERS: prevents duplicate in-app and email reminders across retries.
 CREATE TABLE class_reminders (

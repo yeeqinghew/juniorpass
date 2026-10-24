@@ -5,6 +5,7 @@ const jwtGenerator = require("../utils/jwtGenerator");
 const { AUTH_ROLES } = require("../constants/auth");
 const {
   AUTH_COOKIE_MAX_AGE_MS,
+  ADMIN_AUTH_COOKIE_MAX_AGE_MS,
   clearAuthCookie,
   getAuthCookieName,
   getCookieOptions,
@@ -43,6 +44,16 @@ test("JWTs include the authenticated portal role", () => {
     assert.equal(payload.user, "partner-id");
     assert.equal(payload.role, AUTH_ROLES.PARTNER);
     assert.ok(payload.exp > payload.iat);
+  });
+});
+
+test("admin sessions last eight hours", () => {
+  withEnvironment({ JWT_SECRET: "test-secret" }, () => {
+    const token = jwtGenerator("admin-id", AUTH_ROLES.ADMIN);
+    const payload = jwt.verify(token, "test-secret");
+
+    assert.equal(payload.role, AUTH_ROLES.ADMIN);
+    assert.equal(payload.exp - payload.iat, 8 * 60 * 60);
   });
 });
 
@@ -109,6 +120,7 @@ test("role cookies use separate names and can be parsed and cleared", () => {
   assert.equal(calls[0][1], "jp_admin_session");
   assert.equal(calls[0][2], "admin.jwt");
   assert.equal(calls[0][3].httpOnly, true);
+  assert.equal(calls[0][3].maxAge, ADMIN_AUTH_COOKIE_MAX_AGE_MS);
   assert.equal(calls[1][1], "jp_admin_session");
   assert.equal("maxAge" in calls[1][2], false);
 });

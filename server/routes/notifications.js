@@ -3,15 +3,22 @@ const router = express.Router();
 const pool = require("../db");
 const { AUTH_ROLES } = require("../constants/auth");
 const authorization = require("../middleware/authorization");
-const userOrPartnerAuthorization = authorization.forRoles(
+const {
+  ADMIN_NOTIFICATION_TYPES,
+  syncAdminOperationalNotifications,
+} = require("../services/adminNotification.service");
+const notificationAuthorization = authorization.forRoles(
   AUTH_ROLES.USER,
   AUTH_ROLES.PARTNER,
+  AUTH_ROLES.ADMIN,
 );
 
+const ADMIN_CATEGORIES = new Set(Object.values(ADMIN_NOTIFICATION_TYPES));
+
 const validateNotificationRole = (req, res, type) => {
-  if (!type || ![AUTH_ROLES.USER, AUTH_ROLES.PARTNER].includes(type)) {
+  if (!type || !Object.values(AUTH_ROLES).includes(type)) {
     res.status(400).json({
-      error: "Invalid or missing type. Use 'user' or 'partner'.",
+      error: "Invalid or missing notification recipient type.",
     });
     return false;
   }
@@ -22,17 +29,29 @@ const validateNotificationRole = (req, res, type) => {
   return true;
 };
 
+const syncOperationalNotifications = async (req) => {
+  if (req.authRole !== AUTH_ROLES.ADMIN) return;
+  try {
+    await syncAdminOperationalNotifications(pool, req.user);
+  } catch (error) {
+    // Existing notifications remain available if one operational source is
+    // temporarily unavailable during a deployment or database incident.
+    console.error("Unable to sync admin operational notifications:", error.message);
+  }
+};
+
 const parsePositiveInteger = (value, fallback, maximum) => {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed < 1) return fallback;
   return Math.min(parsed, maximum);
 };
 
-router.get("/unread-count", userOrPartnerAuthorization, async (req, res) => {
+router.get("/unread-count", notificationAuthorization, async (req, res) => {
   const type = req.query.type;
   if (!validateNotificationRole(req, res, type)) return;
 
   try {
+    await syncOperationalNotifications(req);
     const result = await pool.query(
       `SELECT COUNT(*)::integer AS unread_count
        FROM notifications
@@ -46,7 +65,7 @@ router.get("/unread-count", userOrPartnerAuthorization, async (req, res) => {
   }
 });
 
-router.patch("/read-all", userOrPartnerAuthorization, async (req, res) => {
+router.patch("/read-all", notificationAuthorization, async (req, res) => {
   const type = req.body.type;
   if (!validateNotificationRole(req, res, type)) return;
 
@@ -65,43 +84,63 @@ router.patch("/read-all", userOrPartnerAuthorization, async (req, res) => {
 });
 
 /**
- * Fetch notifications for the authenticated user or partner.
+ * Fetch notifications for the authenticated user, partner, or admin.
  * Query params:
- *  - type: 'user' | 'partner' (required)
+ *  - type: authenticated portal role (required)
  *  - page: default 1
  *  - limit: default 10
  */
-router.get("/", userOrPartnerAuthorization, async (req, res) => {
+router.get("/", notificationAuthorization, async (req, res) => {
   const recipient_id = req.user;
   const { type } = req.query;
   const page = parsePositiveInteger(req.query.page, 1, 100000);
   const limit = parsePositiveInteger(req.query.limit, 10, 50);
   const unreadOnly = req.query.unread === "true";
+  const category = req.query.category
+    ? String(req.query.category).toLowerCase()
+    : null;
   const offset = (page - 1) * limit;
 
   if (!validateNotificationRole(req, res, type)) return;
+  if (
+    category &&
+    (type !== AUTH_ROLES.ADMIN || !ADMIN_CATEGORIES.has(category))
+  ) {
+    return res.status(400).json({ error: "Invalid notification category" });
+  }
 
   try {
+    await syncOperationalNotifications(req);
     const list = await pool.query(
       `
       SELECT notification_id, recipient_type, recipient_id, type, title, message, data, is_read, created_at
       FROM notifications
       WHERE recipient_type = $1 AND recipient_id = $2
         AND ($3::boolean = false OR is_read = false)
+        AND ($4::text IS NULL OR type = $4)
       ORDER BY created_at DESC
-      LIMIT $4 OFFSET $5
+      LIMIT $5 OFFSET $6
       `,
-      [type, recipient_id, unreadOnly, limit, offset],
+      [type, recipient_id, unreadOnly, category, limit, offset],
     );
 
     const count = await pool.query(
       `
-      SELECT COUNT(*)::integer AS all_total,
-             COUNT(*) FILTER (WHERE is_read = false)::integer AS unread_total
+      SELECT COUNT(*) FILTER (
+               WHERE $3::text IS NULL OR type = $3
+             )::integer AS all_total,
+             COUNT(*) FILTER (
+               WHERE is_read = false AND ($3::text IS NULL OR type = $3)
+             )::integer AS unread_total,
+             COUNT(*) FILTER (WHERE type = '${ADMIN_NOTIFICATION_TYPES.FAILED_PAYMENT}')::integer AS failed_payment_total,
+             COUNT(*) FILTER (WHERE type = '${ADMIN_NOTIFICATION_TYPES.BOOKING_DISPUTE}')::integer AS booking_dispute_total,
+             COUNT(*) FILTER (WHERE type = '${ADMIN_NOTIFICATION_TYPES.PARTNER_APPLICATION}')::integer AS partner_application_total,
+             COUNT(*) FILTER (WHERE type = '${ADMIN_NOTIFICATION_TYPES.SETTLEMENT_DEADLINE}')::integer AS settlement_deadline_total,
+             COUNT(*) FILTER (WHERE type = '${ADMIN_NOTIFICATION_TYPES.SYSTEM_FAILURE}')::integer AS system_failure_total
       FROM notifications
       WHERE recipient_type = $1 AND recipient_id = $2
       `,
-      [type, recipient_id],
+      [type, recipient_id, category],
     );
 
     const allTotal = count.rows[0].all_total;
@@ -113,6 +152,13 @@ router.get("/", userOrPartnerAuthorization, async (req, res) => {
       total: unreadOnly ? unreadTotal : allTotal,
       all_total: allTotal,
       unread_total: unreadTotal,
+      category_totals: {
+        payment_failed: count.rows[0].failed_payment_total,
+        booking_dispute: count.rows[0].booking_dispute_total,
+        partner_application: count.rows[0].partner_application_total,
+        settlement_deadline: count.rows[0].settlement_deadline_total,
+        system_failure: count.rows[0].system_failure_total,
+      },
       data: list.rows,
     });
   } catch (error) {
@@ -122,13 +168,13 @@ router.get("/", userOrPartnerAuthorization, async (req, res) => {
 });
 
 /**
- * Mark notification as read for the authenticated user/partner.
+ * Mark a notification as read for the authenticated recipient.
  * Path param:
  *  - id: notification_id UUID
  * Body:
  *  - type: 'user' | 'partner' (required to scope ownership)
  */
-router.patch("/:id/read", userOrPartnerAuthorization, async (req, res) => {
+router.patch("/:id/read", notificationAuthorization, async (req, res) => {
   const recipient_id = req.user;
   const { id } = req.params;
   const { type } = req.body;

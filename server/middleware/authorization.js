@@ -130,6 +130,7 @@ function createAuthorization(allowedRoles = ALL_AUTH_ROLES) {
       req.user = payload.user;
       req.authRole = payloadRole;
       req.authToken = jwtToken;
+      req.authExpiresAt = payload.exp ? payload.exp * 1000 : null;
       return next();
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError) {

@@ -167,7 +167,13 @@ router.post("/login", adminLoginLimiter, async (req, res) => {
 });
 
 router.get("/is-verify", authorization, adminOnly, (req, res) => {
-  return res.status(200).json({ authenticated: true, role: req.authRole });
+  return res.status(200).json({
+    authenticated: true,
+    role: req.authRole,
+    expires_at: req.authExpiresAt
+      ? new Date(req.authExpiresAt).toISOString()
+      : null,
+  });
 });
 
 router.post("/logout", authorization, adminOnly, async (req, res) => {

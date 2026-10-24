@@ -29,6 +29,7 @@ const AUTH_COOKIE_NAMES = Object.freeze({
  * AUTH_COOKIE_MAX_AGE_MS;
  */
 const AUTH_COOKIE_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+const ADMIN_AUTH_COOKIE_MAX_AGE_MS = 8 * 60 * 60 * 1000;
 
 /**
  * Parses an environment/configuration value as a boolean.
@@ -127,7 +128,7 @@ function parseBoolean(value, fallback) {
  * //   path: "/"
  * // }
  */
-function getCookieOptions({ includeMaxAge = true } = {}) {
+function getCookieOptions({ includeMaxAge = true, role } = {}) {
   const isLocalEnvironment = !["production", "staging"].includes(
     process.env.NODE_ENV,
   );
@@ -151,7 +152,14 @@ function getCookieOptions({ includeMaxAge = true } = {}) {
     secure,
     sameSite,
     path: "/",
-    ...(includeMaxAge ? { maxAge: AUTH_COOKIE_MAX_AGE_MS } : {}),
+    ...(includeMaxAge
+      ? {
+          maxAge:
+            role === AUTH_ROLES.ADMIN
+              ? ADMIN_AUTH_COOKIE_MAX_AGE_MS
+              : AUTH_COOKIE_MAX_AGE_MS,
+        }
+      : {}),
   };
 }
 
@@ -292,7 +300,7 @@ function getAuthCookieToken(req, role) {
  * // jp_user_session=<token>
  */
 function setAuthCookie(res, role, token) {
-  res.cookie(getAuthCookieName(role), token, getCookieOptions());
+  res.cookie(getAuthCookieName(role), token, getCookieOptions({ role }));
 }
 
 /**
@@ -322,7 +330,7 @@ function setAuthCookie(res, role, token) {
 function clearAuthCookie(res, role) {
   res.clearCookie(
     getAuthCookieName(role),
-    getCookieOptions({ includeMaxAge: false }),
+    getCookieOptions({ includeMaxAge: false, role }),
   );
 }
 
@@ -330,6 +338,7 @@ module.exports = {
   AUTH_ROLES,
   AUTH_COOKIE_NAMES,
   AUTH_COOKIE_MAX_AGE_MS,
+  ADMIN_AUTH_COOKIE_MAX_AGE_MS,
   clearAuthCookie,
   getAuthCookieName,
   getAuthCookieToken,

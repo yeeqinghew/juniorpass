@@ -47,10 +47,12 @@ const { clearAuthCookie, setAuthCookie } = require("./authCookies");
 function issueAuthSession(res, subjectId, role, responseBody = {}) {
   const token = jwtGenerator(subjectId, role);
   setAuthCookie(res, role, token);
+  const { exp } = jwt.decode(token) || {};
 
   return {
     ...responseBody,
     authenticated: true,
+    expires_at: exp ? new Date(exp * 1000).toISOString() : null,
   };
 }
 
