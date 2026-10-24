@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "check:no-js": "node -e \"const fs=require('node:fs'),path=require('node:path'),bad=[],skip=new Set(['node_modules','dist','build','.git']),allowed=new Set(['eslint.config.js','test/packageTypes.test.js']);const walk=d=>{for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name),n=p.replaceAll('\\\\','/').replace(/^\\.\\//,'');if(e.isDirectory()){if(!skip.has(e.name))walk(p)}else if(/\\.(?:js|jsx)$/.test(e.name)&&!allowed.has(n))bad.push(n)}};walk('.');if(bad.length){console.error('New JavaScript files are not allowed in the client:\\n'+bad.join('\\n'));process.exit(1)}\"",
+    "check:no-js": "node -e \"const fs=require('node:fs'),path=require('node:path'),bad=[],skip=new Set(['node_modules','dist','build','.git','.vercel']),allowed=new Set(['eslint.config.js','test/packageTypes.test.js']);const walk=d=>{for(const e of fs.readdirSync(d,{withFileTypes:true})){const p=path.join(d,e.name),n=p.replaceAll('\\\\','/').replace(/^\\.\\//,'');if(e.isDirectory()){if(!skip.has(e.name))walk(p)}else if(/\\.(?:js|jsx)$/.test(e.name)&&!allowed.has(n))bad.push(n)}};walk('.');if(bad.length){console.error('New JavaScript files are not allowed in the client:\\n'+bad.join('\\n'));process.exit(1)}\"",
     "predev": "npm run check:no-js",
     "dev": "vite",
     "prebuild": "npm run check:no-js",
