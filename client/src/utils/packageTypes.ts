@@ -1,4 +1,4 @@
-const PACKAGE_TYPE_ALIASES = {
+const PACKAGE_TYPE_ALIASES: Readonly<Record<string, string>> = {
   "trial-class": "trial",
   "trial-package": "trial",
   payg: "pay-as-you-go",
@@ -8,7 +8,15 @@ const PACKAGE_TYPE_ALIASES = {
   "full-term-package": "full-term",
 };
 
-export const normalisePackageType = (value) => {
+type ScheduleGroupLike = { package_types?: unknown };
+type OutletLike = { schedule_groups?: ScheduleGroupLike[] };
+
+export type ListingPackageSource = {
+  package_types?: unknown;
+  outlets_info?: OutletLike[];
+};
+
+export const normalisePackageType = (value: unknown): string => {
   if (value === null || value === undefined) return "";
 
   const normalised = String(value)
@@ -21,7 +29,7 @@ export const normalisePackageType = (value) => {
   return PACKAGE_TYPE_ALIASES[normalised] || normalised;
 };
 
-const normalisePackageCollection = (value) => {
+const normalisePackageCollection = (value: unknown): unknown[] => {
   if (Array.isArray(value)) return value;
 
   if (typeof value !== "string") return [];
@@ -45,7 +53,9 @@ const normalisePackageCollection = (value) => {
     .filter(Boolean);
 };
 
-export const getListingPackageTypes = (listing) => {
+export const getListingPackageTypes = (
+  listing?: ListingPackageSource | null,
+): string[] => {
   const packageTypes = [
     ...normalisePackageCollection(listing?.package_types),
   ];
@@ -67,15 +77,15 @@ export const getListingPackageTypes = (listing) => {
   ];
 };
 
-export const getPackageTypeLabel = (value) => {
+export const getPackageTypeLabel = (value: unknown): string => {
   const packageType = normalisePackageType(value);
 
-  const labels = {
+  const labels: Readonly<Record<string, string>> = {
     trial: "Trial class",
     "pay-as-you-go": "Pay as you go",
     "short-term": "Short-term package",
     "full-term": "Full-term package",
   };
 
-  return labels[packageType] || value;
+  return labels[packageType] || String(value ?? "");
 };

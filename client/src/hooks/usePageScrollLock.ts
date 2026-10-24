@@ -6,7 +6,7 @@ const syncScrollLock = () => {
   document.body.classList.toggle("app-scroll-locked", activeLocks > 0);
 };
 
-const usePageScrollLock = (locked) => {
+const usePageScrollLock = (locked: boolean): void => {
   useEffect(() => {
     if (!locked) return undefined;
 

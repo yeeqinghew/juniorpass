@@ -9,7 +9,7 @@ import { AUTH_ROLES } from "../constants/auth";
  * Get the API base URL based on environment
  * Priority: staging same-origin proxy > VITE_API_URL > local fallback
  */
-const getBaseURL = () => {
+const getBaseURL = (): string => {
   // Staging shares a Vercel project/configuration with other environments.
   // Keep staging API calls on the current origin so the staging-only Vercel
   // rewrite can proxy them to Railway without affecting production.
@@ -46,7 +46,10 @@ const getBaseURL = () => {
  * @param {Object} options - Fetch options
  * @returns {Promise<Response>}
  */
-export const fetchWithAuth = async (endpoint, options = {}) => {
+export const fetchWithAuth = async (
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<Response> => {
   const baseURL = getBaseURL();
 
   // Build full URL
@@ -62,7 +65,7 @@ export const fetchWithAuth = async (endpoint, options = {}) => {
   };
 
   // Merge headers
-  const config = {
+  const config: RequestInit = {
     ...options,
     credentials: "include",
     headers: {
@@ -82,7 +85,8 @@ export const fetchWithAuth = async (endpoint, options = {}) => {
 
     return response;
   } catch (error) {
-    console.error(`API Error [${endpoint}]:`, error.message);
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`API Error [${endpoint}]:`, message);
     throw error;
   }
 };
@@ -91,6 +95,8 @@ export const fetchWithAuth = async (endpoint, options = {}) => {
  * API Endpoints
  * Centralized endpoint definitions
  */
+type EndpointId = string | number;
+
 export const API_ENDPOINTS = {
   // Auth
   LOGIN: "/auth/login",
@@ -104,14 +110,14 @@ export const API_ENDPOINTS = {
   CHANGE_PASSWORD: "/auth/change-password",
   VERIFY_TOKEN: "/auth/",
   REFRESH_SESSION: "/auth/refresh",
-  UPDATE_PROFILE: (userId) => `/auth/${userId}`,
+  UPDATE_PROFILE: (userId: EndpointId) => `/auth/${userId}`,
   LOGOUT: "/auth/logout",
 
   // Children
-  GET_CHILDREN: (userId) => `/children/${userId}`,
+  GET_CHILDREN: (userId: EndpointId) => `/children/${userId}`,
   CREATE_CHILD: "/children",
-  UPDATE_CHILD: (childId) => `/children/${childId}`,
-  DELETE_CHILD: (childId) => `/children/${childId}`,
+  UPDATE_CHILD: (childId: EndpointId) => `/children/${childId}`,
+  DELETE_CHILD: (childId: EndpointId) => `/children/${childId}`,
 
   // Transactions
   GET_TRANSACTIONS: "/transactions/user",
@@ -121,48 +127,48 @@ export const API_ENDPOINTS = {
   GET_CLASS_OCCURRENCES: "/bookings/user/occurrences",
   CREATE_BOOKING: "/bookings",
   GET_BOOKING_WAIVER: "/bookings/waiver",
-  CANCEL_BOOKING: (bookingId) => `/bookings/${bookingId}`,
+  CANCEL_BOOKING: (bookingId: EndpointId) => `/bookings/${bookingId}`,
 
   // Reviews
   GET_REVIEW_ELIGIBILITY: "/reviews/mine/eligibility",
   CREATE_REVIEW: "/reviews",
-  UPDATE_REVIEW: (reviewId) => `/reviews/${reviewId}`,
-  DELETE_REVIEW: (reviewId) => `/reviews/${reviewId}`,
-  GET_LISTING_REVIEWS: (listingId) => `/reviews/listing/${listingId}`,
-  GET_ELIGIBLE_PROMOTION: (scheduleId, packageType) =>
+  UPDATE_REVIEW: (reviewId: EndpointId) => `/reviews/${reviewId}`,
+  DELETE_REVIEW: (reviewId: EndpointId) => `/reviews/${reviewId}`,
+  GET_LISTING_REVIEWS: (listingId: EndpointId) => `/reviews/listing/${listingId}`,
+  GET_ELIGIBLE_PROMOTION: (scheduleId: EndpointId, packageType: string) =>
     `/promotions/eligible/${scheduleId}/${packageType}`,
 
   // Customer documents
-  GET_BOOKING_CONFIRMATION: (bookingId) => `/documents/bookings/${bookingId}`,
-  EMAIL_BOOKING_CONFIRMATION: (bookingId) =>
+  GET_BOOKING_CONFIRMATION: (bookingId: EndpointId) => `/documents/bookings/${bookingId}`,
+  EMAIL_BOOKING_CONFIRMATION: (bookingId: EndpointId) =>
     `/documents/bookings/${bookingId}/email`,
-  GET_PAYMENT_RECEIPT: (paymentRequestId) =>
+  GET_PAYMENT_RECEIPT: (paymentRequestId: EndpointId) =>
     `/documents/payments/${paymentRequestId}`,
-  EMAIL_PAYMENT_RECEIPT: (paymentRequestId) =>
+  EMAIL_PAYMENT_RECEIPT: (paymentRequestId: EndpointId) =>
     `/documents/payments/${paymentRequestId}/email`,
 
   // Make-up requests
   GET_USER_MAKEUP_REQUESTS: "/makeup-requests/user",
   CREATE_MAKEUP_REQUEST: "/makeup-requests",
-  CONFIRM_MAKEUP_REQUEST: (requestId) =>
+  CONFIRM_MAKEUP_REQUEST: (requestId: EndpointId) =>
     `/makeup-requests/${requestId}/confirm`,
-  WITHDRAW_MAKEUP_REQUEST: (requestId) =>
+  WITHDRAW_MAKEUP_REQUEST: (requestId: EndpointId) =>
     `/makeup-requests/${requestId}/withdraw`,
 
   // Classes/Listings
   GET_ALL_LISTINGS: "/listings",
-  GET_LISTING: (listingId) => `/listings/${listingId}`,
+  GET_LISTING: (listingId: EndpointId) => `/listings/${listingId}`,
   SEARCH_LISTINGS: "/listings/search",
   GET_CREDIT_CONVERSION: "/misc/credit-conversion",
 
   // Partners
-  GET_PARTNER: (partnerId) => `/partners/${partnerId}`,
+  GET_PARTNER: (partnerId: EndpointId | undefined) => `/partners/${partnerId}`,
   PARTNER_FORM: "/partners/partner-form",
 
   // Payment
   INIT_PAYMENT: "/payment/init",
-  PAYMENT_STATUS: (referenceNumber) => `/payment/status/${referenceNumber}`,
-  PAYMENT_VERIFY: (referenceNumber) => `/payment/verify/${referenceNumber}`,
+  PAYMENT_STATUS: (referenceNumber: EndpointId) => `/payment/status/${referenceNumber}`,
+  PAYMENT_VERIFY: (referenceNumber: EndpointId) => `/payment/verify/${referenceNumber}`,
 
   // Referrals
   GET_REFERRAL_CODE: "/referrals/code",
@@ -176,7 +182,7 @@ export const API_ENDPOINTS = {
   // Notifications
   GET_NOTIFICATIONS: "/notifications",
   GET_UNREAD_COUNT: "/notifications/unread-count",
-  MARK_NOTIFICATION_READ: (notificationId) =>
+  MARK_NOTIFICATION_READ: (notificationId: EndpointId) =>
     `/notifications/${notificationId}/read`,
   MARK_ALL_NOTIFICATIONS_READ: "/notifications/read-all",
 
