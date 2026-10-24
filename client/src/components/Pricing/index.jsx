@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { Typography, Col, Row, Button } from "antd";
+import { useEffect, useState } from "react";
+import { Typography, Col, Row, Button, InputNumber, Slider } from "antd";
 import {
   CalendarOutlined,
   CustomerServiceOutlined,
@@ -8,7 +8,11 @@ import {
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { useUserContext } from "../UserContext";
-import { CREDIT_PRICING_TIERS } from "../../utils/creditPricing";
+import {
+  calculateCreditPrice,
+  CREDIT_PRICING_TIERS,
+  getCreditPricingTier,
+} from "../../utils/creditPricing";
 import "./index.css";
 
 const { Text, Title } = Typography;
@@ -18,6 +22,9 @@ const creditDestinationState = { activeTab: "credit", openTopUp: true };
 const Pricing = () => {
   const navigate = useNavigate();
   const { isAuthenticated, loading: authLoading } = useUserContext();
+  const [calculatorCredits, setCalculatorCredits] = useState(1);
+  const calculatorTier = getCreditPricingTier(calculatorCredits);
+  const calculatorTotal = calculateCreditPrice(calculatorCredits);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -31,6 +38,11 @@ const Pricing = () => {
     navigate("/login", {
       state: { from: "/profile", fromState: creditDestinationState },
     });
+  };
+
+  const updateCalculatorCredits = (value) => {
+    if (value === null) return;
+    setCalculatorCredits(Math.min(100, Math.max(1, Math.round(value))));
   };
 
   const benefits = [
@@ -131,6 +143,108 @@ const Pricing = () => {
           >
             Buy Credits
           </Button>
+        </div>
+      </section>
+
+      <section
+        className="credit-explainer"
+        aria-labelledby="credit-explainer-title"
+      >
+        <div className="credit-explainer-heading">
+          <Text className="credit-explainer-eyebrow">
+            Simple and transparent
+          </Text>
+          <Title level={2} id="credit-explainer-title">
+            See how Junior Pass credits work
+          </Title>
+          <Text>
+            Choose an amount to see the applicable rate and estimated purchase
+            total before proceeding to checkout.
+          </Text>
+        </div>
+
+        <div className="credit-explainer-grid">
+          <div className="credit-calculator-card">
+            <div className="credit-calculator-control-heading">
+              <div>
+                <label htmlFor="credit-calculator-input">
+                  Credits to purchase
+                </label>
+                <Text className="credit-slider-instruction">
+                  Drag the slider or enter an amount
+                </Text>
+              </div>
+              <InputNumber
+                id="credit-calculator-input"
+                min={1}
+                max={100}
+                precision={0}
+                value={calculatorCredits}
+                onChange={updateCalculatorCredits}
+                aria-label="Credits to purchase"
+              />
+            </div>
+            <Slider
+              min={1}
+              max={100}
+              value={calculatorCredits}
+              marks={{ 1: "1", 30: "30", 60: "60", 100: "100" }}
+              tooltip={{ formatter: (value) => `${value} credits` }}
+              onChange={updateCalculatorCredits}
+              aria-label="Select number of credits"
+            />
+
+            <div className="credit-calculator-results" aria-live="polite">
+              <div>
+                <Text>Price per credit</Text>
+                <strong>S${calculatorTier?.rate.toFixed(2) ?? "—"}</strong>
+              </div>
+              <div>
+                <Text>Total purchase cost</Text>
+                <strong>S${calculatorTotal.toFixed(2)}</strong>
+              </div>
+            </div>
+            <Text className="credit-calculator-note">
+              The applicable tier rate is applied to every credit in this
+              estimate. Your checkout total is shown for confirmation before
+              payment.
+            </Text>
+          </div>
+
+          <aside
+            className="credit-example-card"
+            aria-label="Credit cost example"
+          >
+            <span className="credit-example-badge">Illustrative example</span>
+            <Title level={3}>What could a class cost?</Title>
+            <div className="credit-example-equation">
+              <div>
+                <strong>2</strong>
+                <Text>credits for one class</Text>
+              </div>
+              <span aria-hidden="true">×</span>
+              <div>
+                <strong>S$10.00</strong>
+                <Text>entry-tier rate</Text>
+              </div>
+              <span aria-hidden="true">=</span>
+              <div className="credit-example-total">
+                <strong>S$20.00</strong>
+                <Text>example class cost</Text>
+              </div>
+            </div>
+            <Text className="credit-example-disclaimer">
+              The 2-credit class is an example only. Each class displays its
+              actual credit cost before you book.
+            </Text>
+            <div className="credit-expiry-callout">
+              <CalendarOutlined />
+              <Text>
+                Credits share one rolling expiry. Each top-up extends all
+                credits by 90 days, capped at 365 days from that top-up.
+              </Text>
+            </div>
+          </aside>
         </div>
       </section>
 
