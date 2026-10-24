@@ -1,0 +1,433 @@
+import { useState, useEffect, useRef } from "react";
+import { Avatar, Button, Form, Input, Typography } from "antd";
+import {
+  UserOutlined,
+  MailOutlined,
+  PhoneOutlined,
+  LockOutlined,
+  EditOutlined,
+  SaveOutlined,
+  CloseOutlined,
+  CameraOutlined,
+} from "@ant-design/icons";
+import { useUserContext } from "../UserContext";
+import toast from "react-hot-toast";
+import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
+import CryptoJS from "crypto-js";
+import "./Account.css";
+import { strongPasswordRule } from "../../utils/passwordValidation";
+
+const { Title } = Typography;
+
+type ProfileValues = { name: string; email: string; phone_number?: string };
+type PasswordValues = { oldPassword: string; newPassword: string };
+type ApiMessage = { message?: string };
+type UploadSignature = {
+  apiKey: string;
+  signature: string;
+  cloudName: string;
+  allowedParams: Record<"timestamp" | "folder" | "public_id" | "overwrite", string>;
+  error?: string;
+};
+
+const Account = () => {
+  const { user, reauthenticate, setAuth } = useUserContext();
+
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [profileForm] = Form.useForm();
+  const [passwordForm] = Form.useForm();
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [pwLoading, setPwLoading] = useState(false);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      profileForm.setFieldsValue({
+        name: user.name,
+        email: user.email,
+        phone_number: user.phone_number || "",
+      });
+    }
+  }, [user, profileForm]);
+
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    try {
+      setSaveLoading(true);
+      const values = (await profileForm.validateFields()) as ProfileValues;
+      const res = await fetchWithAuth(
+        API_ENDPOINTS.UPDATE_PROFILE(user.user_id),
+        {
+          method: "PATCH",
+          body: JSON.stringify(values),
+        },
+      );
+      const data = (await res.json()) as ApiMessage;
+      if (res.ok) {
+        toast.success("Profile updated!");
+        setIsEditingProfile(false);
+        await reauthenticate();
+      } else {
+        toast.error(data.message || "Update failed");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  const handleCancelProfile = () => {
+    setIsEditingProfile(false);
+    if (!user) return;
+    profileForm.setFieldsValue({
+      name: user.name,
+      email: user.email,
+      phone_number: user.phone_number || "",
+    });
+  };
+
+  const handleChangePassword = async () => {
+    try {
+      setPwLoading(true);
+      const values = (await passwordForm.validateFields()) as PasswordValues;
+
+      const encryptedOldPassword = CryptoJS.SHA256(values.oldPassword).toString(
+        CryptoJS.enc.Hex,
+      );
+      const encryptedNewPassword = CryptoJS.SHA256(values.newPassword).toString(
+        CryptoJS.enc.Hex,
+      );
+
+      const res = await fetchWithAuth(API_ENDPOINTS.CHANGE_PASSWORD, {
+        method: "POST",
+        body: JSON.stringify({
+          oldPassword: encryptedOldPassword,
+          newPassword: encryptedNewPassword,
+        }),
+      });
+      const data = (await res.json()) as ApiMessage;
+      if (res.ok) {
+        toast.success("Password changed!");
+        setIsChangingPassword(false);
+        passwordForm.resetFields();
+        setAuth(false);
+        window.location.href = "/login";
+      } else {
+        toast.error(data.message || "Failed to change password");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPwLoading(false);
+    }
+  };
+
+  const handleCancelPassword = () => {
+    setIsChangingPassword(false);
+    passwordForm.resetFields();
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Only image files allowed");
+      return;
+    }
+    if (file.size / 1024 / 1024 > 5) {
+      toast.error("Image must be under 5MB");
+      return;
+    }
+    try {
+      setUploadLoading(true);
+
+      const sigRes = await fetchWithAuth(API_ENDPOINTS.UPLOAD_USER_DP, {
+        method: "POST",
+      });
+      const sigData = (await sigRes.json()) as UploadSignature;
+      if (!sigRes.ok) throw new Error(sigData.error || "Signature failed");
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("api_key", sigData.apiKey);
+      formData.append("timestamp", sigData.allowedParams.timestamp);
+      formData.append("signature", sigData.signature);
+      formData.append("folder", sigData.allowedParams.folder);
+      formData.append("public_id", sigData.allowedParams.public_id);
+      formData.append("overwrite", sigData.allowedParams.overwrite);
+
+      const uploadRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${sigData.cloudName}/image/upload`,
+        { method: "POST", body: formData },
+      );
+      const uploadData = (await uploadRes.json()) as { secure_url?: string; error?: { message?: string } };
+      if (!uploadRes.ok)
+        throw new Error(uploadData.error?.message || "Upload failed");
+
+      if (!user || !uploadData.secure_url) throw new Error("Upload response was incomplete");
+      const updateRes = await fetchWithAuth(
+        API_ENDPOINTS.UPDATE_PROFILE(user.user_id),
+        {
+          method: "PATCH",
+          body: JSON.stringify({ display_picture: uploadData.secure_url }),
+        },
+      );
+      if (!updateRes.ok) throw new Error("Failed to save picture");
+
+      await reauthenticate();
+      toast.success("Profile picture updated!");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploadLoading(false);
+      event.target.value = "";
+    }
+  };
+
+  const formatDate = (d?: string | null): string =>
+    d
+      ? new Date(d).toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })
+      : "—";
+
+  return (
+    <div className="ac-page fade-in">
+      <div className="ac-page-header">
+        <Title level={3} className="ac-page-title">
+          <UserOutlined /> My Account
+        </Title>
+      </div>
+
+      <section className="ac-panel">
+        <div className="ac-photo-row">
+          <div className="ac-avatar-wrap">
+            <Avatar
+              size={72}
+              src={user?.display_picture}
+              icon={<UserOutlined />}
+              className="ac-avatar"
+            />
+          </div>
+
+          <div className="ac-photo-copy">
+            <span className="ac-photo-label">Profile photo</span>
+            <h3>{user?.name || "Your profile"}</h3>
+            <p>{user?.email || "—"}</p>
+            <div className="ac-account-meta">
+              <span className="ac-active">● Active</span>
+              <span>Member since {formatDate(user?.created_at)}</span>
+            </div>
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={handleFileChange}
+          />
+          <Button
+            icon={<CameraOutlined />}
+            onClick={() => fileInputRef.current?.click()}
+            loading={uploadLoading}
+            className="profile-action-btn ac-photo-action"
+          >
+            Change photo
+          </Button>
+        </div>
+
+        <div className="ac-settings-section">
+          <div className="ac-section-top">
+            <h3 className="ac-section-title">Personal Information</h3>
+            <div className="ac-section-actions">
+              {!isEditingProfile ? (
+                <Button
+                  type="primary"
+                  icon={<EditOutlined />}
+                  onClick={() => setIsEditingProfile(true)}
+                  className="profile-action-btn"
+                >
+                  Edit
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    icon={<CloseOutlined />}
+                    onClick={handleCancelProfile}
+                    className="profile-action-btn"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="primary"
+                    icon={<SaveOutlined />}
+                    loading={saveLoading}
+                    onClick={handleSaveProfile}
+                    className="profile-action-btn"
+                  >
+                    Save
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          <Form
+            form={profileForm}
+            layout="vertical"
+            disabled={!isEditingProfile}
+            className="ac-form"
+          >
+            <div className="ac-form-grid">
+              <Form.Item
+                name="name"
+                label="Full Name"
+                rules={[
+                  { required: true, message: "Name is required" },
+                  { min: 2, message: "At least 2 characters" },
+                ]}
+              >
+                <Input
+                  prefix={<UserOutlined />}
+                  placeholder="Your full name"
+                />
+              </Form.Item>
+
+              <Form.Item name="email" label="Email Address">
+                <Input prefix={<MailOutlined />} disabled />
+              </Form.Item>
+
+              <Form.Item
+                name="phone_number"
+                label="Phone Number"
+                rules={[
+                  {
+                    pattern: /^[0-9+\-\s()]*$/,
+                    message: "Invalid phone number",
+                  },
+                ]}
+              >
+                <Input
+                  prefix={<PhoneOutlined />}
+                  placeholder="Your phone number"
+                />
+              </Form.Item>
+            </div>
+          </Form>
+        </div>
+
+        {user?.method === "email" && (
+          <div className="ac-settings-section">
+            <div className="ac-section-top">
+              <h3 className="ac-section-title">Security</h3>
+              <div className="ac-section-actions">
+                {!isChangingPassword ? (
+                  <Button
+                    type="primary"
+                    icon={<LockOutlined />}
+                    onClick={() => setIsChangingPassword(true)}
+                    className="profile-action-btn"
+                  >
+                    Change Password
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      icon={<CloseOutlined />}
+                      onClick={handleCancelPassword}
+                      className="profile-action-btn"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="primary"
+                      icon={<SaveOutlined />}
+                      loading={pwLoading}
+                      onClick={handleChangePassword}
+                      className="profile-action-btn"
+                    >
+                      Update
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {!isChangingPassword ? (
+              <div className="ac-pw-row">
+                <div className="ac-pw-icon-wrap">
+                  <LockOutlined />
+                </div>
+                <div>
+                  <p className="ac-pw-label">Password</p>
+                  <p className="ac-pw-value">••••••••••••</p>
+                </div>
+              </div>
+            ) : (
+              <Form form={passwordForm} layout="vertical" className="ac-form">
+                <div className="ac-form-grid">
+                  <Form.Item
+                    name="oldPassword"
+                    label="Current Password"
+                    rules={[{ required: true, message: "Required" }]}
+                  >
+                    <Input.Password
+                      prefix={<LockOutlined />}
+                      placeholder="Current password"
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="newPassword"
+                    label="New Password"
+                    rules={[
+                      { required: true, message: "Required" },
+                      strongPasswordRule,
+                    ]}
+                  >
+                    <Input.Password
+                      prefix={<LockOutlined />}
+                      placeholder="New password"
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="confirmPassword"
+                    label="Confirm New Password"
+                    dependencies={["newPassword"]}
+                    rules={[
+                      { required: true, message: "Required" },
+                      ({ getFieldValue }) => ({
+                        validator(_, value) {
+                          if (
+                            !value ||
+                            getFieldValue("newPassword") === value
+                          )
+                            return Promise.resolve();
+                          return Promise.reject("Passwords do not match");
+                        },
+                      }),
+                    ]}
+                  >
+                    <Input.Password
+                      prefix={<LockOutlined />}
+                      placeholder="Confirm new password"
+                    />
+                  </Form.Item>
+                </div>
+              </Form>
+            )}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+};
+
+export default Account;

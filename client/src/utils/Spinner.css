@@ -1,0 +1,11 @@
+.app-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 425px);
+}
+
+.app-spinner__icon {
+  color: var(--primary-color);
+  font-size: 100px;
+}

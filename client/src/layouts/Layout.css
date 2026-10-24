@@ -88,6 +88,18 @@
     font-size: var(--font-size-xl);
 }
 
+.header-credit-icon {
+    font-size: var(--font-size-md);
+}
+
+.header-signout-icon {
+    font-size: var(--font-size-lg);
+}
+
+.drawer-menu-link-text {
+    font-weight: var(--font-weight-semibold);
+}
+
 .drawer-menu-link {
     display: flex;
     align-items: center;
@@ -100,6 +112,10 @@
 .hamburger-menu {
     display: none;
     cursor: pointer;
+    background: transparent;
+    border: 0;
+    font-size: 24px;
+    padding: 0;
 }
 
 /* ============================================

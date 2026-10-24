@@ -1,0 +1,52 @@
+@import "../styles/variables.css";
+
+.site-footer {
+  background: #fcfbf8;
+}
+
+.site-footer-desktop {
+  padding: 20px 150px;
+}
+
+.site-footer-mobile {
+  padding: 10px;
+}
+
+.site-footer-row {
+  width: 100%;
+}
+
+.site-footer-logo-column {
+  justify-content: flex-start;
+  width: 25%;
+}
+
+.site-footer-links {
+  justify-content: flex-end;
+  text-align: left;
+  width: 90%;
+}
+
+.site-footer-column {
+  width: 20%;
+}
+
+.site-footer-socials {
+  width: 15%;
+}
+
+.site-footer-centered {
+  align-items: center;
+  justify-content: center;
+}
+
+.site-footer-mobile-contact {
+  align-items: center;
+  justify-content: center;
+  margin: 24px;
+}
+
+.site-footer-mobile-socials {
+  justify-content: center;
+  width: 15%;
+}

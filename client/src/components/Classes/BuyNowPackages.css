@@ -405,3 +405,34 @@
     margin-bottom: var(--spacing-sm);
   }
 }
+.package-full-width {
+  width: 100%;
+}
+
+.package-title-icon {
+  color: var(--primary-color);
+}
+
+.package-price-statistic .ant-statistic-content {
+  color: var(--primary-color);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.package-section-divider {
+  margin: 8px 0;
+}
+
+.package-loading {
+  padding: 40px;
+  text-align: center;
+}
+
+.package-loading-text {
+  display: block;
+  margin-top: 16px;
+}
+
+.package-class-details-title {
+  margin-bottom: 12px !important;
+}
