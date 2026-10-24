@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { BrowserRouter, useLocation } from "react-router-dom";
+import { Analytics } from "@vercel/analytics/react";
 import "./App.css";
 import { UserProvider } from "./components/UserContext";
 import Routers from "./router";
@@ -21,6 +22,7 @@ const App = () => {
       <UserProvider>
         <Routers />
       </UserProvider>
+      <Analytics />
     </BrowserRouter>
   );
 };

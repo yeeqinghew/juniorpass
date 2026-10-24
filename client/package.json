@@ -13,6 +13,7 @@
     "@react-oauth/google": "^0.12.1",
     "@splidejs/react-splide": "^0.7.12",
     "@splidejs/splide-extension-grid": "^0.4.1",
+    "@vercel/analytics": "^2.0.1",
     "antd": "^5.13.2",
     "aos": "^2.3.4",
     "crypto-js": "^4.2.0",
