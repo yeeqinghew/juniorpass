@@ -54,9 +54,9 @@
 .faq-collapse .ant-collapse-item {
     margin-bottom: var(--spacing-md);
     background: var(--bg-white);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-xl) !important;
     border: 1px solid var(--border-light);
-    overflow: hidden;
+    overflow: clip;
     transition: var(--transition-base);
 }
 
@@ -75,11 +75,13 @@
     padding: var(--spacing-lg) var(--spacing-lg) !important;
     align-items: center !important;
     background: var(--bg-white);
+    border-radius: var(--radius-xl) !important;
     transition: var(--transition-base);
 }
 
 .faq-collapse .ant-collapse-item-active .ant-collapse-header {
     background: var(--bg-light-blue);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important;
 }
 
 .faq-collapse .ant-collapse-header:hover {
@@ -88,7 +90,9 @@
 
 .faq-collapse .ant-collapse-content {
     border-top: 1px solid var(--border-light);
+    border-radius: 0 0 var(--radius-xl) var(--radius-xl) !important;
     background: var(--bg-white);
+    overflow: hidden;
 }
 
 .faq-collapse .ant-collapse-content-box {
@@ -98,19 +102,6 @@
 /* Icon styling */
 .faq-collapse .ant-collapse-expand-icon {
     padding-inline-end: 0 !important;
-}
-
-/* Remove default borders */
-.faq-collapse .ant-collapse-item:last-child {
-    border-radius: var(--radius-md);
-}
-
-.faq-collapse > .ant-collapse-item > .ant-collapse-header {
-    border-radius: 0;
-}
-
-.faq-collapse > .ant-collapse-item:last-child > .ant-collapse-header {
-    border-radius: 0;
 }
 
 /* Responsive adjustments */

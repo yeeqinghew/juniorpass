@@ -863,44 +863,6 @@ html {
     filter: brightness(1.05);
 }
 
-/* FAQ Collapse Styling */
-.faq-collapse .ant-collapse-item {
-    background: var(--bg-white);
-    border-radius: var(--radius-lg);
-    margin-bottom: var(--spacing-md);
-    border: 1px solid var(--border-color-medium);
-    overflow: hidden;
-    transition: all var(--transition-bounce);
-}
-
-.faq-collapse .ant-collapse-item:hover {
-    box-shadow: var(--shadow-multi-md);
-    border-color: var(--primary-color);
-    transform: translateY(-2px);
-}
-
-.faq-collapse .ant-collapse-header {
-    padding: var(--spacing-xl) var(--spacing-lg) !important;
-    background: var(--bg-white);
-    transition: all var(--transition-base);
-    font-weight: var(--font-weight-semibold);
-}
-
-.faq-collapse .ant-collapse-item-active .ant-collapse-header {
-    background: linear-gradient(135deg, #f8fcfe 0%, #f0f8fc 100%);
-}
-
-.faq-collapse .ant-collapse-content {
-    background: var(--bg-white);
-    border-top: 1px solid var(--border-color);
-}
-
-.faq-collapse .ant-collapse-content-box {
-    padding: var(--spacing-xl) var(--spacing-lg) !important;
-    line-height: var(--line-height-loose);
-    color: var(--text-secondary);
-}
-
 /* mobile: 360px x 480px */
 @media screen and (max-width: 767.9px) {
     .logo-homepage {
@@ -1168,20 +1130,6 @@ html {
         touch-action: manipulation;
     }
 
-    /* Enhanced mobile card interactions */
-    .faq-collapse .ant-collapse-item {
-        margin-bottom: var(--spacing-sm);
-    }
-
-    .faq-collapse .ant-collapse-header {
-        padding: var(--spacing-md) var(--spacing-md) !important;
-        font-size: var(--font-size-base) !important;
-    }
-
-    .faq-collapse .ant-collapse-content-box {
-        padding: var(--spacing-md) var(--spacing-md) !important;
-        font-size: var(--font-size-sm) !important;
-    }
 }
 
 /* Tablet Portrait: 768px x 1024px */
