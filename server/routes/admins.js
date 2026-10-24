@@ -15,6 +15,10 @@ const { issueAuthSession, revokeAuthSession } = require("../utils/authSession");
 const { adminLoginLimiter } = require("../middleware/authRateLimiters");
 const redisClient = require("../utils/redisClient");
 const { listAdminBookings } = require("../services/adminBookings.service");
+const {
+  recordAuditEvent,
+  requestAuditId,
+} = require("../services/auditLog.service");
 
 const ADMIN_BOOKING_STATUSES = new Set([
   "all",
@@ -114,6 +118,19 @@ router.put(
             effectiveFrom,
           ],
         );
+        await recordAuditEvent(db, {
+          actorType: AUTH_ROLES.ADMIN,
+          actorId: req.user,
+          action: "CONVERSION_RATE_CHANGED",
+          entityType: "conversion_rate",
+          entityId: "partner_dollars_per_credit",
+          before: { dollars_per_credit: oldResult.rows[0]?.new_value || null },
+          after: {
+            dollars_per_credit: result.rows[0].new_value,
+            effective_from: result.rows[0].effective_from,
+          },
+          requestId: requestAuditId(req),
+        });
         await db.query("COMMIT");
         res.json({
           old_value:
@@ -443,7 +460,9 @@ router.patch(
     try {
       await db.query("BEGIN");
       const account = await db.query(
-        `SELECT ${accountConfig.idColumn} FROM ${accountConfig.table}
+        `SELECT ${accountConfig.idColumn}, is_suspended, suspended_at,
+                suspension_expires_at, suspension_reason, suspended_by
+         FROM ${accountConfig.table}
          WHERE ${accountConfig.idColumn} = $1 FOR UPDATE`,
         [accountId],
       );
@@ -512,6 +531,20 @@ router.patch(
           req.user,
         ],
       );
+      await recordAuditEvent(db, {
+        actorType: AUTH_ROLES.ADMIN,
+        actorId: req.user,
+        action: suspended ? "ACCOUNT_SUSPENDED" : "ACCOUNT_RESTORED",
+        entityType: "account",
+        entityId: accountId,
+        before: account.rows[0],
+        after: updated.rows[0],
+        metadata: {
+          account_type: accountType,
+          upcoming_booking_count: upcomingBookingCount,
+        },
+        requestId: requestAuditId(req),
+      });
       await db.query("COMMIT");
 
       if (accountType === "partner") {
@@ -563,24 +596,38 @@ router.patch(
   adminOnly,
   async (req, res) => {
     const { id } = req.params;
+    const db = await pool.connect();
     try {
+      await db.query("BEGIN");
       // Get partner_id for notification
-      const listing = await pool.query(
-        "SELECT partner_id, listing_title FROM listings WHERE listing_id = $1",
+      const listing = await db.query(
+        "SELECT partner_id, listing_title, active FROM listings WHERE listing_id = $1 FOR UPDATE",
         [id],
       );
       if (listing.rowCount === 0) {
+        await db.query("ROLLBACK");
         return res.status(404).json({ error: "Listing not found" });
       }
 
-      await pool.query(
+      await db.query(
         "UPDATE listings SET active = true WHERE listing_id = $1",
         [id],
       );
+      await recordAuditEvent(db, {
+        actorType: AUTH_ROLES.ADMIN,
+        actorId: req.user,
+        action: "CLASS_APPROVED",
+        entityType: "class",
+        entityId: id,
+        before: { active: listing.rows[0].active },
+        after: { active: true },
+        metadata: { title: listing.rows[0].listing_title },
+        requestId: requestAuditId(req),
+      });
 
       // Notify partner of approval
       try {
-        await pool.query(
+        await db.query(
           `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
          VALUES ($1, $2, $3, $4, $5, $6)`,
           [
@@ -603,13 +650,17 @@ router.patch(
         );
       }
 
+      await db.query("COMMIT");
       return res.status(200).json({ message: "Listing approved" });
     } catch (error) {
+      await db.query("ROLLBACK");
       console.error(
         "ERROR in PATCH /admins/listings/:id/approve",
         error.message,
       );
       return res.status(500).json({ error: error.message });
+    } finally {
+      db.release();
     }
   },
 );
@@ -625,24 +676,38 @@ router.patch(
   async (req, res) => {
     const { id } = req.params;
     const { reason } = req.body;
+    const db = await pool.connect();
 
     try {
-      const listing = await pool.query(
-        "SELECT partner_id, listing_title FROM listings WHERE listing_id = $1",
+      await db.query("BEGIN");
+      const listing = await db.query(
+        "SELECT partner_id, listing_title, active FROM listings WHERE listing_id = $1 FOR UPDATE",
         [id],
       );
       if (listing.rowCount === 0) {
+        await db.query("ROLLBACK");
         return res.status(404).json({ error: "Listing not found" });
       }
 
-      await pool.query(
+      await db.query(
         "UPDATE listings SET active = false WHERE listing_id = $1",
         [id],
       );
+      await recordAuditEvent(db, {
+        actorType: AUTH_ROLES.ADMIN,
+        actorId: req.user,
+        action: "CLASS_REJECTED",
+        entityType: "class",
+        entityId: id,
+        before: { active: listing.rows[0].active },
+        after: { active: false },
+        metadata: { title: listing.rows[0].listing_title, reason: reason || null },
+        requestId: requestAuditId(req),
+      });
 
       // Notify partner of rejection
       try {
-        await pool.query(
+        await db.query(
           `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
          VALUES ($1, $2, $3, $4, $5, $6)`,
           [
@@ -666,13 +731,17 @@ router.patch(
         );
       }
 
+      await db.query("COMMIT");
       return res.status(200).json({ message: "Listing rejected" });
     } catch (error) {
+      await db.query("ROLLBACK");
       console.error(
         "ERROR in PATCH /admins/listings/:id/reject",
         error.message,
       );
       return res.status(500).json({ error: error.message });
+    } finally {
+      db.release();
     }
   },
 );
@@ -808,30 +877,52 @@ router.post("/createPartner", authorization, adminOnly, async (req, res) => {
     const tempPassword = crypto.randomBytes(6).toString("base64").slice(0, 12);
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
-    // Create minimal partner record with temporary data
-    const newPartner = await pool.query(
-      `INSERT INTO partners (
-          partner_name,
+    // Create the account and its audit record atomically. The password is
+    // intentionally excluded from the audit state.
+    const db = await pool.connect();
+    let partner;
+    try {
+      await db.query("BEGIN");
+      const newPartner = await db.query(
+        `INSERT INTO partners (
+            partner_name,
+            email,
+            password,
+            categories,
+            description,
+            is_profile_complete,
+            requires_password_change
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+          RETURNING partner_id, email, partner_name, is_profile_complete,
+                    requires_password_change`,
+        [
+          partner_name || "New Partner",
           email,
-          password,
-          categories,
-          description,
-          is_profile_complete,
-          requires_password_change
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING partner_id, email, partner_name`,
-      [
-        partner_name || "New Partner", // Temporary name
-        email,
-        hashedPassword,
-        [], // Default category
-        "Profile setup in progress", // Temporary description
-        false, // Profile not complete
-        true, // Requires password change
-      ],
-    );
-
-    const partner = newPartner.rows[0];
+          hashedPassword,
+          [],
+          "Profile setup in progress",
+          false,
+          true,
+        ],
+      );
+      partner = newPartner.rows[0];
+      await recordAuditEvent(db, {
+        actorType: AUTH_ROLES.ADMIN,
+        actorId: req.user,
+        action: "PARTNER_ACCOUNT_CREATED",
+        entityType: "account",
+        entityId: partner.partner_id,
+        after: partner,
+        metadata: { account_type: "partner" },
+        requestId: requestAuditId(req),
+      });
+      await db.query("COMMIT");
+    } catch (error) {
+      await db.query("ROLLBACK");
+      throw error;
+    } finally {
+      db.release();
+    }
 
     // Send invitation email
     const emailHTML = `

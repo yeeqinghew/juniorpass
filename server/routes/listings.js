@@ -19,6 +19,10 @@ const {
   dateOnly,
   hasStructuralScheduleChange,
 } = require("../utils/listingScheduleEdits");
+const {
+  recordAuditEvent,
+  requestAuditId,
+} = require("../services/auditLog.service");
 
 require("dotenv").config();
 router.use(etagMiddleware);
@@ -338,6 +342,22 @@ router.post("", authorization, async (req, res) => {
         }
       }
     }
+
+    await recordAuditEvent(db, {
+      actorType: AUTH_ROLES.PARTNER,
+      actorId: req.user,
+      action: "CLASS_CREATED",
+      entityType: "class",
+      entityId: listing_id,
+      after: {
+        listing_title: listing.rows[0].listing_title,
+        active: listing.rows[0].active,
+        age_groups: listing.rows[0].age_groups,
+        category_ids: parsedCategoryIds,
+      },
+      metadata: { outlet_count: outlets.length },
+      requestId: requestAuditId(req),
+    });
 
     await db.query("COMMIT");
     transactionOpen = false;
@@ -847,6 +867,28 @@ router.patch("/:id", authorization, async (req, res) => {
       );
     }
 
+    await recordAuditEvent(db, {
+      actorType: AUTH_ROLES.PARTNER,
+      actorId: req.user,
+      action: "CLASS_UPDATED",
+      entityType: "class",
+      entityId: id,
+      before: {
+        listing_title: listing.listing_title,
+        description: listing.description,
+        age_groups: listing.age_groups,
+        active: listing.active,
+      },
+      after: {
+        listing_title: updatedListing.rows[0].listing_title,
+        description: updatedListing.rows[0].description,
+        age_groups: updatedListing.rows[0].age_groups,
+        active: updatedListing.rows[0].active,
+      },
+      metadata: parsedCategoryIds ? { category_ids: parsedCategoryIds } : {},
+      requestId: requestAuditId(req),
+    });
+
     await db.query("COMMIT");
     transactionOpen = false;
     await Promise.all([client.del(`/listings/${id}`), client.del(`/listings`)]);
@@ -874,7 +916,7 @@ router.delete("/:id", authorization, async (req, res) => {
     // Lock the listing so a booking cannot be inserted between this check and
     // the delete. A booking's foreign-key check conflicts with this row lock.
     const { rows } = await db.query(
-      `SELECT l.images,
+      `SELECT l.images, l.listing_title, l.active,
               l.partner_id,
               EXISTS (
                 SELECT 1
@@ -908,6 +950,18 @@ router.delete("/:id", authorization, async (req, res) => {
 
     const imageURLs = rows[0].images;
     await db.query(`DELETE FROM listings WHERE listing_id = $1`, [id]);
+    await recordAuditEvent(db, {
+      actorType: AUTH_ROLES.PARTNER,
+      actorId: req.user,
+      action: "CLASS_DELETED",
+      entityType: "class",
+      entityId: id,
+      before: {
+        listing_title: rows[0].listing_title,
+        active: rows[0].active,
+      },
+      requestId: requestAuditId(req),
+    });
     await db.query("COMMIT");
 
     if (Array.isArray(imageURLs) && imageURLs.length > 0) {

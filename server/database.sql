@@ -746,6 +746,40 @@ CREATE TABLE platform_setting_history (
     effective_from TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+-- Immutable actor-attributed history for sensitive operational mutations.
+CREATE TABLE audit_events (
+    audit_id BIGSERIAL PRIMARY KEY,
+    actor_type VARCHAR(20) NOT NULL
+        CHECK (actor_type IN ('admin', 'partner', 'user', 'system')),
+    actor_id UUID,
+    action VARCHAR(100) NOT NULL,
+    entity_type VARCHAR(50) NOT NULL,
+    entity_id VARCHAR(255) NOT NULL,
+    before_state JSONB,
+    after_state JSONB,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    request_id VARCHAR(100),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX audit_events_created_idx
+    ON audit_events(created_at DESC, audit_id DESC);
+CREATE INDEX audit_events_entity_idx
+    ON audit_events(entity_type, entity_id, created_at DESC);
+CREATE INDEX audit_events_actor_idx
+    ON audit_events(actor_type, actor_id, created_at DESC);
+
+CREATE OR REPLACE FUNCTION prevent_audit_event_mutation()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'audit events are append-only';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER audit_events_append_only
+    BEFORE UPDATE OR DELETE ON audit_events
+    FOR EACH ROW EXECUTE FUNCTION prevent_audit_event_mutation();
+
 INSERT INTO platform_setting_history
     (setting_key, old_value, new_value, effective_from)
 VALUES ('partner_dollars_per_credit', NULL, 9.50, NOW());

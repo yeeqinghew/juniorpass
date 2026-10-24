@@ -31,6 +31,10 @@ const { getPromotionPrice } = require("../services/promotionPricing.service");
 const {
   applyScheduleExceptions,
 } = require("../services/classSessionManagement.service");
+const {
+  recordAuditEvent,
+  requestAuditId,
+} = require("../services/auditLog.service");
 
 router.get("/waiver", userAuthorization, (_req, res) => {
   res.status(200).json({ waiver: getSafetyWaiver() });
@@ -488,6 +492,23 @@ router.post("/", userAuthorization, async (req, res) => {
         );
       }
 
+      const balanceAfterBooking = Number(debitResult.rows[0].credit);
+      await recordAuditEvent(client, {
+        actorType: AUTH_ROLES.USER,
+        actorId: req.user,
+        action: "BOOKING_CREDITS_DEBITED",
+        entityType: "credit",
+        entityId: user_id,
+        before: { balance: balanceAfterBooking + Number(creditCost) },
+        after: { balance: balanceAfterBooking },
+        metadata: {
+          booking_id,
+          listing_id,
+          credit_delta: -Number(creditCost),
+        },
+        requestId: requestAuditId(req),
+      });
+
       await client.query("COMMIT");
 
       // Booking history changes the partner edit permissions exposed by the
@@ -907,7 +928,7 @@ router.delete("/:bookingId", userAuthorization, async (req, res) => {
     const creditRefund = cancellation.refund_credits;
 
     if (creditRefund > 0) {
-      await client.query(
+      const refundedWallet = await client.query(
         `UPDATE users
          SET credit = CASE
                WHEN credit_expires_at IS NOT NULL AND credit_expires_at <= NOW()
@@ -919,7 +940,8 @@ router.delete("/:bookingId", userAuthorization, async (req, res) => {
                  THEN NOW() + INTERVAL '90 days'
                ELSE credit_expires_at
              END
-         WHERE user_id = $2`,
+         WHERE user_id = $2
+         RETURNING credit`,
         [creditRefund, user_id],
       );
 
@@ -949,6 +971,24 @@ router.delete("/:bookingId", userAuthorization, async (req, res) => {
           ],
         );
       }
+
+      const balanceAfterRefund = Number(refundedWallet.rows[0].credit);
+      await recordAuditEvent(client, {
+        actorType: AUTH_ROLES.USER,
+        actorId: req.user,
+        action: "BOOKING_CREDITS_REFUNDED",
+        entityType: "credit",
+        entityId: user_id,
+        before: { balance: balanceAfterRefund - Number(creditRefund) },
+        after: { balance: balanceAfterRefund },
+        metadata: {
+          booking_id: bookingId,
+          listing_id: bookingData.listing_id,
+          credit_delta: Number(creditRefund),
+          refund_percentage: cancellation.refund_percent,
+        },
+        requestId: requestAuditId(req),
+      });
     }
 
     await client.query(

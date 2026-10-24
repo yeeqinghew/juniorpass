@@ -92,6 +92,13 @@ test("settles payment and first-purchase referral in one locked transaction", as
     },
     { match: /INSERT INTO transactions .*payment_request_id/ },
     {
+      match: /INSERT INTO audit_events/,
+      check(params) {
+        assert.equal(params[2], "TOP_UP_CREDITS_APPLIED");
+        assert.equal(params[4], USER_ID);
+      },
+    },
+    {
       match: /INSERT INTO notifications .*'payment_completed'/,
       check(params) {
         assert.deepEqual(params, [
@@ -109,9 +116,27 @@ test("settles payment and first-purchase referral in one locked transaction", as
     },
     {
       match: /UPDATE users SET credit = CASE .*credit_expires_at = CASE .*INTERVAL '90 days'.*WHERE user_id = ANY/,
+      result: result([
+        { user_id: USER_ID, credit: 170 },
+        { user_id: REFERRER_ID, credit: 50 },
+      ]),
     },
     { match: /INSERT INTO transactions .*referral_id/ },
     { match: /INSERT INTO notifications/ },
+    {
+      match: /INSERT INTO audit_events/,
+      check(params) {
+        assert.equal(params[2], "REFERRAL_CREDITS_AWARDED");
+        assert.equal(params[4], USER_ID);
+      },
+    },
+    {
+      match: /INSERT INTO audit_events/,
+      check(params) {
+        assert.equal(params[2], "REFERRAL_CREDITS_AWARDED");
+        assert.equal(params[4], REFERRER_ID);
+      },
+    },
     { match: /^COMMIT$/ },
   ]);
 
@@ -258,6 +283,7 @@ test("any referral-side failure rolls the whole payment settlement back", async 
       result: result([{ credit: 120 }]),
     },
     { match: /INSERT INTO transactions .*payment_request_id/ },
+    { match: /INSERT INTO audit_events/ },
     { match: /INSERT INTO notifications .*'payment_completed'/ },
     {
       match: /UPDATE referrals SET status = 'completed'/,

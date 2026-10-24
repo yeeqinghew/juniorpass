@@ -8,6 +8,10 @@ const {
   getNextSettlementDate,
   syncPartnerEarnings,
 } = require("../services/partnerPayout.service");
+const {
+  recordAuditEvent,
+  requestAuditId,
+} = require("../services/auditLog.service");
 
 const router = express.Router();
 const partnerAuthorization = authorization.forRole(AUTH_ROLES.PARTNER);
@@ -198,6 +202,16 @@ router.post("/admin", adminAuthorization, async (req, res) => {
        WHERE earning_id = ANY($2::uuid[])`,
       [payout.rows[0].payout_id, earnings.rows.map((item) => item.earning_id)],
     );
+    await recordAuditEvent(client, {
+      actorType: AUTH_ROLES.ADMIN,
+      actorId: req.user,
+      action: "SETTLEMENT_DRAFT_CREATED",
+      entityType: "settlement",
+      entityId: payout.rows[0].payout_id,
+      after: payout.rows[0],
+      metadata: { partner_id: partnerId, earning_count: earnings.rowCount },
+      requestId: requestAuditId(req),
+    });
     await client.query("COMMIT");
     res.status(201).json({ payout: payout.rows[0] });
   } catch (error) {
@@ -265,6 +279,17 @@ router.patch("/admin/:payoutId/paid", adminAuthorization, async (req, res) => {
         JSON.stringify({ payout_id: req.params.payoutId, transfer_reference: transferReference }),
       ],
     );
+    await recordAuditEvent(client, {
+      actorType: AUTH_ROLES.ADMIN,
+      actorId: req.user,
+      action: "SETTLEMENT_MARKED_PAID",
+      entityType: "settlement",
+      entityId: req.params.payoutId,
+      before: payout.rows[0],
+      after: updated.rows[0],
+      metadata: { partner_id: payout.rows[0].partner_id },
+      requestId: requestAuditId(req),
+    });
     await client.query("COMMIT");
     res.json({ payout: updated.rows[0] });
   } catch (error) {
@@ -311,6 +336,17 @@ router.patch("/admin/:payoutId/void", adminAuthorization, async (req, res) => {
       "UPDATE partner_payouts SET status = 'VOID', updated_at = NOW() WHERE payout_id = $1 RETURNING *",
       [req.params.payoutId],
     );
+    await recordAuditEvent(client, {
+      actorType: AUTH_ROLES.ADMIN,
+      actorId: req.user,
+      action: "SETTLEMENT_VOIDED",
+      entityType: "settlement",
+      entityId: req.params.payoutId,
+      before: payout.rows[0],
+      after: updated.rows[0],
+      metadata: { partner_id: payout.rows[0].partner_id },
+      requestId: requestAuditId(req),
+    });
     await client.query("COMMIT");
     res.json({ payout: updated.rows[0] });
   } catch (error) {

@@ -1,4 +1,5 @@
 const pool = require("../db");
+const { recordAuditEvent } = require("./auditLog.service");
 const { AUTH_ROLES } = require("../constants/auth");
 
 const REFERRAL_REWARD_CREDITS = 50;
@@ -116,7 +117,7 @@ async function awardLockedReferral(client, referral, paymentRequestId) {
 
   if (completion.rowCount === 0) return false;
 
-  await client.query(
+  const rewardedWallets = await client.query(
     `UPDATE users
      SET credit = CASE
            WHEN credit_expires_at IS NOT NULL AND credit_expires_at <= NOW()
@@ -128,7 +129,8 @@ async function awardLockedReferral(client, referral, paymentRequestId) {
              THEN NOW() + INTERVAL '90 days'
            ELSE credit_expires_at
          END
-     WHERE user_id = ANY($2::uuid[])`,
+     WHERE user_id = ANY($2::uuid[])
+     RETURNING user_id, credit`,
     [
       REFERRAL_REWARD_CREDITS,
       [referral.referrer_id, referral.referee_id],
@@ -153,6 +155,23 @@ async function awardLockedReferral(client, referral, paymentRequestId) {
     ...referral,
     payment_request_id: paymentRequestId,
   });
+
+  for (const wallet of rewardedWallets.rows) {
+    const afterCredit = Number(wallet.credit);
+    await recordAuditEvent(client, {
+      actorType: "system",
+      action: "REFERRAL_CREDITS_AWARDED",
+      entityType: "credit",
+      entityId: wallet.user_id,
+      before: { balance: afterCredit - REFERRAL_REWARD_CREDITS },
+      after: { balance: afterCredit },
+      metadata: {
+        referral_id: referral.id,
+        payment_request_id: paymentRequestId,
+        credit_delta: REFERRAL_REWARD_CREDITS,
+      },
+    });
+  }
 
   return true;
 }
@@ -303,6 +322,20 @@ async function settleCompletedPayment({
        VALUES ($1, NULL, NULL, $2, 'CREDIT', $3)`,
       [payment.user_id, payment.credits, payment.request_id],
     );
+    const walletCredit = Number(walletResult.rows[0].credit);
+    await recordAuditEvent(client, {
+      actorType: "system",
+      action: "TOP_UP_CREDITS_APPLIED",
+      entityType: "credit",
+      entityId: payment.user_id,
+      before: { balance: walletCredit - Number(payment.credits) },
+      after: { balance: walletCredit },
+      metadata: {
+        payment_request_id: payment.request_id,
+        credit_delta: Number(payment.credits),
+        source,
+      },
+    });
 
     // This notification is part of the same locked transaction as the wallet
     // update, so settlement retries cannot create duplicate success messages.
@@ -317,7 +350,7 @@ async function settleCompletedPayment({
       completed: true,
       alreadyCompleted: false,
       paymentRequestId: payment.request_id,
-      walletCredit: Number(walletResult.rows[0].credit),
+      walletCredit,
       referralRewarded,
     };
   } catch (error) {
