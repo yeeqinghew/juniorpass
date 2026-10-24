@@ -275,7 +275,7 @@ router.patch("/admin/:payoutId/paid", adminAuthorization, async (req, res) => {
        VALUES ('partner', $1, 'payout', 'Payout sent', $2, $3::jsonb)`,
       [
         payout.rows[0].partner_id,
-        `Your JuniorPASS payout of SGD ${Number(payout.rows[0].net_amount).toFixed(2)} has been recorded.`,
+        `Your Junior Pass payout of SGD ${Number(payout.rows[0].net_amount).toFixed(2)} has been recorded.`,
         JSON.stringify({ payout_id: req.params.payoutId, transfer_reference: transferReference }),
       ],
     );
@@ -391,7 +391,7 @@ router.get("/:payoutId/statement", statementAuthorization, async (req, res, next
       const { payout, items } = statement;
       const rows = items.map((item) => `<tr><td>${escapeHtml(item.listing_title || "Opening balance")}</td><td>${formatDate(item.scheduled_date)}</td><td>${escapeHtml(item.enrolled_package_type || "—")}</td><td>${escapeHtml(item.credits)}</td><td>SGD ${Number(item.gross_amount).toFixed(2)}</td></tr>`).join("");
       res.set("Content-Type", "text/html; charset=utf-8");
-      res.send(`<!doctype html><html><head><meta charset="utf-8"><title>Payout statement</title><style>${payoutStatementCss}</style></head><body><header><h1>JuniorPASS payout statement</h1><div>${escapeHtml(payout.partner_name)}</div></header><dl><dt>Statement ID</dt><dd>${escapeHtml(payout.payout_id)}</dd><dt>Period</dt><dd>${formatDate(payout.period_start)} – ${formatDate(new Date(new Date(payout.period_end).getTime() - 86400000))}</dd><dt>Status</dt><dd>${escapeHtml(payout.status)}</dd><dt>Transfer reference</dt><dd>${escapeHtml(payout.transfer_reference || "Pending")}</dd></dl><table><thead><tr><th>Class</th><th>Session</th><th>Package</th><th>Credits</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table><p class="total">Total: SGD ${Number(payout.net_amount).toFixed(2)}</p><button onclick="window.print()">Print / Save PDF</button></body></html>`);
+      res.send(`<!doctype html><html><head><meta charset="utf-8"><title>Payout statement</title><style>${payoutStatementCss}</style></head><body><header><h1>Junior Pass payout statement</h1><div>${escapeHtml(payout.partner_name)}</div></header><dl><dt>Statement ID</dt><dd>${escapeHtml(payout.payout_id)}</dd><dt>Period</dt><dd>${formatDate(payout.period_start)} – ${formatDate(new Date(new Date(payout.period_end).getTime() - 86400000))}</dd><dt>Status</dt><dd>${escapeHtml(payout.status)}</dd><dt>Transfer reference</dt><dd>${escapeHtml(payout.transfer_reference || "Pending")}</dd></dl><table><thead><tr><th>Class</th><th>Session</th><th>Package</th><th>Credits</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table><p class="total">Total: SGD ${Number(payout.net_amount).toFixed(2)}</p><button onclick="window.print()">Print / Save PDF</button></body></html>`);
     } catch (statementError) {
       next(statementError);
     }

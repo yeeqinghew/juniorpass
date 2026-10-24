@@ -66,7 +66,7 @@ const buildReminderEmail = (occurrence, env = process.env) => {
     classTitle: occurrence.listing_title,
     classTime: copy.classTime,
     location: occurrence.outlet_address || "To be confirmed",
-    partnerName: occurrence.partner_name || "JuniorPASS partner",
+    partnerName: occurrence.partner_name || "Junior Pass partner",
     manageBookingsUrl: `${mainSiteUrl}/profile`,
     logoUrl: `${mainSiteUrl}/juniorpass-logo.png`,
     currentYear: new Date().getFullYear(),

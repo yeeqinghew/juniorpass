@@ -12,6 +12,7 @@ const ENTITY_TYPES = new Set([
   "account",
   "conversion_rate",
   "settlement",
+  "promotion",
 ]);
 const ACTOR_TYPES = new Set(["all", "admin", "partner", "user", "system"]);
 

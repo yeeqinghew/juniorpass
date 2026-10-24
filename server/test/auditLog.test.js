@@ -42,6 +42,7 @@ test("audit API is admin-only and supports all required areas", () => {
     "account",
     "conversion_rate",
     "settlement",
+    "promotion",
   ]) {
     assert.match(route, new RegExp(`"${entityType}"`));
   }

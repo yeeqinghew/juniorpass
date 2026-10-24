@@ -45,7 +45,7 @@ router.get("/listing/:listingId", async (req, res) => {
                 r.attended_at_least_one, r.partner_reply,
                 r.partner_replied_at, r.created_at, r.updated_at,
                 CASE
-                  WHEN NULLIF(BTRIM(u.name), '') IS NULL THEN 'JuniorPASS parent'
+                  WHEN NULLIF(BTRIM(u.name), '') IS NULL THEN 'Junior Pass parent'
                   ELSE SPLIT_PART(BTRIM(u.name), ' ', 1)
                 END AS reviewer_name
          FROM reviews r
@@ -243,7 +243,7 @@ router.get("/partner/all", partnerAuthorization, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT r.*, l.listing_title,
-              CASE WHEN NULLIF(BTRIM(u.name), '') IS NULL THEN 'JuniorPASS parent'
+              CASE WHEN NULLIF(BTRIM(u.name), '') IS NULL THEN 'Junior Pass parent'
                    ELSE SPLIT_PART(BTRIM(u.name), ' ', 1) END AS reviewer_name
        FROM reviews r
        JOIN listings l ON l.listing_id = r.listing_id

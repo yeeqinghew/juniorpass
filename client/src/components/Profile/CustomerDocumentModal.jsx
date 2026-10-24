@@ -101,7 +101,7 @@ const CustomerDocumentModal = ({ documentType, recordId, open, onClose }) => {
       <article className="customer-document-print-area">
         <header className="customer-document-header">
           <div>
-            <span className="customer-document-brand">JuniorPASS</span>
+            <span className="customer-document-brand">Junior Pass</span>
             <p>{isBooking ? "Booking confirmation" : "Payment receipt"}</p>
             <h2>
               {isBooking ? "Your class is confirmed" : "Credit top-up receipt"}

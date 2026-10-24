@@ -227,9 +227,36 @@ router.get("/getAllParents", authorization, adminOnly, async (req, res) => {
 });
 
 router.get("/getAllChildren", authorization, adminOnly, async (req, res) => {
-  // TODO: use middleware to check if user is superadmin
   try {
-    const allChildren = await pool.query("SELECT * FROM children");
+    const allChildren = await pool.query(`
+      SELECT
+        c.child_id,
+        c.name,
+        c.date_of_birth,
+        EXTRACT(YEAR FROM AGE(CURRENT_DATE, c.date_of_birth))::integer AS age,
+        c.gender,
+        c.parent_id,
+        u.name AS parent_name,
+        u.email AS parent_email,
+        COUNT(DISTINCT b.booking_id) FILTER (
+          WHERE b.status = 'confirmed'
+        )::integer AS booking_count,
+        COUNT(DISTINCT b.booking_id) FILTER (
+          WHERE b.status = 'confirmed' AND b.end_date >= CURRENT_DATE
+        )::integer AS upcoming_booking_count
+      FROM children c
+      JOIN users u ON u.user_id = c.parent_id
+      LEFT JOIN bookings b ON b.child_id = c.child_id
+      GROUP BY
+        c.child_id,
+        c.name,
+        c.date_of_birth,
+        c.gender,
+        c.parent_id,
+        u.name,
+        u.email
+      ORDER BY c.name ASC
+    `);
     return res.status(200).json(allChildren.rows);
   } catch (error) {
     console.error("ERROR in /admins/getAllChildren", error.message);
@@ -948,14 +975,14 @@ router.post("/createPartner", authorization, adminOnly, async (req, res) => {
         <body>
           <div class="container">
             <div class="header">
-              <h1 style="margin: 0; font-size: 28px;">Welcome to JuniorPASS! 🎉</h1>
+              <h1 style="margin: 0; font-size: 28px;">Welcome to Junior Pass! 🎉</h1>
               <p style="margin: 10px 0 0 0; opacity: 0.9;">Partner Portal Invitation</p>
             </div>
 
             <div class="content">
               <p>Hello${partner_name ? ` <strong>${partner_name}</strong>` : ""},</p>
 
-              <p>You've been invited to join JuniorPASS as a partner organization! We're excited to have you on board.</p>
+              <p>You've been invited to join Junior Pass as a partner organization! We're excited to have you on board.</p>
 
               <div class="credentials-box">
                 <h3 style="margin-top: 0; color: #1f2937;">Your Login Credentials</h3>
@@ -999,7 +1026,7 @@ router.post("/createPartner", authorization, adminOnly, async (req, res) => {
               If you have any questions or need assistance, please contact our team at <a href="mailto:support@juniorpass.sg">support@juniorpass.sg</a></p>
 
               <div class="footer">
-                <p>This is an automated email from JuniorPASS.<br>
+                <p>This is an automated email from Junior Pass.<br>
                 Please do not reply to this email.</p>
               </div>
             </div>
@@ -1010,7 +1037,7 @@ router.post("/createPartner", authorization, adminOnly, async (req, res) => {
 
     await sendEmail(
       email,
-      "Welcome to JuniorPASS - Your Partner Portal Access",
+      "Welcome to Junior Pass - Your Partner Portal Access",
       emailHTML,
     );
 

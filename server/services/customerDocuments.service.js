@@ -211,7 +211,7 @@ function buildDocumentEmail(document, env = process.env) {
     customerName: document.customer_name || "there",
     intro: isBooking
       ? "your class booking has been confirmed. Keep this confirmation for your records."
-      : "your payment was completed and the credits have been added to your JuniorPASS wallet.",
+      : "your payment was completed and the credits have been added to your Junior Pass wallet.",
     referenceLabel: isBooking ? "Booking reference" : "Receipt number",
     reference: document.reference,
     detailRows: details.map(([label, value]) => rowHtml(label, value)).join(""),
@@ -275,7 +275,7 @@ async function sendPaymentReceipt({
   if (automatic && document.automatic_email_sent_at) return document;
   await sendEmailImpl(
     document.customer_email,
-    `JuniorPASS receipt ${document.reference}`,
+    `Junior Pass receipt ${document.reference}`,
     buildDocumentEmail(document, env),
     automatic
       ? { idempotencyKey: idempotencyKey("payment-receipt", paymentRequestId) }

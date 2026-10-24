@@ -371,7 +371,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           <WalletOutlined />
         </span>
         <div>
-          <Text className="topup-status-eyebrow">JuniorPASS wallet</Text>
+          <Text className="topup-status-eyebrow">Junior Pass wallet</Text>
           <Text className="topup-status-header-copy">Secure credit top-up</Text>
         </div>
       </header>
@@ -407,7 +407,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           <WalletOutlined />
         </span>
         <div>
-          <Text className="topup-status-eyebrow">JuniorPASS wallet</Text>
+          <Text className="topup-status-eyebrow">Junior Pass wallet</Text>
           <Text className="topup-status-header-copy">Secure credit top-up</Text>
         </div>
       </header>
@@ -419,7 +419,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
         <Text className="topup-status-label">Payment confirmed</Text>
         <Title level={3}>Top-up complete</Title>
         <Text className="topup-status-description">
-          Your credits are ready to use for your next JuniorPASS booking.
+          Your credits are ready to use for your next Junior Pass booking.
         </Text>
 
         <div className="topup-status-credit-result">
@@ -449,7 +449,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
           <WalletOutlined />
         </span>
         <div>
-          <Text className="topup-status-eyebrow">JuniorPASS wallet</Text>
+          <Text className="topup-status-eyebrow">Junior Pass wallet</Text>
           <Text className="topup-status-header-copy">Secure credit top-up</Text>
         </div>
       </header>
@@ -479,7 +479,7 @@ const TopupModal = ({ isTopUpModalOpen, setIsTopUpModalOpen, onSuccess }) => {
         </div>
 
         <Text className="topup-status-support">
-          Still having trouble? Contact JuniorPASS support.
+          Still having trouble? Contact Junior Pass support.
         </Text>
       </div>
     </div>

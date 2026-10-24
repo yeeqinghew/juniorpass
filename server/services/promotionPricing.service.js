@@ -24,18 +24,15 @@ const getEligiblePromotion = async (
               WHERE pau.promotion_id = p.promotion_id AND pau.user_id = $1
             ) AS is_selected,
             EXISTS (
-              SELECT 1
-              FROM bookings previous_booking
-              JOIN listings previous_listing
-                ON previous_listing.listing_id = previous_booking.listing_id
+              SELECT 1 FROM bookings previous_booking
               WHERE previous_booking.user_id = $1
-                AND previous_listing.partner_id = p.partner_id
+                AND previous_booking.status IN ('confirmed', 'completed')
             ) AS is_existing_customer,
-            EXISTS (
-              SELECT 1 FROM promotion_redemptions previous_redemption
+            (
+              SELECT COUNT(*)::integer FROM promotion_redemptions previous_redemption
               WHERE previous_redemption.promotion_id = p.promotion_id
                 AND previous_redemption.user_id = $1
-            ) AS already_redeemed
+            ) AS user_redemption_count
      FROM promotions p
      WHERE p.schedule_group_id = $2
        AND p.package_type = $3
@@ -47,7 +44,10 @@ const getEligiblePromotion = async (
 
   return (
     result.rows.find((promotion) => {
-      if (promotion.already_redeemed) return false;
+      if (
+        Number(promotion.user_redemption_count) >=
+        Number(promotion.per_user_redemption_limit)
+      ) return false;
       if (Number(promotion.redemption_count) >= Number(promotion.max_redemptions)) {
         return false;
       }
@@ -75,11 +75,20 @@ const getPromotionPrice = async (queryable, options) => {
   }
 
   const chargedCredits = Number(promotion.promotional_credit_cost);
+  const discountCredits = standardCredits - chargedCredits;
+  const platformFundingPercentage =
+    promotion.funded_by === "platform"
+      ? 100
+      : promotion.funded_by === "shared"
+        ? Number(promotion.platform_funding_percentage)
+        : 0;
   return {
     promotion,
     chargedCredits,
-    partnerCreditedCredits:
-      promotion.funded_by === "platform" ? standardCredits : chargedCredits,
+    partnerCreditedCredits: Math.min(
+      standardCredits,
+      chargedCredits + Math.round(discountCredits * platformFundingPercentage / 100),
+    ),
   };
 };
 

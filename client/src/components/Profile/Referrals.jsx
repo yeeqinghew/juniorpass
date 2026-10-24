@@ -145,7 +145,7 @@ const Referrals = () => {
     {
       icon: <UserAddOutlined />,
       name: "Your friend joins",
-      desc: "They register for JuniorPASS using your code.",
+      desc: "They register for Junior Pass using your code.",
     },
     {
       icon: <ThunderboltOutlined />,
@@ -167,7 +167,7 @@ const Referrals = () => {
             <StarOutlined /> Referrals
           </Title>
           <Text className="rf-page-sub">
-            Invite friends to JuniorPASS and earn credits together.
+            Invite friends to Junior Pass and earn credits together.
           </Text>
         </div>
         <span className="rf-reward-chip">
@@ -406,7 +406,7 @@ const Referrals = () => {
           </span>
           <div>
             <h3>Invite a friend</h3>
-            <p>We’ll email them your personal JuniorPASS invitation.</p>
+            <p>We’ll email them your personal Junior Pass invitation.</p>
           </div>
         </div>
 

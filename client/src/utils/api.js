@@ -1,5 +1,5 @@
 /**
- * API Configuration for JuniorPASS
+ * API Configuration for Junior Pass
  * Centralized API base URL management and authenticated fetch utility
  */
 import { AUTH_ROLES } from "../constants/auth";

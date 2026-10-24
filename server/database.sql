@@ -878,12 +878,18 @@ CREATE TABLE promotions (
   starts_at TIMESTAMPTZ NOT NULL,
   ends_at TIMESTAMPTZ NOT NULL,
   max_redemptions INTEGER NOT NULL CHECK (max_redemptions > 0),
+  per_user_redemption_limit INTEGER NOT NULL DEFAULT 1 CHECK (per_user_redemption_limit > 0),
   eligibility VARCHAR(30) NOT NULL CHECK (eligibility IN ('first_time_customer', 'everyone', 'selected_users')),
-  status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'paused', 'rejected')),
-  funded_by VARCHAR(20) CHECK (funded_by IN ('partner', 'platform')),
+  status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'paused', 'rejected', 'terminated')),
+  funded_by VARCHAR(20) CHECK (funded_by IN ('partner', 'platform', 'shared')),
+  submitted_by VARCHAR(20) NOT NULL DEFAULT 'partner' CHECK (submitted_by IN ('partner', 'admin')),
+  platform_funding_percentage NUMERIC(5,2) CHECK (platform_funding_percentage IS NULL OR platform_funding_percentage BETWEEN 0 AND 100),
   reviewed_by UUID REFERENCES admins(admin_id),
   reviewed_at TIMESTAMPTZ,
   rejection_reason VARCHAR(500),
+  terminated_at TIMESTAMPTZ,
+  terminated_by UUID REFERENCES admins(admin_id),
+  termination_reason VARCHAR(500),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CHECK (ends_at > starts_at)
@@ -913,7 +919,6 @@ CREATE TABLE promotion_redemptions (
   charged_credits INTEGER NOT NULL CHECK (charged_credits > 0),
   standard_credits INTEGER NOT NULL CHECK (standard_credits > 0),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (promotion_id, user_id),
   UNIQUE (booking_id)
 );
 
@@ -922,6 +927,7 @@ CREATE INDEX promotions_active_lookup_idx
   ON promotions(schedule_group_id, package_type, starts_at, ends_at)
   WHERE status = 'approved';
 CREATE INDEX promotion_redemptions_promotion_idx ON promotion_redemptions(promotion_id);
+CREATE INDEX promotion_redemptions_user_limit_idx ON promotion_redemptions(promotion_id, user_id);
 
 ALTER TABLE reviews
     ADD CONSTRAINT reviews_booking_fk

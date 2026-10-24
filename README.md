@@ -1,4 +1,4 @@
-# Installation of PERN JuniorPASS
+# Installation of PERN Junior Pass
 
 1. Install PostgreSQL V16.1
 2. Install Node.js V16.16.0
