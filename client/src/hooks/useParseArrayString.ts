@@ -2,7 +2,7 @@
 import { useCallback } from "react";
 
 const useParseArrayString = () => {
-  const parseArrayString = useCallback((arrayString) => {
+  const parseArrayString = useCallback((arrayString: string): string[] => {
     // Remove curly brackets and split the string by commas
     const trimmedString = arrayString.replace(/[{}]/g, "");
     const arrayValues = trimmedString.split(",");

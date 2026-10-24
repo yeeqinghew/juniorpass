@@ -1,10 +1,6 @@
 // hooks/useParseListings.js
-import useParseArrayString from "./useParseArrayString";
-
 const useParseListings = () => {
-  const parseArrayString = useParseArrayString();
-
-  const parseListings = (listings) => {
+  const parseListings = <T extends object>(listings: T[]): T[] => {
     return listings.map((listing) => {
       return {
         ...listing,

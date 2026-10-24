@@ -1,22 +1,36 @@
-/* eslint-disable react-refresh/only-export-components */
 import {
   createContext,
   useContext,
   useState,
   useEffect,
   useCallback,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
 } from "react";
 import { fetchWithAuth, API_ENDPOINTS } from "../utils/api";
 import toast from "react-hot-toast";
+import type { UserProfile } from "../types/user";
 
-const UserContext = createContext();
+type ReauthenticateOptions = { silent?: boolean };
 
-export const UserProvider = ({ children }) => {
+type UserContextValue = {
+  isAuthenticated: boolean;
+  user: UserProfile | null;
+  loading: boolean;
+  setAuth: (status: boolean, userData?: UserProfile | null) => void;
+  setLoading: Dispatch<SetStateAction<boolean>>;
+  reauthenticate: (options?: ReauthenticateOptions) => Promise<boolean>;
+};
+
+const UserContext = createContext<UserContextValue | null>(null);
+
+export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const setAuth = useCallback((status, userData = null) => {
+  const setAuth = useCallback((status: boolean, userData: UserProfile | null = null) => {
     setIsAuthenticated(status);
     setUser(userData);
   }, []);
@@ -36,7 +50,7 @@ export const UserProvider = ({ children }) => {
         return false;
       }
 
-      const userData = await profileResponse.json();
+      const userData = (await profileResponse.json()) as UserProfile;
       setAuth(true, userData);
       return true;
     } catch (error) {

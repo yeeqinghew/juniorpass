@@ -41,8 +41,8 @@ const Routers = () => {
       await fetchWithAuth(API_ENDPOINTS.LOGOUT, {
         method: "POST",
       });
-    } catch (e) {
-      console.error("Logout error:", e);
+    } catch (error) {
+      console.error("Logout error:", error);
     }
     setAuth(false);
     setLoading(false);

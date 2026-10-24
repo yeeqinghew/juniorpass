@@ -3,7 +3,7 @@ import Spinner from "../utils/Spinner";
 import toast from "react-hot-toast";
 import { useUserContext } from "../components/UserContext";
 
-const AuthenticatedRoute = ({ ...props }) => {
+const AuthenticatedRoute = () => {
   const { isAuthenticated, loading } = useUserContext();
   const location = useLocation();
 
@@ -18,7 +18,7 @@ const AuthenticatedRoute = ({ ...props }) => {
     return <Navigate to="/login" state={{ from: location.pathname }} />;
   }
 
-  return <Outlet {...props} />;
+  return <Outlet />;
 };
 
 export default AuthenticatedRoute;

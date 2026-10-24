@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
 
 // Helper function to get window dimensions and screen size category
-function getWindowDimensions() {
+export type WindowDimensions = {
+  width: number;
+  height: number;
+  isDesktop: boolean;
+  isTabletLandscape: boolean;
+  isTabletPortrait: boolean;
+  isMobile: boolean;
+};
+
+function getWindowDimensions(): WindowDimensions {
   const { innerWidth: width, innerHeight: height } = window;
 
   // Updated breakpoints to match new responsive system
@@ -20,9 +29,9 @@ function getWindowDimensions() {
   };
 }
 
-export default function useWindowDimensions() {
+export default function useWindowDimensions(): WindowDimensions {
   const [windowDimensions, setWindowDimensions] = useState(
-    getWindowDimensions()
+    getWindowDimensions(),
   );
 
   useEffect(() => {

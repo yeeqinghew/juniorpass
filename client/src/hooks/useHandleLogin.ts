@@ -2,20 +2,35 @@ import toast from "react-hot-toast";
 import { fetchWithAuth, API_ENDPOINTS } from "../utils/api";
 import { useNavigate } from "react-router-dom";
 import { useUserContext } from "../components/UserContext";
+import type { CredentialResponse } from "@react-oauth/google";
+import type { Dispatch, SetStateAction } from "react";
 
-const useHandleLogin = ({ from, fromState, setLoading }) => {
+type LoginNavigationState = Record<string, unknown> | null | undefined;
+
+type UseHandleLoginOptions = {
+  from?: string | null;
+  fromState?: LoginNavigationState;
+  setLoading?: Dispatch<SetStateAction<boolean>>;
+};
+
+type AuthResponseBody = {
+  authenticated?: boolean;
+  message?: string;
+};
+
+const useHandleLogin = ({ from, fromState, setLoading }: UseHandleLoginOptions) => {
   const navigate = useNavigate();
   const { reauthenticate, setAuth } = useUserContext();
 
   const handleResponse = async (
-    response,
-    originalNavigatePath,
-    originalNavigateState = fromState,
-  ) => {
+    response: Response,
+    originalNavigatePath?: string | null,
+    originalNavigateState: LoginNavigationState = fromState,
+  ): Promise<void> => {
     try {
-      const parseRes = await response.json();
+      const parseRes = (await response.json()) as AuthResponseBody | string;
 
-      if (response.ok && parseRes.authenticated) {
+      if (response.ok && typeof parseRes !== "string" && parseRes.authenticated) {
         const authenticated = await reauthenticate();
         if (!authenticated) {
           toast.error("Login succeeded, but the session could not be verified.");
@@ -50,12 +65,13 @@ const useHandleLogin = ({ from, fromState, setLoading }) => {
         toast.error(message || "Invalid credentials");
       }
     } catch (error) {
-      console.error("Error parsing response:", error.message);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("Error parsing response:", message);
       toast.error("An error occurred while processing the response.");
     }
   };
 
-  const handleGoogleLogin = async (values) => {
+  const handleGoogleLogin = async (values: CredentialResponse): Promise<void> => {
     try {
       if (setLoading) setLoading(true);
       const { credential } = values;
@@ -69,7 +85,7 @@ const useHandleLogin = ({ from, fromState, setLoading }) => {
         await handleResponse(response, from);
       }
     } catch (error) {
-      console.error(error.message);
+      console.error(error instanceof Error ? error.message : String(error));
       toast.error("An error has occured during Google Login.");
     } finally {
       if (setLoading) setLoading(false);
