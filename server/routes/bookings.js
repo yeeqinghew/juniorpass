@@ -28,6 +28,7 @@ const {
   isCurrentSafetyWaiverAccepted,
 } = require("../utils/safetyWaiver");
 const { getPromotionPrice } = require("../services/promotionPricing.service");
+const { calculatePackageUpgrade } = require("../utils/packageUpgrade");
 const {
   applyScheduleExceptions,
 } = require("../services/classSessionManagement.service");
@@ -672,6 +673,243 @@ router.get("/availability/:scheduleId", async (req, res) => {
   }
 });
 
+// Upgrade a confirmed short-term booking to its full-term package. The booking,
+// wallet, partner balance, occurrences and transaction record change together.
+router.post("/:bookingId/extend", userAuthorization, async (req, res) => {
+  const { bookingId } = req.params;
+  const userId = req.user;
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const lockedBooking = await client.query(
+      `SELECT *
+       FROM bookings
+       WHERE booking_id = $1
+         AND user_id = $2
+       FOR UPDATE`,
+      [bookingId, userId],
+    );
+
+    if (lockedBooking.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    const booking = lockedBooking.rows[0];
+    if (booking.enrolled_package_type === "full-term" && booking.upgraded_at) {
+      await client.query("COMMIT");
+      return res.status(200).json({
+        success: true,
+        already_extended: true,
+        booking,
+      });
+    }
+
+    if (booking.status !== "confirmed" || booking.enrolled_package_type !== "short-term") {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        error: "Only confirmed short-term bookings can be extended",
+      });
+    }
+
+    const detailsResult = await client.query(
+      `SELECT sg.*, l.partner_id, l.listing_title,
+              p.credit AS partner_credit,
+              COALESCE(MAX(co.scheduled_end_date), b.end_date) AS extension_deadline
+       FROM bookings b
+       JOIN schedule_groups sg ON sg.schedule_group_id = b.schedule_group_id
+       JOIN listings l ON l.listing_id = b.listing_id
+       JOIN partners p ON p.partner_id = l.partner_id
+       LEFT JOIN class_occurrences co ON co.booking_id = b.booking_id
+       WHERE b.booking_id = $1
+       GROUP BY sg.schedule_group_id, l.partner_id, l.listing_title,
+                p.partner_id, b.end_date`,
+      [bookingId],
+    );
+    const details = detailsResult.rows[0];
+
+    if (
+      !details ||
+      !Array.isArray(details.package_types) ||
+      !details.package_types.includes("full-term")
+    ) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ error: "A full-term package is not available" });
+    }
+
+    if (new Date(details.extension_deadline) <= new Date()) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ error: "The extension period has ended" });
+    }
+
+    const fullTermCredits = getPackageCreditCost(
+      details,
+      "full-term",
+      booking.dollars_per_credit || details.pricing_dollars_per_credit,
+    );
+    const upgrade = calculatePackageUpgrade({
+      fullTermCredits,
+      chargedCredits: booking.charged_credits,
+      partnerCreditedCredits: booking.partner_credited_credits,
+      fullTermClasses: details.full_term_class_count,
+      shortTermClasses: booking.classes_total,
+    });
+
+    if (!upgrade) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ error: "This package cannot be extended" });
+    }
+
+    const allWindows = buildOccurrenceWindows({
+      startDate: booking.start_date,
+      endDate: booking.end_date,
+      classCount: upgrade.fullTermClasses,
+      frequency: details.frequency,
+    });
+    const additionalWindows = await applyScheduleExceptions(
+      client,
+      booking.schedule_id,
+      allWindows.slice(Number(booking.classes_total)),
+    );
+    const conflicts = await findChildBookingConflicts(
+      client,
+      booking.child_id,
+      additionalWindows.filter((window) => window.status !== "cancelled"),
+    );
+    const overlap = conflicts.find((conflict) => conflict.is_overlap);
+    if (overlap) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        code: "BOOKING_TIME_CONFLICT",
+        error: "The full-term sessions conflict with another class for this child",
+        conflict: overlap,
+      });
+    }
+
+    const walletResult = await client.query(
+      `UPDATE users
+       SET credit = credit - $1
+       WHERE user_id = $2
+         AND credit >= $1
+         AND (credit_expires_at IS NULL OR credit_expires_at > NOW())
+       RETURNING credit`,
+      [upgrade.upgradeCredits, userId],
+    );
+    if (walletResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        code: "INSUFFICIENT_CREDITS",
+        error: `You need ${upgrade.upgradeCredits} credits to extend this package`,
+        required_credits: upgrade.upgradeCredits,
+      });
+    }
+
+    await client.query(
+      `UPDATE partners
+       SET credit = credit + $1
+       WHERE partner_id = $2`,
+      [upgrade.partnerUpgradeCredits, details.partner_id],
+    );
+
+    const updatedBooking = await client.query(
+      `UPDATE bookings
+       SET enrolled_package_type = 'full-term',
+           classes_total = $1,
+           charged_credits = $2,
+           standard_credits = $2,
+           partner_credited_credits = $2,
+           can_extend_to_full_term = false,
+           upgraded_at = NOW(),
+           upgrade_credits = $3
+       WHERE booking_id = $4
+       RETURNING *`,
+      [upgrade.fullTermClasses, upgrade.fullTermCredits, upgrade.upgradeCredits, bookingId],
+    );
+
+    for (const [index, occurrence] of additionalWindows.entries()) {
+      await client.query(
+        `INSERT INTO class_occurrences (
+           booking_id, scheduled_date, scheduled_end_date, occurrence_number, status
+         ) VALUES ($1, $2, $3, $4, $5)`,
+        [
+          bookingId,
+          occurrence.start_at,
+          occurrence.end_at,
+          Number(booking.classes_total) + index + 1,
+          occurrence.status,
+        ],
+      );
+    }
+
+    await client.query(
+      `INSERT INTO transactions (parent_id, child_id, listing_id, used_credit, transaction_type)
+       VALUES ($1, $2, $3, $4, 'DEBIT')`,
+      [userId, booking.child_id, booking.listing_id, upgrade.upgradeCredits],
+    );
+
+    const balanceAfter = Number(walletResult.rows[0].credit);
+    await recordAuditEvent(client, {
+      actorType: AUTH_ROLES.USER,
+      actorId: userId,
+      action: "BOOKING_PACKAGE_EXTENDED",
+      entityType: "booking",
+      entityId: bookingId,
+      before: {
+        package_type: "short-term",
+        charged_credits: Number(booking.charged_credits),
+        classes_total: Number(booking.classes_total),
+        balance: balanceAfter + upgrade.upgradeCredits,
+      },
+      after: {
+        package_type: "full-term",
+        charged_credits: upgrade.fullTermCredits,
+        classes_total: upgrade.fullTermClasses,
+        balance: balanceAfter,
+      },
+      metadata: { credit_delta: -upgrade.upgradeCredits },
+      requestId: requestAuditId(req),
+    });
+
+    await client.query("COMMIT");
+
+    try {
+      await pool.query(
+        `INSERT INTO notifications (recipient_type, recipient_id, type, title, message, data)
+         VALUES ($1, $2, 'booking', $3, $4, $5)`,
+        [
+          AUTH_ROLES.PARTNER,
+          details.partner_id,
+          `Package extended: ${details.listing_title}`,
+          "A short-term booking has been extended to full-term.",
+          JSON.stringify({ booking_id: bookingId, credits: upgrade.upgradeCredits }),
+        ],
+      );
+      await Promise.all([
+        redisClient.del(`/listings/${booking.listing_id}`),
+        redisClient.del("/listings"),
+      ]);
+    } catch (sideEffectError) {
+      console.error(`Booking ${bookingId} extended but follow-up failed:`, sideEffectError.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      booking: updatedBooking.rows[0],
+      charged_credits: upgrade.upgradeCredits,
+      balance: balanceAfter,
+      classes_added: upgrade.classesToAdd,
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error extending booking:", error);
+    return res.status(500).json({ error: "Unable to extend this package" });
+  } finally {
+    client.release();
+  }
+});
+
 // GET all bookings for a user
 router.get("/user", userAuthorization, async (req, res) => {
   try {
@@ -688,6 +926,11 @@ router.get("/user", userAuthorization, async (req, res) => {
         o.address as outlet_address,
         o.nearest_mrt,
         sg.is_progressive,
+        sg.package_types,
+        sg.full_term_class_count,
+        sg.pricing_dollars_per_credit,
+        sg.price_fullterm,
+        COALESCE(MAX(co.scheduled_end_date), b.end_date) AS extension_deadline,
         (
           SELECT child_id
           FROM transactions
@@ -705,7 +948,10 @@ router.get("/user", userAuthorization, async (req, res) => {
       JOIN listingOutlets lo ON s.listing_outlet_id = lo.listing_outlet_id
       JOIN outlets o ON lo.outlet_id = o.outlet_id
       JOIN schedule_groups sg ON s.schedule_group_id = sg.schedule_group_id
+      LEFT JOIN class_occurrences co ON co.booking_id = b.booking_id
       WHERE b.user_id = $1
+      GROUP BY b.booking_id, l.listing_id, p.partner_id, o.outlet_id,
+               sg.schedule_group_id
       ORDER BY b.start_date DESC
     `,
       [user_id],
@@ -713,7 +959,34 @@ router.get("/user", userAuthorization, async (req, res) => {
 
     res.json({
       success: true,
-      bookings: bookings.rows,
+      bookings: bookings.rows.map((booking) => {
+        const fullTermCredits = getPackageCreditCost(
+          booking,
+          "full-term",
+          booking.dollars_per_credit || booking.pricing_dollars_per_credit,
+        );
+        const upgrade = calculatePackageUpgrade({
+          fullTermCredits,
+          chargedCredits: booking.charged_credits,
+          partnerCreditedCredits: booking.partner_credited_credits,
+          fullTermClasses: booking.full_term_class_count,
+          shortTermClasses: booking.classes_total,
+        });
+        const canExtend =
+          booking.status === "confirmed" &&
+          booking.enrolled_package_type === "short-term" &&
+          Array.isArray(booking.package_types) &&
+          booking.package_types.includes("full-term") &&
+          new Date(booking.extension_deadline) > new Date() &&
+          Boolean(upgrade);
+
+        return {
+          ...booking,
+          can_extend_to_full_term: canExtend,
+          extension_credits: canExtend ? upgrade.upgradeCredits : null,
+          extension_classes: canExtend ? upgrade.classesToAdd : null,
+        };
+      }),
     });
   } catch (error) {
     console.error(error);

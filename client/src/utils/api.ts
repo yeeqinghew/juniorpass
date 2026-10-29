@@ -128,6 +128,7 @@ export const API_ENDPOINTS = {
   CREATE_BOOKING: "/bookings",
   GET_BOOKING_WAIVER: "/bookings/waiver",
   CANCEL_BOOKING: (bookingId: EndpointId) => `/bookings/${bookingId}`,
+  EXTEND_BOOKING: (bookingId: EndpointId) => `/bookings/${bookingId}/extend`,
 
   // Reviews
   GET_REVIEW_ELIGIBILITY: "/reviews/mine/eligibility",

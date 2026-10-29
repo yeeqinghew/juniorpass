@@ -838,6 +838,8 @@ CREATE TABLE bookings (
     can_extend_to_full_term BOOLEAN DEFAULT false,
     extension_deadline TIMESTAMP,
     upgraded_from_booking_id UUID REFERENCES bookings(booking_id),
+    upgraded_at TIMESTAMPTZ,
+    upgrade_credits INTEGER CHECK (upgrade_credits IS NULL OR upgrade_credits > 0),
     dollars_per_credit DECIMAL(10, 4),
     charged_credits INTEGER,
     status VARCHAR(20) NOT NULL DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'cancelled')),

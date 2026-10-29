@@ -651,6 +651,24 @@
   border-radius: var(--radius-sm) !important;
 }
 
+.cc-booking-extend {
+  flex-shrink: 0;
+  border-radius: var(--radius-sm) !important;
+}
+
+.cc-extension-confirmation {
+  color: var(--text-secondary);
+}
+
+.cc-extension-confirmation p {
+  margin: 0 0 var(--spacing-xs);
+  line-height: var(--line-height-normal);
+}
+
+.cc-extension-confirmation p:last-child {
+  margin-bottom: 0;
+}
+
 .cc-booking-actions {
   display: flex;
   flex: 0 0 auto;

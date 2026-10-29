@@ -369,6 +369,50 @@ const ChildrenClasses = () => {
     }
   };
 
+  const handleExtendBooking = (booking) => {
+    const requiredCredits = Number(booking.extension_credits) || 0;
+    const classesAdded = Number(booking.extension_classes) || 0;
+
+    Modal.confirm({
+      title: "Extend to the full-term package?",
+      content: (
+        <div className="cc-extension-confirmation">
+          <p>
+            Your short-term payment has already been deducted. You will only
+            pay the remaining <strong>{requiredCredits} credits</strong>.
+          </p>
+          <p>
+            This adds {classesAdded} {classesAdded === 1 ? "class" : "classes"}
+            {user?.credit !== undefined
+              ? ` and leaves ${Math.max(0, Number(user.credit) - requiredCredits)} credits in your wallet.`
+              : "."}
+          </p>
+        </div>
+      ),
+      okText: `Pay ${requiredCredits} credits`,
+      cancelText: "Not now",
+      centered: true,
+      async onOk() {
+        const response = await fetchWithAuth(
+          API_ENDPOINTS.EXTEND_BOOKING(booking.booking_id),
+          { method: "POST" },
+        );
+        const data = await response.json();
+        if (!response.ok) {
+          toast.error(data.error || "Unable to extend this package");
+          throw new Error(data.error || "Unable to extend this package");
+        }
+
+        toast.success(
+          data.already_extended
+            ? "This package is already full-term"
+            : `Package extended — ${data.classes_added} classes added`,
+        );
+        await Promise.all([fetchChildrenAndBookings(), reauthenticate()]);
+      },
+    });
+  };
+
   const openMakeupRequest = (occurrence) => {
     setMakeupOccurrence(occurrence);
     makeupForm.resetFields();
@@ -620,6 +664,17 @@ const ChildrenClasses = () => {
               </div>
 
               <div className="cc-booking-actions">
+                {booking.can_extend_to_full_term && (
+                  <Button
+                    size="small"
+                    type="primary"
+                    icon={<SwapOutlined />}
+                    className="cc-booking-extend"
+                    onClick={() => handleExtendBooking(booking)}
+                  >
+                    Extend · {booking.extension_credits} credits
+                  </Button>
+                )}
                 {reviewState ? (
                   <Button
                     size="small"
