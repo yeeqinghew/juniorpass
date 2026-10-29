@@ -76,16 +76,6 @@ const ContactUs = () => {
     },
   ];
 
-  const stats = [
-    {
-      number: "100+",
-      label: "Partner Centers",
-      icon: <SafetyCertificateOutlined />,
-    },
-    { number: "10K+", label: "Happy Families", icon: <HeartFilled /> },
-    { number: "4.9", label: "Average Rating", icon: <StarFilled /> },
-  ];
-
   return (
     <div className="contact-page">
       {/* Decorative elements */}
@@ -111,17 +101,6 @@ const ContactUs = () => {
                 enrichment classes. We help you reach more families and fill
                 your classes.
               </Paragraph>
-
-              {/* Stats Row */}
-              <div className="stats-row">
-                {stats.map((stat, index) => (
-                  <div key={index} className="stat-item">
-                    <div className="stat-icon">{stat.icon}</div>
-                    <div className="stat-number">{stat.number}</div>
-                    <div className="stat-label">{stat.label}</div>
-                  </div>
-                ))}
-              </div>
 
               {/* Benefits */}
               <div className="benefits-list">

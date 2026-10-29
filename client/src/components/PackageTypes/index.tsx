@@ -1,13 +1,12 @@
 import { useEffect } from "react";
-import { Layout, Typography, Card, Row, Col, Tag, Space, Divider } from "antd";
+import { Typography, Row, Col, Tag, Layout } from "antd";
 import {
   CalendarOutlined,
-  ClockCircleOutlined,
   CheckCircleOutlined,
-  DollarOutlined,
   ThunderboltOutlined,
   CrownOutlined,
   InfoCircleOutlined,
+  BulbOutlined,
 } from "@ant-design/icons";
 import "./PackageTypes.css";
 
@@ -23,20 +22,18 @@ function PackageTypes() {
     {
       title: "Pay as you go",
       icon: <ThunderboltOutlined />,
-      color: "#98BDD2",
-      gradient: "linear-gradient(135deg, #98BDD2 0%, #6aa4c3 100%)",
-      tagColor: "blue",
+      colorClass: "pkg-blue",
       description:
         "Discover new activities without committing to long-term packages. Book only the classes your child attends, whenever it fits your schedule.",
       features: [
         "No long-term commitment",
         "Flexible class booking",
         "Explore different enrichment programs easily",
-        "Pay only for what you use session attended",
+        "Pay only for what you use",
       ],
       bestFor: [
         "Trying new activities before committing",
-        "Explore your child's interests",
+        "Exploring your child's interests",
         "Families with changing schedules",
       ],
       example:
@@ -45,17 +42,14 @@ function PackageTypes() {
     {
       title: "Short-Term",
       icon: <CalendarOutlined />,
-      color: "#f3a5c7",
-      gradient: "linear-gradient(135deg, #f3a5c7 0%, #e88bb1 100%)",
-      tagColor: "magenta",
+      colorClass: "pkg-pink",
       description:
         "A flexible way for your child to experience a program over several weeks before deciding on a long-term commitment.",
       features: [
         "Shorter commitment with structured learning",
         "25% of a full-term program",
         "Ideal for exploring new interests with less pressure",
-        "option to upgrade to a long-term package",
-        "No additional cost incurred when upgrading later",
+        "Option to upgrade to full-term — no extra cost",
       ],
       bestFor: [
         "Parents who prefer flexibility before committing long-term",
@@ -63,24 +57,23 @@ function PackageTypes() {
         "Families looking for lower-commitment options",
       ],
       example:
-        "Sign up for a 2-week basketball course. After 2 classes, get a 24-hour offer to upgrade to the 3-month package by just topping up the remaining credits.",
+        "Sign up for a 2-week basketball course. After 2 classes, get a 24-hour offer to upgrade to the 3-month package by topping up the remaining credits.",
     },
     {
       title: "Full-Term",
       icon: <CrownOutlined />,
-      color: "#d4af37",
-      gradient: "linear-gradient(135deg, #d4af37 0%, #b8941f 100%)",
-      tagColor: "gold",
+      colorClass: "pkg-gold",
+      badge: "Best Value",
       description:
-        "Designed for children who are ready to deepen their skills and build long-term confidence through consistent learning and practice.",
+        "Designed for children ready to deepen their skills and build long-term confidence through consistent learning and practice.",
       features: [
-        "Lower per-class pricing with greater overall savings",
-        "Structured progression for deeper learning and mastery",
+        "Lower per-class pricing with greater savings",
+        "Structured progression for deeper learning",
         "Consistent routines that support long-term development",
       ],
       bestFor: [
         "Children passionate about a specific activity",
-        "Families seeking the best valueper class",
+        "Families seeking the best value per class",
         "Building strong learning habits and consistency",
       ],
       example:
@@ -88,17 +81,42 @@ function PackageTypes() {
     },
   ];
 
+  const faqs = [
+    {
+      question: "Can I upgrade my package?",
+      answer:
+        "Absolutely! Start with a short-term package to try it out. After attending any class, you'll get a 24-hour window to upgrade to the full-term package by simply topping up the remaining credits. Your existing credits carry over — no waste!",
+    },
+    {
+      question: "Do credits expire?",
+      answer:
+        "Credits share one rolling expiry. Each top-up extends all credits by 90 days, capped at 365 days from that top-up.",
+    },
+    {
+      question: "Which package should I choose?",
+      answer:
+        "Start with pay-as-you-go if you're exploring different activities. Choose short-term when you want to try an activity with minimal commitment (you can always upgrade within 24 hours!). Go full-term when you're committed to mastery and want maximum savings.",
+    },
+    {
+      question: "What if I need to cancel?",
+      answer:
+        "Cancellation policies vary by package type and partner. Check the specific terms when booking. Generally, pay-as-you-go offers the most flexibility.",
+    },
+  ];
+
   return (
-    <Layout className="package-types-layout">
-      <Content className="package-types-content">
-        {/* Hero Section */}
+    <div className="package-types-layout">
+      <div className="package-types-content">
+        {/* Hero */}
         <div className="package-hero">
-          <Title level={1} className="package-hero-title">
-            Package Types
+          <Title className="package-hero-title">
+            Choose how your child learns.
+            <br />
+            Start flexible, grow at their pace.
           </Title>
           <Paragraph className="package-hero-subtitle">
-            Select the package that fits your child's learning needs and your
-            family's schedule. Start flexible, upgrade anytime!
+            Three package types designed around your family's needs — explore
+            freely, commit when ready, and upgrade anytime.
           </Paragraph>
         </div>
 
@@ -106,124 +124,78 @@ function PackageTypes() {
         <div className="packages-container">
           <Row gutter={[32, 32]}>
             {packages.map((pkg, index) => (
-              <Col xs={24} sm={24} md={24} lg={8} key={index}>
-                <Card className="package-card">
+              <Col xs={24} lg={8} key={index}>
+                <div className={`package-card ${pkg.colorClass}`}>
+                  {pkg.badge && (
+                    <div className="package-best-badge">{pkg.badge}</div>
+                  )}
                   <div className="package-card-header">
-                    <div
-                      className="package-icon"
-                      style={{ background: pkg.gradient }}
-                    >
-                      {pkg.icon}
-                    </div>
+                    <div className="package-icon">{pkg.icon}</div>
                     <Title level={2} className="package-card-title">
                       {pkg.title}
                     </Title>
+                    <Text className="package-description">
+                      {pkg.description}
+                    </Text>
                   </div>
 
-                  <Paragraph className="package-description">
-                    {pkg.description}
-                  </Paragraph>
-
-                  <Divider />
-
-                  <div className="package-features">
-                    <Text strong className="section-label">
+                  <div className="package-section">
+                    <Text className="pkg-section-label">
                       <CheckCircleOutlined /> Key Features
                     </Text>
-                    <ul className="feature-list">
-                      {pkg.features.map((feature, idx) => (
-                        <li key={idx}>
-                          <CheckCircleOutlined
-                            style={{ color: pkg.color, marginRight: 8 }}
-                          />
-                          {feature}
+                    <ul className="pkg-list">
+                      {pkg.features.map((f, i) => (
+                        <li key={i}>
+                          <CheckCircleOutlined className="pkg-check" />
+                          <Text>{f}</Text>
                         </li>
                       ))}
                     </ul>
                   </div>
 
-                  <Divider />
-
-                  <div className="package-best-for">
-                    <Text strong className="section-label">
+                  <div className="package-section">
+                    <Text className="pkg-section-label">
                       <InfoCircleOutlined /> Best For
                     </Text>
-                    <ul className="best-for-list">
-                      {pkg.bestFor.map((item, idx) => (
-                        <li key={idx}>{item}</li>
+                    <ul className="pkg-list pkg-list-dot">
+                      {pkg.bestFor.map((b, i) => (
+                        <li key={i}>
+                          <Text>{b}</Text>
+                        </li>
                       ))}
                     </ul>
                   </div>
 
-                  <Divider />
-
                   <div className="package-example">
-                    <Text strong className="section-label">
-                      Example
-                    </Text>
-                    <Paragraph className="example-text">
-                      {pkg.example}
-                    </Paragraph>
+                    <BulbOutlined className="example-icon" />
+                    <Text className="example-text">{pkg.example}</Text>
                   </div>
-                </Card>
+                </div>
               </Col>
             ))}
           </Row>
         </div>
 
-        {/* FAQ Section */}
+        {/* FAQ */}
         <div className="package-faq-section">
-          <Title level={2} className="section-title">
+          <Title level={2} className="faq-title">
             Common Questions
           </Title>
           <Row gutter={[24, 24]}>
-            <Col xs={24} md={12}>
-              <Card className="faq-card">
-                <Title level={4}>Can I upgrade my package?</Title>
-                <Paragraph>
-                  Absolutely! Start with a short-term package to try it out.
-                  After attending any class, you'll get a 24-hour window to
-                  upgrade to the full-term package by simply topping up the
-                  remaining credits. Your existing credits carry over - no
-                  waste!
-                </Paragraph>
-              </Card>
-            </Col>
-            <Col xs={24} md={12}>
-              <Card className="faq-card">
-                <Title level={4}>Do credits expire?</Title>
-                <Paragraph>
-                  Credits share one rolling expiry. Each top-up extends all
-                  credits by 90 days, capped at 365 days from that top-up.
-                </Paragraph>
-              </Card>
-            </Col>
-            <Col xs={24} md={12}>
-              <Card className="faq-card">
-                <Title level={4}>Which package should I choose?</Title>
-                <Paragraph>
-                  Start with pay-as-you-go if you're exploring different
-                  activities. Choose short-term when you want to try an activity
-                  with minimal commitment (you can always upgrade within 24
-                  hours!). Go full-term when you're committed to mastery and
-                  want maximum savings.
-                </Paragraph>
-              </Card>
-            </Col>
-            <Col xs={24} md={12}>
-              <Card className="faq-card">
-                <Title level={4}>What if I need to cancel?</Title>
-                <Paragraph>
-                  Cancellation policies vary by package type and partner. Check
-                  the specific terms when booking. Generally, pay-as-you-go
-                  offers the most flexibility.
-                </Paragraph>
-              </Card>
-            </Col>
+            {faqs.map((faq, i) => (
+              <Col xs={24} md={12} key={i}>
+                <div className="faq-card">
+                  <Text strong className="faq-question">
+                    {faq.question}
+                  </Text>
+                  <Text className="faq-answer">{faq.answer}</Text>
+                </div>
+              </Col>
+            ))}
           </Row>
         </div>
-      </Content>
-    </Layout>
+      </div>
+    </div>
   );
 }
 

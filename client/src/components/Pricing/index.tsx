@@ -69,9 +69,9 @@ const Pricing = () => {
   ];
 
   return (
-    <div className="pricing-container">
-      <div className="pricing-header">
-        <Title level={1} className="pricing-hero-title">
+    <div className="pricing-page">
+      <div className="pricing-hero">
+        <Title className="pricing-hero-title">
           Tiered Credit Pricing
         </Title>
         <Text className="pricing-hero-subtitle">
@@ -82,6 +82,8 @@ const Pricing = () => {
           </span>
         </Text>
       </div>
+
+      <div className="pricing-container">
 
       <section className="tier-pricing-panel">
         <div className="tier-pricing-heading">
@@ -266,6 +268,7 @@ const Pricing = () => {
           ))}
         </Row>
       </div>
+    </div>
     </div>
   );
 };

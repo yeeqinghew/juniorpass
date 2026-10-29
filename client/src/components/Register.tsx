@@ -7,7 +7,6 @@ import {
   EyeTwoTone,
   EyeInvisibleOutlined,
   UserAddOutlined,
-  SafetyCertificateOutlined,
   ArrowRightOutlined,
   GiftOutlined,
 } from "@ant-design/icons";
@@ -154,14 +153,6 @@ const Register = () => {
             </Title>
             <Text className="register-subtitle">
               Join Junior Pass to explore amazing learning opportunities
-            </Text>
-          </div>
-
-          {/* Info Box */}
-          <div className="register-info-box">
-            <SafetyCertificateOutlined />
-            <Text className="register-info-text">
-              <strong>Secure Registration:</strong> Your information is protected with industry-standard encryption
             </Text>
           </div>
 
