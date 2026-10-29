@@ -116,16 +116,8 @@
   border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-multi-lg);
   padding: var(--spacing-3xl) var(--spacing-xl);
-  transition: all var(--transition-spring);
   position: relative;
   border: 2px solid transparent;
-}
-
-.login-card:hover,
-.register-card:hover {
-  box-shadow: var(--shadow-2xl);
-  border-color: rgba(152, 189, 210, 0.2);
-  transform: translateY(-4px);
 }
 
 /* Header Section */
@@ -147,24 +139,12 @@
   border-radius: 50%;
   margin-bottom: var(--spacing-lg);
   box-shadow: var(--shadow-primary);
-  animation: pulse 3s ease-in-out infinite;
   position: relative;
 }
 
 .login-icon-wrapper::before,
 .register-icon-wrapper::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: inherit;
-  opacity: 0.3;
-  z-index: -1;
-  animation: pulse 3s ease-in-out infinite;
+  display: none;
 }
 
 .login-icon,
