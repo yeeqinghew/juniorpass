@@ -1,8 +1,8 @@
 const CREDIT_PRICING_TIERS = [
-  { min: 1, max: 10, rateInCents: 1000 },
-  { min: 11, max: 30, rateInCents: 975 },
-  { min: 31, max: 60, rateInCents: 945 },
-  { min: 61, max: null, rateInCents: 905 },
+  { min: 1, max: 10, rateInCents: 1200 },
+  { min: 11, max: 20, rateInCents: 1000 },
+  { min: 21, max: 30, rateInCents: 975 },
+  { min: 31, max: null, rateInCents: 940 },
 ];
 
 function getCreditPricingTier(credits) {
