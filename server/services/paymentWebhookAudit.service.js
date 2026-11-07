@@ -62,7 +62,7 @@ async function recordWebhookEvent({
        error_code,
        processed_at
      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
-       CASE WHEN $7 = 'RECEIVED' THEN NULL ELSE NOW() END)
+       CASE WHEN $7::text = 'RECEIVED' THEN NULL ELSE NOW() END)
      RETURNING webhook_event_id`,
     [
       paymentResult.rows[0]?.request_id || null,

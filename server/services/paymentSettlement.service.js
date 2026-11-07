@@ -80,8 +80,8 @@ async function insertPaymentCompletedNotification(client, payment) {
         $3::integer || ' credits were added to your wallet.',
         jsonb_build_object(
           'credits', $3::integer,
-          'payment_request_id', $4,
-          'reference_number', $5
+          'payment_request_id', $4::uuid,
+          'reference_number', $5::uuid
         ))`,
     [
       AUTH_ROLES.USER,
