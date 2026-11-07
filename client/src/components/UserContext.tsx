@@ -74,21 +74,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   }, [reauthenticate]);
 
   useEffect(() => {
-    const revalidateWhenReturningToTab = () => {
-      if (document.visibilityState === "visible" && isAuthenticated) {
-        reauthenticate({ silent: true });
-      }
-    };
-
-    document.addEventListener("visibilitychange", revalidateWhenReturningToTab);
-    return () =>
-      document.removeEventListener(
-        "visibilitychange",
-        revalidateWhenReturningToTab,
-      );
-  }, [isAuthenticated, reauthenticate]);
-
-  useEffect(() => {
     const handleUnauthorized = () => {
       setAuth(false);
       setLoading(false);
