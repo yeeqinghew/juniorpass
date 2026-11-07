@@ -15,9 +15,7 @@ const {
   settleCompletedPayment,
 } = require("../services/paymentSettlement.service");
 const { getPaymentRedirectUrl } = require("../utils/paymentRedirect");
-const {
-  sendPaymentReceipt,
-} = require("../services/customerDocuments.service");
+const { sendPaymentReceipt } = require("../services/customerDocuments.service");
 const {
   completeWebhookEvent,
   recordWebhookEvent,
@@ -134,6 +132,16 @@ router.post(
     );
 
     const response = await resp.json();
+    if (!resp.ok || !response.id || !response.url) {
+      console.error("HitPay payment-request creation failed:", {
+        status: resp.status,
+        error: response.error || response.message || response,
+      });
+      return res.status(502).json({
+        error: "Unable to create payment request. Please try again shortly.",
+      });
+    }
+
     const {
       id,
       name: resName,
@@ -143,7 +151,6 @@ router.post(
       currency,
       status,
       purpose,
-      reference_number,
       payment_methods,
       url,
       redirect_url,
@@ -162,13 +169,13 @@ router.post(
       `INSERT INTO payment_requests
       (user_id, amount, credits, reference_number, hitpay_payment_id)
       VALUES ($1, $2, $3, $4, $5)`,
-      [user_id, amount, credits, reference_number, response.id],
+      [user_id, amount, credits, ref_num, response.id],
     );
 
     res.status(200).json({
       id: response.id,
       url: response.url,
-      reference_number,
+      reference_number: ref_num,
       amount,
       credits,
     });
@@ -180,7 +187,10 @@ const safelyRecordWebhookEvent = async (details) => {
   try {
     return await recordWebhookEvent(details);
   } catch (error) {
-    console.error("Unable to write payment webhook audit event:", error.message);
+    console.error(
+      "Unable to write payment webhook audit event:",
+      error.message,
+    );
     return null;
   }
 };
@@ -189,7 +199,10 @@ const safelyCompleteWebhookEvent = async (eventId, details) => {
   try {
     await completeWebhookEvent(eventId, details);
   } catch (error) {
-    console.error("Unable to update payment webhook audit event:", error.message);
+    console.error(
+      "Unable to update payment webhook audit event:",
+      error.message,
+    );
   }
 };
 
@@ -283,9 +296,7 @@ router.post("/webhook", async (req, res) => {
         responseCode: 200,
       });
     } else if (
-      ["failed", "cancelled", "canceled", "expired"].includes(
-        normalisedStatus,
-      )
+      ["failed", "cancelled", "canceled", "expired"].includes(normalisedStatus)
     ) {
       const failedPayment = await pool.query(
         `UPDATE payment_requests
@@ -421,7 +432,6 @@ router.get("/verify/:reference_number", authorization, async (req, res) => {
           },
         },
       );
-
     } catch (fetchError) {
       console.error("❌ HitPay API error:", fetchError.message);
       return res.status(200).json({ status: status || "PENDING" });
