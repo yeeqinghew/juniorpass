@@ -3,18 +3,22 @@ const assert = require("node:assert/strict");
 
 const {
   getPackageClassCount,
+  getShortTermPrice,
   getPackageCreditCost,
 } = require("../utils/packageCredits");
 
-test("converts configured dollar prices to whole credits", () => {
+test("uses the full-term price to calculate a 15% short-term markup", () => {
   const schedule = {
     price_payg: "42.00",
     price_fullterm: "500.00",
-    price_shortterm: "239.59",
+    price_shortterm: "1.00",
+    full_term_class_count: 12,
+    short_term_class_count: 5,
   };
 
   assert.equal(getPackageCreditCost(schedule, "pay-as-you-go", 9.5), 5);
   assert.equal(getPackageCreditCost(schedule, "full-term", 9.5), 53);
+  assert.equal(getShortTermPrice(schedule), 239.59);
   assert.equal(getPackageCreditCost(schedule, "short-term", 9.5), 26);
 });
 

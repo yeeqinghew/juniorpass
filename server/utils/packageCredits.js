@@ -14,6 +14,18 @@ const toPositiveClassCount = (value) => {
   return Number.isInteger(count) && count > 0 ? count : null;
 };
 
+const getShortTermPrice = (scheduleGroup) => {
+  const fullTermDollars = Number(scheduleGroup?.price_fullterm);
+  const fullTermClasses = getPackageClassCount(scheduleGroup, "full-term");
+  const shortTermClasses = getPackageClassCount(scheduleGroup, "short-term");
+
+  if (!fullTermDollars || !fullTermClasses || !shortTermClasses) return null;
+
+  return Math.ceil(
+    (fullTermDollars / fullTermClasses) * 1.15 * shortTermClasses * 100,
+  ) / 100;
+};
+
 const getPackageClassCount = (scheduleGroup, packageType) => {
   if (!scheduleGroup) return null;
 
@@ -47,25 +59,19 @@ const getPackageCreditCost = (scheduleGroup, packageType, dollarsPerCredit) => {
   }
 
   if (packageType === "short-term") {
-    const configuredCredits = dollarsToCredits(
-      scheduleGroup.price_shortterm,
-      dollarsPerCredit,
-    );
-    if (configuredCredits) return configuredCredits;
+    const calculatedPrice = getShortTermPrice(scheduleGroup);
+    if (calculatedPrice) return dollarsToCredits(calculatedPrice, dollarsPerCredit);
 
-    const fullTermDollars = Number(scheduleGroup.price_fullterm);
-    const fullTermClasses = getPackageClassCount(scheduleGroup, "full-term");
-    const shortTermClasses = getPackageClassCount(scheduleGroup, "short-term");
-
-    if (!fullTermDollars || !fullTermClasses || !shortTermClasses) return null;
-
-    return dollarsToCredits(
-      (fullTermDollars / fullTermClasses) * 1.15 * shortTermClasses,
-      dollarsPerCredit,
-    );
+    // Retain bookability for legacy schedules that predate full-term details.
+    return dollarsToCredits(scheduleGroup.price_shortterm, dollarsPerCredit);
   }
 
   return null;
 };
 
-module.exports = { dollarsToCredits, getPackageClassCount, getPackageCreditCost };
+module.exports = {
+  dollarsToCredits,
+  getPackageClassCount,
+  getShortTermPrice,
+  getPackageCreditCost,
+};

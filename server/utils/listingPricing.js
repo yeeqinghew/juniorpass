@@ -3,6 +3,7 @@ const PACKAGE_PRICE_FIELDS = {
   "full-term": "price_fullterm",
   "short-term": "price_shortterm",
 };
+const { getShortTermPrice } = require("./packageCredits");
 
 function getMinimumListingCredits(listing) {
   let outlets = listing?.outlets_info;
@@ -25,7 +26,11 @@ function getMinimumListingCredits(listing) {
       for (const packageType of Array.isArray(group.package_types)
         ? group.package_types
         : []) {
-        const price = Number(group[PACKAGE_PRICE_FIELDS[packageType]]);
+        const price = Number(
+          packageType === "short-term"
+            ? getShortTermPrice(group) || group.price_shortterm
+            : group[PACKAGE_PRICE_FIELDS[packageType]],
+        );
         if (Number.isFinite(price) && price > 0) {
           prices.push(Math.ceil(price / rate));
         }

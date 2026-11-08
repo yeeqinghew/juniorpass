@@ -14,6 +14,7 @@ const {
 } = require("../services/storage/storage.service");
 const { parseCategoryIds } = require("../utils/categories");
 const { withMinimumListingCredits } = require("../utils/listingPricing");
+const { getShortTermPrice } = require("../utils/packageCredits");
 const { normalizeBookingPolicy } = require("../utils/bookingPolicy");
 const {
   dateOnly,
@@ -277,6 +278,21 @@ router.post("", authorization, async (req, res) => {
           price_fullterm,
           price_shortterm,
         } = schedule;
+        const normalizedShortTermPrice = Array.isArray(package_types) &&
+          package_types.includes("short-term")
+          ? getShortTermPrice({
+              price_fullterm,
+              full_term_class_count,
+              short_term_class_count,
+            })
+          : null;
+        if (package_types?.includes("short-term") && !normalizedShortTermPrice) {
+          await db.query("ROLLBACK");
+          return res.status(400).json({
+            error:
+              "Short-term pricing requires a full-term price and class count",
+          });
+        }
         const pricingDollarsPerCredit = await getDollarsPerCredit();
 
         // 1. Insert schedule_group (the enrollable program)
@@ -305,7 +321,7 @@ router.post("", authorization, async (req, res) => {
             short_term_class_count || null,
             price_payg || null,
             price_fullterm || null,
-            price_shortterm || null,
+            normalizedShortTermPrice,
             frequency,
             pricingDollarsPerCredit,
           ],
@@ -1268,6 +1284,22 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
             price_fullterm,
             price_shortterm,
           } = schedule;
+          const normalizedShortTermPrice = Array.isArray(package_types) &&
+            package_types.includes("short-term")
+            ? getShortTermPrice({
+                price_fullterm,
+                full_term_class_count,
+                short_term_class_count,
+              })
+            : null;
+
+          if (package_types?.includes("short-term") && !normalizedShortTermPrice) {
+            await tx.query("ROLLBACK");
+            return res.status(400).json({
+              error:
+                "Short-term pricing requires a full-term price and class count",
+            });
+          }
           const existingPricing = existingRates.get(existingScheduleGroupId);
 
           if (
@@ -1302,7 +1334,7 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
             Number(existingPricing.price_fullterm || 0) ===
               Number(price_fullterm || 0) &&
             Number(existingPricing.price_shortterm || 0) ===
-              Number(price_shortterm || 0);
+              Number(normalizedShortTermPrice || 0);
           const pricingDollarsPerCredit = samePrice
             ? Number(existingPricing.pricing_dollars_per_credit)
             : await getDollarsPerCredit(tx);
@@ -1329,7 +1361,7 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
               [
                 price_payg ?? null,
                 price_fullterm ?? null,
-                price_shortterm ?? null,
+                normalizedShortTermPrice,
                 pricingDollarsPerCredit,
                 existingScheduleGroupId,
               ],
@@ -1363,7 +1395,7 @@ router.patch("/:id/schedules", authorization, async (req, res) => {
               short_term_class_count || null,
               price_payg || null,
               price_fullterm || null,
-              price_shortterm || null,
+              normalizedShortTermPrice,
               frequency,
               pricingDollarsPerCredit,
             ],
