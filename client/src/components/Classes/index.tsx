@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Checkbox,
-  DatePicker,
   Dropdown,
   Empty,
   Image,
@@ -98,10 +97,7 @@ const Classes = () => {
   const [selectedAgeGroups, setSelectedAgeGroups] = useState([]);
   const [selectedPackageTypes, setSelectedPackageTypes] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null);
-  const [selectedDateTime, setSelectedDateTime] = useState(null);
-  const [useSpecificDate, setUseSpecificDate] = useState(false);
-  const [tempDate, setTempDate] = useState(null);
-  const [tempTime, setTempTime] = useState(null);
+  const [selectedTime, setSelectedTime] = useState(null);
 
   const [view, setView] = useState("list");
   const [currentPage, setCurrentPage] = useState(1);
@@ -166,8 +162,7 @@ const Classes = () => {
     selectedAgeGroups,
     selectedPackageTypes,
     selectedDay,
-    selectedDateTime,
-    useSpecificDate,
+    selectedTime,
   ]);
 
   useEffect(() => {
@@ -250,55 +245,41 @@ const Classes = () => {
           selectedPackageTypes.includes(packageType),
         );
 
-      const matchesSelectedDay =
-        !selectedDay ||
+      const matchesSchedule =
+        (!selectedDay && !selectedTime) ||
         (Array.isArray(listing?.outlets_info) &&
           listing.outlets_info.some((outlet) =>
             outlet?.schedule_groups?.some((group) =>
-              group?.time_slots?.some(
-                (slot) =>
-                  slot?.day?.toLowerCase() === selectedDay.toLowerCase(),
-              ),
+              group?.time_slots?.some((slot) => {
+                const matchesDay =
+                  !selectedDay ||
+                  slot?.day?.toLowerCase() === selectedDay.toLowerCase();
+
+                if (!matchesDay || !selectedTime) {
+                  return matchesDay;
+                }
+
+                if (!slot?.start_time || !slot?.end_time) {
+                  return false;
+                }
+
+                const { start, end } = applyTimeToDate(
+                  selectedTime,
+                  slot.start_time,
+                  slot.end_time,
+                );
+
+                return selectedTime.isBetween(start, end, "minute", "[)");
+              }),
             ),
           ));
-
-      const matchesSpecificDateAndTime =
-        !useSpecificDate || !selectedDateTime
-          ? true
-          : Array.isArray(listing?.outlets_info) &&
-            listing.outlets_info.some((outlet) =>
-              outlet?.schedule_groups?.some((group) =>
-                group?.time_slots?.some((slot) => {
-                  const selectedDate = dayjs(selectedDateTime);
-                  const selectedDayName = selectedDate.format("dddd");
-
-                  if (
-                    slot?.day?.toLowerCase() !== selectedDayName.toLowerCase()
-                  ) {
-                    return false;
-                  }
-
-                  if (!slot?.start_time || !slot?.end_time) {
-                    return false;
-                  }
-
-                  const { start, end } = applyTimeToDate(
-                    selectedDate,
-                    slot.start_time,
-                    slot.end_time,
-                  );
-
-                  return selectedDate.isBetween(start, end, "minute", "[)");
-                }),
-              ),
-            );
 
       return (
         matchesSearch &&
         matchesCategory &&
         matchesAgeGroup &&
         matchesPackage &&
-        (useSpecificDate ? matchesSpecificDateAndTime : matchesSelectedDay)
+        matchesSchedule
       );
     });
   }, [
@@ -308,8 +289,7 @@ const Classes = () => {
     selectedAgeGroups,
     selectedPackageTypes,
     selectedDay,
-    selectedDateTime,
-    useSpecificDate,
+    selectedTime,
   ]);
 
   const paginatedListings = useMemo(() => {
@@ -361,10 +341,7 @@ const Classes = () => {
     setSelectedAgeGroups([]);
     setSelectedPackageTypes([]);
     setSelectedDay(null);
-    setSelectedDateTime(null);
-    setTempDate(null);
-    setTempTime(null);
-    setUseSpecificDate(false);
+    setSelectedTime(null);
   };
 
   const hasActiveFilters =
@@ -373,7 +350,7 @@ const Classes = () => {
     selectedAgeGroups.length > 0 ||
     selectedPackageTypes.length > 0 ||
     Boolean(selectedDay) ||
-    Boolean(selectedDateTime);
+    Boolean(selectedTime);
 
   const toggleValue = (setter, value) => {
     setter((current) =>
@@ -583,78 +560,22 @@ const Classes = () => {
               </Dropdown>
             )}
 
-            <Segmented
-              value={useSpecificDate ? "specific" : "day"}
-              onChange={(value) => {
-                const specific = value === "specific";
-                setUseSpecificDate(specific);
-
-                if (specific) {
-                  setSelectedDay(null);
-                } else {
-                  setSelectedDateTime(null);
-                  setTempDate(null);
-                  setTempTime(null);
-                }
-              }}
-              options={[
-                { label: "Day of week", value: "day" },
-                { label: "Specific time", value: "specific" },
-              ]}
-              className="classes-date-mode"
-            />
-
-            {!useSpecificDate ? (
+            <div className="classes-schedule-filters">
               <Dropdown menu={{ items: dayMenuItems }} trigger={["click"]}>
                 <Button>
                   {selectedDay || "Select day"} <DownOutlined />
                 </Button>
               </Dropdown>
-            ) : (
-              <div className="classes-specific-date">
-                <DatePicker
-                  value={tempDate}
-                  onChange={(date) => {
-                    setTempDate(date);
-
-                    if (!date) {
-                      setSelectedDateTime(null);
-                    } else if (tempTime) {
-                      setSelectedDateTime(
-                        dayjs(date)
-                          .hour(tempTime.hour())
-                          .minute(tempTime.minute())
-                          .second(0),
-                      );
-                    }
-                  }}
-                  placeholder="Select date"
-                  allowClear
-                />
-
-                <TimePicker
-                  value={tempTime}
-                  format="HH:mm"
-                  minuteStep={30}
-                  onChange={(time) => {
-                    setTempTime(time);
-
-                    if (!time) {
-                      setSelectedDateTime(null);
-                    } else if (tempDate) {
-                      setSelectedDateTime(
-                        dayjs(tempDate)
-                          .hour(time.hour())
-                          .minute(time.minute())
-                          .second(0),
-                      );
-                    }
-                  }}
-                  placeholder="Select time"
-                  allowClear
-                />
-              </div>
-            )}
+              <TimePicker
+                value={selectedTime}
+                format="HH:mm"
+                minuteStep={30}
+                onChange={setSelectedTime}
+                placeholder="Select time"
+                allowClear
+                aria-label="Filter classes by time"
+              />
+            </div>
 
             {hasActiveFilters && (
               <Button
@@ -672,7 +593,7 @@ const Classes = () => {
             selectedAgeGroups.length > 0 ||
             selectedPackageTypes.length > 0 ||
             selectedDay ||
-            selectedDateTime) && (
+            selectedTime) && (
             <div className="classes-active-filters">
               {selectedCategories.map((category) => (
                 <Tag
@@ -722,16 +643,12 @@ const Classes = () => {
                 </Tag>
               )}
 
-              {selectedDateTime && (
+              {selectedTime && (
                 <Tag
                   closable
-                  onClose={() => {
-                    setSelectedDateTime(null);
-                    setTempDate(null);
-                    setTempTime(null);
-                  }}
+                  onClose={() => setSelectedTime(null)}
                 >
-                  {dayjs(selectedDateTime).format("D MMM, HH:mm")}
+                  {dayjs(selectedTime).format("HH:mm")}
                 </Tag>
               )}
             </div>

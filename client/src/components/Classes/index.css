@@ -97,11 +97,7 @@
     border-radius: 999px;
 }
 
-.classes-date-mode {
-    border-radius: 999px;
-}
-
-.classes-specific-date {
+.classes-schedule-filters {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -436,11 +432,11 @@
         align-items: stretch;
     }
 
-    .classes-specific-date {
+    .classes-schedule-filters {
         flex: 1;
     }
 
-    .classes-specific-date .ant-picker {
+    .classes-schedule-filters .ant-picker {
         flex: 1;
     }
 
@@ -521,17 +517,12 @@
         font-size: 12px;
     }
 
-    .classes-date-mode .ant-segmented-item-label {
-        padding-inline: 8px;
-        font-size: 11px;
-    }
-
-    .classes-specific-date {
+    .classes-schedule-filters {
         width: max-content;
         flex: none;
     }
 
-    .classes-specific-date .ant-picker {
+    .classes-schedule-filters .ant-picker {
         width: 130px;
         flex: none;
     }
