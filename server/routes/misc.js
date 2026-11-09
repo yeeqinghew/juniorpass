@@ -2,12 +2,25 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const { getDollarsPerCredit } = require("../utils/platformSettings");
+const {
+  getActiveCreditPricingTiers,
+  serializeCreditPricingTiers,
+} = require("../utils/creditPricing");
 
 router.get("/credit-conversion", async (req, res) => {
   try {
     res.json({ dollars_per_credit: await getDollarsPerCredit() });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+router.get("/credit-pricing", async (_req, res) => {
+  try {
+    const tiers = await getActiveCreditPricingTiers(pool);
+    res.json({ tiers: serializeCreditPricingTiers(tiers) });
+  } catch (error) {
+    res.status(500).json({ error: "Unable to load credit pricing" });
   }
 });
 const etagMiddleware = require("../middleware/etagMiddleware");

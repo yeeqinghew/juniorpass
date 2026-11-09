@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Typography, Col, Row, Button, InputNumber, Slider } from "antd";
+import { Typography, Col, Row, Button, InputNumber, Slider, Alert, Spin } from "antd";
 import {
   CalendarOutlined,
   CustomerServiceOutlined,
@@ -10,9 +10,9 @@ import { useNavigate } from "react-router-dom";
 import { useUserContext } from "../UserContext";
 import {
   calculateCreditPrice,
-  CREDIT_PRICING_TIERS,
   getCreditPricingTier,
 } from "../../utils/creditPricing";
+import useCreditPricing from "../../hooks/useCreditPricing";
 import "./index.css";
 
 const { Text, Title } = Typography;
@@ -22,9 +22,11 @@ const creditDestinationState = { activeTab: "credit", openTopUp: true };
 const Pricing = () => {
   const navigate = useNavigate();
   const { isAuthenticated, loading: authLoading } = useUserContext();
+  const { tiers, loading: pricingLoading, error: pricingError } = useCreditPricing();
   const [calculatorCredits, setCalculatorCredits] = useState(1);
-  const calculatorTier = getCreditPricingTier(calculatorCredits);
-  const calculatorTotal = calculateCreditPrice(calculatorCredits);
+  const calculatorTier = getCreditPricingTier(calculatorCredits, tiers);
+  const calculatorTotal = calculateCreditPrice(calculatorCredits, tiers);
+  const entryRate = tiers[0]?.rate;
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -95,8 +97,12 @@ const Pricing = () => {
           </Text>
         </div>
 
+        {pricingError && (
+          <Alert type="error" showIcon message="Credit pricing is temporarily unavailable" />
+        )}
+        <Spin spinning={pricingLoading}>
         <div className="tier-pricing-grid">
-          {CREDIT_PRICING_TIERS.map((tier, index) => (
+          {tiers.map((tier, index) => (
             <div
               className={`tier-pricing-item ${
                 tier.recommended ? "recommended-tier" : ""
@@ -123,11 +129,12 @@ const Pricing = () => {
               <Text className="tier-saving-label">
                 {index === 0
                   ? "A lovely place to start"
-                  : `Save S$ ${(CREDIT_PRICING_TIERS[0].rate - tier.rate).toFixed(2)}/credit`}
+                  : `Save S$ ${(tiers[0].rate - tier.rate).toFixed(2)}/credit`}
               </Text>
             </div>
           ))}
         </div>
+        </Spin>
 
         <div className="tier-pricing-action">
           <div>
@@ -141,6 +148,7 @@ const Pricing = () => {
             size="large"
             className="choose-plan-btn pricing-main-cta"
             loading={authLoading}
+            disabled={pricingLoading || Boolean(pricingError)}
             onClick={openCreditTopUp}
           >
             Buy Credits
@@ -226,12 +234,12 @@ const Pricing = () => {
               </div>
               <span aria-hidden="true">×</span>
               <div>
-                <strong>S$10.00</strong>
+                <strong>{entryRate ? `S$${entryRate.toFixed(2)}` : "—"}</strong>
                 <Text>entry-tier rate</Text>
               </div>
               <span aria-hidden="true">=</span>
               <div className="credit-example-total">
-                <strong>S$20.00</strong>
+                <strong>{entryRate ? `S$${(entryRate * 2).toFixed(2)}` : "—"}</strong>
                 <Text>example class cost</Text>
               </div>
             </div>

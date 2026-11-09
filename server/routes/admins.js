@@ -11,6 +11,11 @@ const adminOnly = require("../middleware/adminOnly");
 const sendEmail = require("../utils/emailSender");
 const crypto = require("crypto");
 const { getDollarsPerCredit } = require("../utils/platformSettings");
+const {
+  CREDIT_PRICING_SETTING_KEYS,
+  getActiveCreditPricingTiers,
+  serializeCreditPricingTiers,
+} = require("../utils/creditPricing");
 const { issueAuthSession, revokeAuthSession } = require("../utils/authSession");
 const { adminLoginLimiter } = require("../middleware/authRateLimiters");
 const redisClient = require("../utils/redisClient");
@@ -149,6 +154,133 @@ router.put(
       }
     } catch (error) {
       res.status(500).json({ error: error.message });
+    }
+  },
+);
+
+router.get(
+  "/settings/credit-pricing",
+  authorization,
+  adminOnly,
+  async (_req, res) => {
+    try {
+      const [activeTiers, upcoming, history] = await Promise.all([
+        getActiveCreditPricingTiers(pool),
+        pool.query(
+          `SELECT setting_key, new_value, effective_from, changed_at
+           FROM platform_setting_history
+           WHERE setting_key = ANY($1::text[])
+             AND effective_from > NOW()
+           ORDER BY effective_from ASC, setting_key ASC`,
+          [CREDIT_PRICING_SETTING_KEYS],
+        ),
+        pool.query(
+          `SELECT setting_key, old_value, new_value, effective_from,
+                  changed_at, changed_by
+           FROM platform_setting_history
+           WHERE setting_key = ANY($1::text[])
+           ORDER BY effective_from DESC, history_id DESC
+           LIMIT 100`,
+          [CREDIT_PRICING_SETTING_KEYS],
+        ),
+      ]);
+
+      return res.json({
+        tiers: serializeCreditPricingTiers(activeTiers),
+        upcoming: upcoming.rows.map((row) => ({
+          key: row.setting_key,
+          rate: Number(row.new_value),
+          effective_from: row.effective_from,
+          changed_at: row.changed_at,
+        })),
+        history: history.rows.map((row) => ({
+          key: row.setting_key,
+          old_rate: row.old_value == null ? null : Number(row.old_value),
+          new_rate: Number(row.new_value),
+          effective_from: row.effective_from,
+          changed_at: row.changed_at,
+          changed_by: row.changed_by,
+        })),
+      });
+    } catch (error) {
+      console.error("Unable to load parent credit pricing:", error.message);
+      return res.status(500).json({ error: "Unable to load credit pricing" });
+    }
+  },
+);
+
+router.put(
+  "/settings/credit-pricing",
+  authorization,
+  adminOnly,
+  async (req, res) => {
+    const submittedRates = req.body.rates;
+    const effectiveFrom = req.body.effective_from
+      ? new Date(req.body.effective_from)
+      : new Date();
+
+    if (!submittedRates || typeof submittedRates !== "object") {
+      return res.status(400).json({ error: "All credit tier rates are required" });
+    }
+    if (Number.isNaN(effectiveFrom.getTime())) {
+      return res.status(400).json({ error: "Invalid effective date" });
+    }
+
+    const rates = CREDIT_PRICING_SETTING_KEYS.map((key) => ({
+      key,
+      rate: Number(submittedRates[key]),
+    }));
+    if (rates.some(({ rate }) => !Number.isFinite(rate) || rate < 0.01 || rate > 1000)) {
+      return res.status(400).json({ error: "Every tier rate must be between $0.01 and $1,000" });
+    }
+    if (rates.some(({ rate }, index) => index > 0 && rate > rates[index - 1].rate)) {
+      return res.status(400).json({
+        error: "Higher-volume tiers cannot cost more per credit than lower-volume tiers",
+      });
+    }
+
+    const db = await pool.connect();
+    try {
+      await db.query("BEGIN");
+      const previous = await getActiveCreditPricingTiers(db, effectiveFrom);
+      const previousByKey = new Map(
+        serializeCreditPricingTiers(previous).map((tier) => [tier.key, tier.rate]),
+      );
+
+      for (const { key, rate } of rates) {
+        await db.query(
+          `INSERT INTO platform_setting_history
+             (setting_key, old_value, new_value, changed_by, effective_from)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [key, previousByKey.get(key), rate, req.user, effectiveFrom],
+        );
+      }
+
+      await recordAuditEvent(db, {
+        actorType: AUTH_ROLES.ADMIN,
+        actorId: req.user,
+        action: "PARENT_CREDIT_PRICING_CHANGED",
+        entityType: "credit_pricing",
+        entityId: "parent_topup_tiers",
+        before: Object.fromEntries(previousByKey),
+        after: {
+          ...Object.fromEntries(rates.map(({ key, rate }) => [key, rate])),
+          effective_from: effectiveFrom,
+        },
+        requestId: requestAuditId(req),
+      });
+      await db.query("COMMIT");
+
+      return res.json({
+        rates: Object.fromEntries(rates.map(({ key, rate }) => [key, rate])),
+        effective_from: effectiveFrom,
+      });
+    } catch (error) {
+      await db.query("ROLLBACK");
+      console.error("Unable to update parent credit pricing:", error.message);
+      return res.status(500).json({ error: "Unable to update credit pricing" });
+    } finally {
+      db.release();
     }
   },
 );

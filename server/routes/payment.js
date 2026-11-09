@@ -9,7 +9,10 @@ const querystring = require("querystring");
 const authorization = require("../middleware/authorization").forRole(
   AUTH_ROLES.USER,
 );
-const { calculateCreditPrice } = require("../utils/creditPricing");
+const {
+  calculateCreditPrice,
+  getActiveCreditPricingTiers,
+} = require("../utils/creditPricing");
 const {
   PaymentSettlementError,
   settleCompletedPayment,
@@ -60,7 +63,8 @@ router.post(
   authorization,
   handlePaymentRoute(async (req, res) => {
     const credits = Number(req.body.credits);
-    const amount = calculateCreditPrice(credits);
+    const pricingTiers = await getActiveCreditPricingTiers(pool);
+    const amount = calculateCreditPrice(credits, pricingTiers);
     if (!amount) {
       return res
         .status(400)

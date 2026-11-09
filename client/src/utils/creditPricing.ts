@@ -1,4 +1,5 @@
 export type CreditPricingTier = Readonly<{
+  key?: string;
   min: number;
   max: number | null;
   rate: number;
@@ -21,19 +22,23 @@ export const CREDIT_PRICING_TIERS: readonly CreditPricingTier[] = [
 
 export const getCreditPricingTier = (
   credits: unknown,
+  tiers: readonly CreditPricingTier[] = CREDIT_PRICING_TIERS,
 ): CreditPricingTier | null => {
   const quantity = Number(credits);
   if (!Number.isInteger(quantity) || quantity < 1) return null;
 
   return (
-    CREDIT_PRICING_TIERS.find(
+    tiers.find(
       (tier) =>
         quantity >= tier.min && (tier.max === null || quantity <= tier.max),
     ) ?? null
   );
 };
 
-export const calculateCreditPrice = (credits: unknown): number => {
-  const tier = getCreditPricingTier(credits);
+export const calculateCreditPrice = (
+  credits: unknown,
+  tiers: readonly CreditPricingTier[] = CREDIT_PRICING_TIERS,
+): number => {
+  const tier = getCreditPricingTier(credits, tiers);
   return tier ? Number((Number(credits) * tier.rate).toFixed(2)) : 0;
 };

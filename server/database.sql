@@ -784,6 +784,14 @@ INSERT INTO platform_setting_history
     (setting_key, old_value, new_value, effective_from)
 VALUES ('partner_dollars_per_credit', NULL, 9.50, NOW());
 
+INSERT INTO platform_setting_history
+    (setting_key, old_value, new_value, effective_from)
+VALUES
+    ('parent_credit_rate_1_10', NULL, 12.00, NOW()),
+    ('parent_credit_rate_11_20', NULL, 10.00, NOW()),
+    ('parent_credit_rate_21_30', NULL, 9.75, NOW()),
+    ('parent_credit_rate_31_plus', NULL, 9.40, NOW());
+
 CREATE TABLE partnerForms (
     id SERIAL PRIMARY KEY,
     company_name VARCHAR(255) NOT NULL,

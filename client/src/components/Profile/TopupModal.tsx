@@ -14,9 +14,9 @@ import { useUserContext } from "../UserContext";
 import usePageScrollLock from "../../hooks/usePageScrollLock";
 import {
   calculateCreditPrice,
-  CREDIT_PRICING_TIERS,
   getCreditPricingTier,
 } from "../../utils/creditPricing";
+import useCreditPricing from "../../hooks/useCreditPricing";
 import "./TopupModal.css";
 
 const { Title, Text } = Typography;
@@ -46,10 +46,11 @@ const TopupModal = ({
   const [modalStep, setModalStep] = useState<ModalStep>("form");
   const [selectedCredits, setSelectedCredits] = useState<number | null>(null);
   const { user, reauthenticate } = useUserContext();
+  const { tiers, loading: pricingLoading, error: pricingError } = useCreditPricing();
   const isPollingRef = useRef(false);
 
-  const selectedTier = getCreditPricingTier(selectedCredits);
-  const paymentAmount = calculateCreditPrice(selectedCredits);
+  const selectedTier = getCreditPricingTier(selectedCredits, tiers);
+  const paymentAmount = calculateCreditPrice(selectedCredits, tiers);
   usePageScrollLock(isTopUpModalOpen && modalStep === "loading");
 
   const closeModal = () => {
@@ -291,7 +292,11 @@ const TopupModal = ({
             Or start from a pricing tier
           </Text>
           <div className="topup-tier-list">
-            {CREDIT_PRICING_TIERS.map((tier) => {
+            {pricingLoading && <Spin size="small" />}
+            {pricingError && (
+              <Text type="danger">Credit pricing is temporarily unavailable.</Text>
+            )}
+            {tiers.map((tier) => {
               const isSelected = selectedTier?.min === tier.min;
 
               return (

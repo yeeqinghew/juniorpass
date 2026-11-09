@@ -161,6 +161,7 @@ export const API_ENDPOINTS = {
   GET_LISTING: (listingId: EndpointId) => `/listings/${listingId}`,
   SEARCH_LISTINGS: "/listings/search",
   GET_CREDIT_CONVERSION: "/misc/credit-conversion",
+  GET_CREDIT_PRICING: "/misc/credit-pricing",
 
   // Partners
   GET_PARTNER: (partnerId: EndpointId | undefined) => `/partners/${partnerId}`,
