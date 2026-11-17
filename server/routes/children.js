@@ -41,7 +41,7 @@ router.post("", authorization, async (req, res) => {
   if (!safetyDetails) {
     return res.status(400).json({
       error:
-        "Emergency contact and at least one valid authorised pickup person are required",
+        "A valid emergency contact is required. Authorised pickup people must be complete when provided.",
     });
   }
 
@@ -154,7 +154,7 @@ router.patch("/:child_id", authorization, async (req, res) => {
     if (updatesSafetyDetails && !safetyDetails) {
       return res.status(400).json({
         error:
-          "Emergency contact and at least one valid authorised pickup person are required",
+          "A valid emergency contact is required. Authorised pickup people must be complete when provided.",
       });
     }
     if (

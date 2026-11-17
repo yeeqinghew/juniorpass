@@ -7,7 +7,8 @@ function normalizeText(value, maxLength) {
 }
 
 function normalizeAuthorizedPickups(value) {
-  if (!Array.isArray(value)) return null;
+  if (typeof value === "undefined" || value === null) return [];
+  if (!Array.isArray(value) || value.length > 10) return null;
 
   const pickups = value.map((pickup) => ({
     name: normalizeText(pickup?.name, 100),
@@ -15,10 +16,12 @@ function normalizeAuthorizedPickups(value) {
     phone: normalizeText(pickup?.phone, 30),
   }));
 
+  const suppliedPickups = pickups.filter(
+    (pickup) => pickup.name || pickup.relationship || pickup.phone,
+  );
+
   if (
-    pickups.length < 1 ||
-    pickups.length > 10 ||
-    pickups.some(
+    suppliedPickups.some(
       (pickup) =>
         !pickup.name ||
         !pickup.relationship ||
@@ -29,7 +32,7 @@ function normalizeAuthorizedPickups(value) {
     return null;
   }
 
-  return pickups;
+  return suppliedPickups;
 }
 
 function getSafetyDetails(body) {

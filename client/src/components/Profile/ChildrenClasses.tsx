@@ -205,7 +205,7 @@ const ChildrenClasses = () => {
   const handleAddChild = () => {
     setEditingChild(null);
     form.resetFields();
-    form.setFieldsValue({ authorized_pickups: [{}] });
+    form.setFieldsValue({ authorized_pickups: [] });
     setIsAddChildModalOpen(true);
   };
 
@@ -223,7 +223,7 @@ const ChildrenClasses = () => {
         Array.isArray(child.authorized_pickups) &&
         child.authorized_pickups.length > 0
           ? child.authorized_pickups
-          : [{}],
+          : [],
     });
     setIsAddChildModalOpen(true);
   };
@@ -1244,7 +1244,7 @@ const ChildrenClasses = () => {
 
             <div className="cc-child-form-section">
               <h4>Authorised pickup people</h4>
-              <p>Add at least one person who may collect this child.</p>
+              <p>Optional. Add anyone who may collect this child.</p>
               <Form.List name="authorized_pickups">
                 {(fields, { add, remove }) => (
                   <div className="cc-pickup-list">
@@ -1252,7 +1252,7 @@ const ChildrenClasses = () => {
                       <div className="cc-pickup-card" key={key}>
                         <div className="cc-pickup-card-heading">
                           <strong>Pickup person {index + 1}</strong>
-                          {fields.length > 1 && (
+                          {(
                             <Button
                               type="text"
                               danger

@@ -343,9 +343,7 @@ const BuyNow = ({
   const hasCompleteSafetyProfile = Boolean(
     selectedChild?.emergency_contact_name &&
       selectedChild?.emergency_contact_relationship &&
-      selectedChild?.emergency_contact_phone &&
-      Array.isArray(selectedChild?.authorized_pickups) &&
-      selectedChild.authorized_pickups.length > 0,
+      selectedChild?.emergency_contact_phone,
   );
   const displayPrice = promotionPricing?.effective_credits ?? currentPackage?.price ?? null;
   const availableCredits = Number(user?.credit ?? 0);
@@ -419,7 +417,7 @@ const BuyNow = ({
 
     if (!hasCompleteSafetyProfile) {
       toast.error(
-        "Complete this child's emergency contact and authorised pickup details from your profile before booking.",
+        "Complete this child's emergency contact details from your profile before booking.",
       );
       return;
     }
@@ -679,7 +677,7 @@ const BuyNow = ({
                 type="warning"
                 showIcon
                 message="Safety information required"
-                description="Add an emergency contact and at least one authorised pickup person under Profile → Children & Classes before booking."
+                description="Add an emergency contact under Profile → Children & Classes before booking."
               />
             )}
           </section>

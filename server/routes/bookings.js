@@ -148,16 +148,14 @@ router.post("/", userAuthorization, async (req, res) => {
            AND parent_id = $2
            AND NULLIF(BTRIM(emergency_contact_name), '') IS NOT NULL
            AND NULLIF(BTRIM(emergency_contact_relationship), '') IS NOT NULL
-           AND NULLIF(BTRIM(emergency_contact_phone), '') IS NOT NULL
-           AND jsonb_typeof(authorized_pickups) = 'array'
-           AND jsonb_array_length(authorized_pickups) > 0`,
+           AND NULLIF(BTRIM(emergency_contact_phone), '') IS NOT NULL`,
         [child_id, user_id],
       );
       if (child.rowCount === 0) {
         return res.status(400).json({
           code: "CHILD_SAFETY_PROFILE_INCOMPLETE",
           error:
-            "Complete this child's emergency contact and authorised pickup information before booking",
+            "Complete this child's emergency contact information before booking",
         });
       }
     }

@@ -50,6 +50,23 @@ test("rejects missing or malformed safety contacts", () => {
   );
 });
 
+test("allows no authorised pickup people but validates any that are provided", () => {
+  const base = {
+    emergency_contact_name: "Jane",
+    emergency_contact_relationship: "Mother",
+    emergency_contact_phone: "98765432",
+  };
+
+  assert.deepEqual(getSafetyDetails(base)?.authorizedPickups, []);
+  assert.equal(
+    getSafetyDetails({
+      ...base,
+      authorized_pickups: [{ name: "John" }],
+    }),
+    null,
+  );
+});
+
 test("accepts only the current safety acknowledgement version", () => {
   assert.equal(
     isCurrentSafetyWaiverAccepted({
