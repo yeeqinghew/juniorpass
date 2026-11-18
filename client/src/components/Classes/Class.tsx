@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-unused-vars */
 // @ts-nocheck -- Legacy class-detail API models are being migrated incrementally.
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Avatar,
@@ -22,7 +22,6 @@ import {
   Empty,
 } from "antd";
 import {
-  LeftOutlined,
   RightOutlined,
   MailOutlined,
   ShopOutlined,
@@ -45,6 +44,31 @@ const { Title, Text, Paragraph } = Typography;
 
 dayjs.extend(duration);
 dayjs.extend(isSameOrAfter);
+
+const parseClockTime = (value) => {
+  const [hours = 0, minutes = 0, seconds = 0] = String(value)
+    .split(":")
+    .map(Number);
+  return { hours, minutes, seconds };
+};
+
+const formatClockTime = (value) => {
+  const { hours, minutes } = parseClockTime(value);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+};
+
+const formatTimeslot = (startTime, endTime) => {
+  const start = parseClockTime(startTime);
+  const end = parseClockTime(endTime);
+  const startSeconds = start.hours * 3600 + start.minutes * 60 + start.seconds;
+  const endSeconds = end.hours * 3600 + end.minutes * 60 + end.seconds;
+  const duration = (endSeconds - startSeconds) / 60;
+
+  return {
+    timeRange: `${formatClockTime(startTime)} - ${formatClockTime(endTime)}`,
+    duration: `${duration} mins`,
+  };
+};
 
 const toCredits = (dollarValue, dollarsPerCredit) => {
   const dollars = Number(dollarValue);
@@ -86,45 +110,20 @@ const Class = () => {
     count: 0,
     average_rating: 0,
   });
+  const [showCalendar, setShowCalendar] = useState(false);
+  const hasAutoSelectedDate = useRef(false);
 
   const { state } = useLocation();
   const { classId } = useParams();
   const { user, reauthenticate } = useUserContext();
   const { isDesktop, isTabletLandscape } = useWindowDimensions();
-  const isToday = dayjs(selectedDate).isSame(dayjs(), "day");
-  const dateFormat = "ddd, D MMM YYYY";
   const navigate = useNavigate();
 
-  const parseClockTime = (value) => {
-    const [hours = 0, minutes = 0, seconds = 0] = String(value)
-      .split(":")
-      .map(Number);
-    return { hours, minutes, seconds };
-  };
-
-  const formatClockTime = (value) => {
-    const { hours, minutes } = parseClockTime(value);
-    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-  };
-
-  const formatTimeslot = (startTime, endTime) => {
-    const start = parseClockTime(startTime);
-    const end = parseClockTime(endTime);
-    const startSeconds =
-      start.hours * 3600 + start.minutes * 60 + start.seconds;
-    const endSeconds = end.hours * 3600 + end.minutes * 60 + end.seconds;
-    const duration = (endSeconds - startSeconds) / 60;
-
-    return {
-      timeRange: `${formatClockTime(startTime)} - ${formatClockTime(endTime)}`,
-      duration: `${duration} mins`,
-    };
-  };
-
-  const generateAvailableTimeSlots = () => {
+  const generateAvailableTimeSlots = useCallback((date = selectedDate) => {
     if (!listing || !listing?.outlets_info) return [];
 
-    const selectedDay = dayjs(selectedDate).format("dddd");
+    const candidateDate = dayjs(date);
+    const selectedDay = candidateDate.format("dddd");
     const slots = [];
 
     // Flatten the nested structure: outlets > schedule_groups > time_slots
@@ -165,15 +164,18 @@ const Class = () => {
           let shouldInclude = false;
 
           if (frequency === "Daily") {
-            if (dayjs(selectedDate).isValid()) {
+            if (candidateDate.isSameOrAfter(startDate, "day")) {
               shouldInclude = true;
             }
           } else if (frequency === "Weekly") {
-            if (selectedDay === day) {
+            if (
+              candidateDate.isSameOrAfter(startDate, "day") &&
+              selectedDay === day
+            ) {
               shouldInclude = true;
             }
           } else if (frequency === "Biweekly") {
-            const weeksDifference = dayjs(selectedDate).diff(startDate, "week");
+            const weeksDifference = dayjs(date).diff(startDate, "week");
             if (
               weeksDifference >= 0 &&
               weeksDifference % 2 === 0 &&
@@ -182,7 +184,7 @@ const Class = () => {
               shouldInclude = true;
             }
           } else if (frequency === "Monthly") {
-            const selected = dayjs(selectedDate);
+            const selected = candidateDate;
 
             if (selected.isSameOrAfter(startDate, "day")) {
               const startDayOfMonth = startDate.date();
@@ -198,6 +200,11 @@ const Class = () => {
                 shouldInclude = true;
               }
             }
+          } else if (frequency === "Yearly") {
+            shouldInclude =
+              candidateDate.isSameOrAfter(startDate, "day") &&
+              candidateDate.month() === startDate.month() &&
+              candidateDate.date() === startDate.date();
           }
 
           if (shouldInclude) {
@@ -228,10 +235,43 @@ const Class = () => {
       });
     });
 
-    return slots;
-  };
+    return slots.sort((a, b) =>
+      a.location.timeslot[0].localeCompare(b.location.timeslot[0]),
+    );
+  }, [listing, selectedDate]);
 
-  const availableTimeSlots = generateAvailableTimeSlots();
+  const availableTimeSlots = useMemo(
+    () => generateAvailableTimeSlots(selectedDate),
+    [generateAvailableTimeSlots, selectedDate],
+  );
+
+  const upcomingSessionDates = useMemo(() => {
+    if (!listing) return [];
+
+    const now = dayjs();
+    const dates = [];
+    for (let offset = 0; offset < 120 && dates.length < 5; offset += 1) {
+      const date = now.startOf("day").add(offset, "day");
+      const futureSlots = generateAvailableTimeSlots(date.toDate()).filter(
+        (slot) => {
+          const { hours, minutes } = parseClockTime(slot.location.timeslot[0]);
+          return date.hour(hours).minute(minutes).isAfter(now);
+        },
+      );
+      if (futureSlots.length > 0) dates.push({ date, slots: futureSlots });
+    }
+    return dates;
+  }, [generateAvailableTimeSlots, listing]);
+
+  useEffect(() => {
+    hasAutoSelectedDate.current = false;
+  }, [classId]);
+
+  useEffect(() => {
+    if (hasAutoSelectedDate.current || upcomingSessionDates.length === 0) return;
+    hasAutoSelectedDate.current = true;
+    setSelectedDate(upcomingSessionDates[0].date.toDate());
+  }, [upcomingSessionDates]);
 
   useEffect(() => {
     let active = true;
@@ -367,16 +407,6 @@ const Class = () => {
 
   const handleDateChange = (date) => {
     setSelectedDate(date);
-  };
-
-  const handleNextDay = () => {
-    const nextDay = dayjs(selectedDate).add(1, "day").toDate();
-    setSelectedDate(nextDay);
-  };
-
-  const handlePreviousDay = () => {
-    const previousDay = dayjs(selectedDate).subtract(1, "day").toDate();
-    setSelectedDate(previousDay);
   };
 
   const handleBookNow = async (item, bookedChildIds = []) => {
@@ -598,28 +628,48 @@ const Class = () => {
             {/* Schedule Card */}
             <Card bordered={false} className="class-content-card">
               <Title level={4} className="class-section-title">
-                📅 Select a Date & Time
+                Choose a session
               </Title>
 
-              {/* Date Navigation */}
-              <div className="class-date-nav">
-                <Button onClick={handlePreviousDay} disabled={isToday}>
-                  <LeftOutlined />
-                </Button>
-                <DatePicker
-                  value={dayjs(selectedDate)}
-                  format={dateFormat}
-                  onChange={handleDateChange}
-                  allowClear={false}
-                  className="custom-date-picker"
-                  open={false}
-                  inputReadOnly
-                  suffixIcon={null}
-                />
-                <Button onClick={handleNextDay}>
-                  <RightOutlined />
+              <div className="class-upcoming-heading">
+                <Text className="class-upcoming-label">Closest available dates</Text>
+                <Button type="link" onClick={() => setShowCalendar((current) => !current)}>
+                  {showCalendar ? "Close calendar" : "Choose another date"}
                 </Button>
               </div>
+
+              {upcomingSessionDates.length > 0 && (
+                <div className="class-upcoming-strip" aria-label="Upcoming class dates">
+                  {upcomingSessionDates.map(({ date }, index) => {
+                    const selectedSessionDate = dayjs(selectedDate).isSame(date, "day");
+                    return (
+                      <button
+                        type="button"
+                        key={date.format("YYYY-MM-DD")}
+                        className={`class-upcoming-date ${selectedSessionDate ? "is-selected" : ""}`}
+                        onClick={() => setSelectedDate(date.toDate())}
+                        aria-pressed={selectedSessionDate}
+                      >
+                        <span>{index === 0 ? "Next" : date.format("ddd")}</span>
+                        <strong>{date.format("D MMM")}</strong>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {showCalendar && (
+                <div className="class-calendar-picker">
+                  <DatePicker
+                    value={dayjs(selectedDate)}
+                    format="ddd, D MMM YYYY"
+                    onChange={handleDateChange}
+                    allowClear={false}
+                    disabledDate={(date) => date.isBefore(dayjs(), "day")}
+                    aria-label="Choose another class date"
+                  />
+                </div>
+              )}
 
               {/* Available Classes List */}
               <div className="class-schedule-list">

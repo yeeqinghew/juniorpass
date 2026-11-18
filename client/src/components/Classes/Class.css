@@ -106,28 +106,85 @@
   border: none;
 }
 
-/* Date Navigation */
-.class-date-nav {
+/* Upcoming session picker */
+.class-upcoming-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-sm);
 }
 
-.class-date-nav .ant-btn {
-  border: none;
-  flex-shrink: 0;
+.class-upcoming-heading .ant-btn {
+  height: auto;
+  padding: 0;
 }
 
-.custom-date-picker {
-  border: none;
-  flex-grow: 1;
-  max-width: 200px;
+.class-upcoming-label {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
-.custom-date-picker .ant-picker-input>input {
+.class-upcoming-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: var(--spacing-md);
+}
+
+.class-upcoming-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 6px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-dark);
+  font-family: inherit;
   text-align: center;
-  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.class-upcoming-date:hover {
+  border-color: var(--primary-color);
+}
+
+.class-upcoming-date.is-selected {
+  border-color: var(--primary-color);
+  background: var(--bg-info-light);
+}
+
+.class-upcoming-date > span {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.class-upcoming-date.is-selected > span {
+  color: var(--primary-dark);
+}
+
+.class-upcoming-date strong {
+  font-size: var(--font-size-sm);
+}
+
+.class-calendar-picker {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  background: var(--bg-cream);
+}
+
+.class-calendar-picker .ant-picker {
+  width: 100%;
 }
 
 /* Schedule List */
@@ -409,6 +466,19 @@
   .class-description {
     margin-bottom: 0;
     font-size: var(--font-size-sm);
+  }
+
+  .class-upcoming-heading {
+    align-items: flex-start;
+  }
+
+  .class-upcoming-heading .ant-btn {
+    white-space: normal;
+    text-align: right;
+  }
+
+  .class-upcoming-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .class-carousel-image,
