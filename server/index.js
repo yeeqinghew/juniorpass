@@ -9,6 +9,7 @@ const {
   requestObservability,
 } = require("./middleware/observability");
 const { checkReadiness } = require("./utils/readiness");
+const apiNotFound = require("./middleware/notFound");
 const app = express();
 
 // Trust proxy - required for Railway/Heroku/etc. to properly read X-Forwarded-* headers
@@ -119,9 +120,7 @@ app.use("/api", apiRouter);
 
 // The frontends are hosted separately on Vercel. Unknown backend routes must
 // return JSON instead of trying to serve a local frontend build.
-app.use((req, res) => {
-  res.status(404).json({ error: "API endpoint not found", request_id: req.requestId });
-});
+app.use(apiNotFound);
 
 app.use(errorObservability);
 
