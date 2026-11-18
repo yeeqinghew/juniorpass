@@ -63,11 +63,13 @@ test("issued sessions never expose the JWT in the response body", async () => {
         message: "Login successful",
       });
 
-      assert.deepEqual(body, {
-        message: "Login successful",
-        authenticated: true,
-      });
+      assert.equal(body.message, "Login successful");
+      assert.equal(body.authenticated, true);
       assert.equal(Object.hasOwn(body, "token"), false);
+      assert.equal(typeof body.expires_at, "string");
+      const expiresAt = new Date(body.expires_at).getTime();
+      assert.equal(Number.isNaN(expiresAt), false);
+      assert.ok(expiresAt > Date.now());
       assert.equal(cookieCalls.length, 1);
       assert.equal(cookieCalls[0][0], "jp_user_session");
       assert.equal(cookieCalls[0][2].httpOnly, true);
