@@ -1,32 +1,59 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-const http = require("node:http");
 const path = require("node:path");
-const express = require("express");
 
 const {
   AUTH_RATE_LIMIT_POLICIES,
   createAuthRateLimiter,
 } = require("../middleware/authRateLimiters");
 
-function request(port, pathname) {
-  return new Promise((resolve, reject) => {
-    const req = http.get(
-      { hostname: "127.0.0.1", port, path: pathname },
-      (res) => {
-        let body = "";
-        res.setEncoding("utf8");
-        res.on("data", (chunk) => {
-          body += chunk;
-        });
-        res.on("end", () => {
-          resolve({ status: res.statusCode, headers: res.headers, body });
-        });
+function createResponse() {
+  const headers = {};
+  return {
+    headers,
+    statusCode: 200,
+    body: null,
+    writableEnded: false,
+    getHeader(name) {
+      return headers[name.toLowerCase()];
+    },
+    setHeader(name, value) {
+      headers[name.toLowerCase()] = value;
+    },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      this.writableEnded = true;
+      return this;
+    },
+  };
+}
+
+async function runLimiter(limiter) {
+  const req = {
+    ip: "203.0.113.1",
+    method: "POST",
+    headers: {},
+    app: {
+      get(setting) {
+        return setting === "trust proxy" ? 1 : undefined;
       },
-    );
-    req.on("error", reject);
+    },
+  };
+  const res = createResponse();
+  await new Promise((resolve, reject) => {
+    const next = () => resolve();
+    Promise.resolve(limiter(req, res, next))
+      .then(() => {
+        if (res.writableEnded) resolve();
+      })
+      .catch(reject);
   });
+  return res;
 }
 
 test("sensitive authentication policies have dedicated limits", () => {
@@ -52,32 +79,20 @@ test("sensitive authentication policies have dedicated limits", () => {
   }
 });
 
-test("rate limiter returns a consistent JSON 429 response", async (t) => {
-  const app = express();
-  app.set("trust proxy", 1);
-  app.get(
-    "/limited",
-    createAuthRateLimiter({
-      windowMs: 60 * 1000,
-      max: 2,
-      skipSuccessfulRequests: false,
-      message: "Test limit reached",
-    }),
-    (req, res) => res.status(401).json({ message: "Invalid credential" }),
-  );
-
-  const server = await new Promise((resolve) => {
-    const instance = app.listen(0, "127.0.0.1", () => resolve(instance));
+test("rate limiter returns a consistent JSON 429 response", async () => {
+  const limiter = createAuthRateLimiter({
+    windowMs: 60 * 1000,
+    max: 2,
+    skipSuccessfulRequests: false,
+    message: "Test limit reached",
   });
-  t.after(() => new Promise((resolve) => server.close(resolve)));
 
-  const { port } = server.address();
-  assert.equal((await request(port, "/limited")).status, 401);
-  assert.equal((await request(port, "/limited")).status, 401);
+  assert.equal((await runLimiter(limiter)).statusCode, 200);
+  assert.equal((await runLimiter(limiter)).statusCode, 200);
 
-  const blocked = await request(port, "/limited");
-  assert.equal(blocked.status, 429);
-  assert.deepEqual(JSON.parse(blocked.body), { message: "Test limit reached" });
+  const blocked = await runLimiter(limiter);
+  assert.equal(blocked.statusCode, 429);
+  assert.deepEqual(blocked.body, { message: "Test limit reached" });
   assert.ok(blocked.headers["ratelimit-policy"] || blocked.headers.ratelimit);
 });
 
