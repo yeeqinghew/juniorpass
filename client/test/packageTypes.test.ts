@@ -45,7 +45,7 @@ test("getListingPackageTypes tolerates absent and malformed collections", () => 
     getListingPackageTypes({
       package_types: 42,
       outlets_info: [{ schedule_groups: null }, null],
-    }),
+    } as unknown as Parameters<typeof getListingPackageTypes>[0]),
     [],
   );
 });
