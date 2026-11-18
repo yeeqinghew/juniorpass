@@ -676,7 +676,7 @@ const BuyNow = ({
                 className="buynow-safety-alert"
                 type="warning"
                 showIcon
-                message="Safety information required"
+                message="Emergency contact required"
                 description="Add an emergency contact under Profile → Children & Classes before booking."
               />
             )}

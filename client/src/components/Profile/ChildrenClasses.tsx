@@ -209,6 +209,14 @@ const ChildrenClasses = () => {
     setIsAddChildModalOpen(true);
   };
 
+  const useAccountOwnerAsEmergencyContact = () => {
+    form.setFieldsValue({
+      emergency_contact_name: user?.name || "",
+      emergency_contact_relationship: "Parent",
+      emergency_contact_phone: user?.phone_number || "",
+    });
+  };
+
   const handleEditChild = (child) => {
     setEditingChild(child);
     form.setFieldsValue({
@@ -1211,6 +1219,22 @@ const ChildrenClasses = () => {
             <div className="cc-child-form-section">
               <h4>Emergency contact</h4>
               <p>Someone the activity partner can contact if you are unavailable.</p>
+              <Checkbox
+                className="cc-account-owner-contact"
+                disabled={!user?.name || !user?.phone_number}
+                onChange={(event) => {
+                  if (event.target.checked) {
+                    useAccountOwnerAsEmergencyContact();
+                  }
+                }}
+              >
+                Use the account owner as the emergency contact
+              </Checkbox>
+              {(!user?.name || !user?.phone_number) && (
+                <p className="cc-account-owner-contact-note">
+                  Add your name and phone number under Profile first to use this option.
+                </p>
+              )}
               <Form.Item
                 label="Contact name"
                 name="emergency_contact_name"
