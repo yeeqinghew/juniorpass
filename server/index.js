@@ -1,6 +1,14 @@
 const express = require("express");
 const cors = require("cors");
+const { installConsoleBridge, logger } = require("./utils/logger");
+installConsoleBridge();
 const client = require("./utils/redisClient");
+const pool = require("./db");
+const {
+  errorObservability,
+  requestObservability,
+} = require("./middleware/observability");
+const { checkReadiness } = require("./utils/readiness");
 const app = express();
 
 // Trust proxy - required for Railway/Heroku/etc. to properly read X-Forwarded-* headers
@@ -17,6 +25,8 @@ const isDevelopment = !["production", "staging"].includes(
 );
 const isLocalOrigin = (origin) =>
   /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+
+app.use(requestObservability);
 
 app.use(
   cors({
@@ -95,6 +105,14 @@ apiRouter.get("/health", (req, res) => {
   res.status(200).json({ status: "OK", message: "Server is up running ✨" });
 });
 
+apiRouter.get("/ready", async (req, res) => {
+  const readiness = await checkReadiness({ db: pool, redis: client });
+  return res.status(readiness.ready ? 200 : 503).json({
+    status: readiness.ready ? "READY" : "NOT_READY",
+    dependencies: readiness.dependencies,
+  });
+});
+
 // Keep direct Railway endpoints working while also accepting Vercel's /api proxy.
 app.use(apiRouter);
 app.use("/api", apiRouter);
@@ -102,12 +120,14 @@ app.use("/api", apiRouter);
 // The frontends are hosted separately on Vercel. Unknown backend routes must
 // return JSON instead of trying to serve a local frontend build.
 app.use((req, res) => {
-  res.status(404).json({ error: "API endpoint not found" });
+  res.status(404).json({ error: "API endpoint not found", request_id: req.requestId });
 });
+
+app.use(errorObservability);
 
 const port = process.env.PORT || 5000;
 const server = app.listen(port, () => {
-  console.log(`Server has started on port ${port}`);
+  logger.info("server_started", { port });
 });
 
 const {
