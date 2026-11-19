@@ -34,9 +34,14 @@ const Routers = () => {
   const { isAuthenticated, setLoading, setAuth } = useUserContext();
   const [isTimeoutModalOpen, setIsTimeoutModalOpen] = useState(false);
   const [isRenewingSession, setIsRenewingSession] = useState(false);
-  const sessionRenewalLockRef = useRef(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const sessionActionLockRef = useRef(false);
 
   const handleLogout = useCallback(async () => {
+    if (sessionActionLockRef.current) return;
+    sessionActionLockRef.current = true;
+    setIsLoggingOut(true);
+
     try {
       await fetchWithAuth(API_ENDPOINTS.LOGOUT, {
         method: "POST",
@@ -49,6 +54,8 @@ const Routers = () => {
     setIsTimeoutModalOpen(false);
     toast.success("You have been logged out due to inactivity");
     navigate("/login");
+    setIsLoggingOut(false);
+    sessionActionLockRef.current = false;
   }, [navigate, setAuth, setLoading]);
 
   const handleOnIdle = useCallback(() => {
@@ -64,8 +71,8 @@ const Routers = () => {
   });
 
   const handleStayLoggedIn = useCallback(async () => {
-    if (sessionRenewalLockRef.current) return;
-    sessionRenewalLockRef.current = true;
+    if (sessionActionLockRef.current) return;
+    sessionActionLockRef.current = true;
     setIsRenewingSession(true);
 
     try {
@@ -93,7 +100,7 @@ const Routers = () => {
       toast.error("Unable to renew your session. Please log in again.");
       navigate("/login");
     } finally {
-      sessionRenewalLockRef.current = false;
+      sessionActionLockRef.current = false;
       setIsRenewingSession(false);
     }
   }, [activate, navigate, setAuth, setLoading]);
@@ -134,7 +141,7 @@ const Routers = () => {
               block
               onClick={handleStayLoggedIn}
               loading={isRenewingSession}
-              disabled={isRenewingSession}
+              disabled={isRenewingSession || isLoggingOut}
               className="session-timeout-btn session-timeout-btn-primary"
             >
               Stay Logged In
@@ -143,6 +150,8 @@ const Routers = () => {
               size="large"
               block
               onClick={handleLogout}
+              loading={isLoggingOut}
+              disabled={isRenewingSession || isLoggingOut}
               className="session-timeout-btn"
             >
               Logout
