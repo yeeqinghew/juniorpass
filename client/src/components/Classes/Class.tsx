@@ -988,6 +988,7 @@ const Class = () => {
         user={user}
         children={children}
         onBookingSuccess={handleBookingSuccess}
+        onBookingCapacityChanged={refreshSlotAvailability}
       />
     </div>
   );

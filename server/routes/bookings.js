@@ -31,6 +31,10 @@ const { getPromotionPrice } = require("../services/promotionPricing.service");
 const { calculatePackageUpgrade } = require("../utils/packageUpgrade");
 const { getPackageTypes } = require("../utils/packageTypes");
 const {
+  getBookedCapacityQuery,
+  getScheduleCapacity,
+} = require("../utils/scheduleCapacity");
+const {
   applyScheduleExceptions,
 } = require("../services/classSessionManagement.service");
 const {
@@ -189,9 +193,7 @@ router.post("/", userAuthorization, async (req, res) => {
 
     const scheduleGroup = schedule.rows[0];
     const isProgressive = scheduleGroup.is_progressive === true;
-    const maxSlots = Number(
-      isProgressive ? scheduleGroup.capacity : scheduleGroup.slots,
-    );
+    const maxSlots = getScheduleCapacity(scheduleGroup);
     const schedule_group_id = scheduleGroup.schedule_group_id;
 
     if (!Number.isInteger(maxSlots) || maxSlots < 1) {
@@ -234,20 +236,15 @@ router.post("/", userAuthorization, async (req, res) => {
       frequency: scheduleGroup.frequency,
     });
 
+    const initialCapacityQuery = getBookedCapacityQuery({
+      isProgressive,
+      scheduleGroupId: schedule_group_id,
+      scheduleId: schedule_id,
+      startDate: start_date,
+    });
     const existingBookings = await pool.query(
-      isProgressive
-        ? `SELECT COUNT(*) AS count
-           FROM bookings
-           WHERE schedule_group_id = $1
-             AND status = 'confirmed'`
-        : `SELECT COUNT(*) AS count
-           FROM bookings
-           WHERE schedule_id = $1
-             AND DATE(start_date) = DATE($2::timestamp)
-             AND status = 'confirmed'`,
-      isProgressive
-        ? [schedule_group_id]
-        : [schedule_id, start_date],
+      initialCapacityQuery.text,
+      initialCapacityQuery.values,
     );
 
     const bookedCount = parseInt(existingBookings.rows[0].count);
@@ -314,20 +311,15 @@ router.post("/", userAuthorization, async (req, res) => {
           [schedule_id],
         );
       }
+      const currentCapacityQuery = getBookedCapacityQuery({
+        isProgressive,
+        scheduleGroupId: schedule_group_id,
+        scheduleId: schedule_id,
+        startDate: start_date,
+      });
       const currentCapacity = await client.query(
-        isProgressive
-          ? `SELECT COUNT(*)::integer AS count
-             FROM bookings
-             WHERE schedule_group_id = $1
-               AND status = 'confirmed'`
-          : `SELECT COUNT(*)::integer AS count
-             FROM bookings
-             WHERE schedule_id = $1
-               AND DATE(start_date) = DATE($2::timestamp)
-               AND status = 'confirmed'`,
-        isProgressive
-          ? [schedule_group_id]
-          : [schedule_id, start_date],
+        currentCapacityQuery.text,
+        currentCapacityQuery.values,
       );
       const currentBookedCount = currentCapacity.rows[0].count;
       if (currentBookedCount >= maxSlots) {
@@ -608,7 +600,7 @@ router.get("/availability/:scheduleId", async (req, res) => {
     // Get capacity from the selected schedule time slot.
     const schedule = await pool.query(
       `SELECT s.schedule_id, s.slots, s.day, s.start_time, s.end_time,
-              sg.frequency, sg.is_progressive,
+              sg.schedule_group_id, sg.capacity, sg.frequency, sg.is_progressive,
               l.listing_id, l.listing_title
        FROM schedules s
        JOIN schedule_groups sg ON s.schedule_group_id = sg.schedule_group_id
@@ -622,17 +614,20 @@ router.get("/availability/:scheduleId", async (req, res) => {
       return res.status(404).json({ error: "Schedule not found" });
     }
 
-    const maxSlots = schedule.rows[0].slots || 10;
+    const scheduleDetails = schedule.rows[0];
+    const isProgressive = scheduleDetails.is_progressive === true;
+    const maxSlots = getScheduleCapacity(scheduleDetails);
+    if (!Number.isInteger(maxSlots) || maxSlots < 1) {
+      return res.status(400).json({ error: "Class capacity is unavailable" });
+    }
 
-    // Count existing bookings for this schedule and date (using DATE comparison for consistency)
-    const bookings = await pool.query(
-      `SELECT COUNT(*) as count 
-       FROM bookings 
-       WHERE schedule_id = $1 
-       AND DATE(start_date) = DATE($2::timestamp)
-       AND status = 'confirmed'`,
-      [scheduleId, start_date],
-    );
+    const capacityQuery = getBookedCapacityQuery({
+      isProgressive,
+      scheduleGroupId: scheduleDetails.schedule_group_id,
+      scheduleId,
+      startDate: start_date,
+    });
+    const bookings = await pool.query(capacityQuery.text, capacityQuery.values);
 
     const bookedCount = parseInt(bookings.rows[0].count);
     const availableSpots = maxSlots - bookedCount;
@@ -641,18 +636,18 @@ router.get("/availability/:scheduleId", async (req, res) => {
     res.json({
       success: true,
       schedule_id: scheduleId,
-      listing_id: schedule.rows[0].listing_id,
-      listing_title: schedule.rows[0].listing_title,
-      day: schedule.rows[0].day,
-      timeslot: [schedule.rows[0].start_time, schedule.rows[0].end_time],
-      frequency: schedule.rows[0].frequency,
+      listing_id: scheduleDetails.listing_id,
+      listing_title: scheduleDetails.listing_title,
+      day: scheduleDetails.day,
+      timeslot: [scheduleDetails.start_time, scheduleDetails.end_time],
+      frequency: scheduleDetails.frequency,
       start_date,
       end_date,
       max_slots: maxSlots,
       booked_count: bookedCount,
       available_spots: availableSpots,
       is_full: isFull,
-      is_progressive: schedule.rows[0].is_progressive,
+      is_progressive: scheduleDetails.is_progressive,
     });
   } catch (error) {
     console.error(error);

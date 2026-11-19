@@ -115,6 +115,7 @@ type BuyNowProps = {
   user?: UserProfile | null;
   children?: BookingChild[];
   onBookingSuccess?: (updatedCredit?: number) => void;
+  onBookingCapacityChanged?: () => void;
 };
 
 const toPositiveCredits = (dollarValue: unknown, dollarsPerCredit: unknown) => {
@@ -203,6 +204,7 @@ const BuyNow = ({
   user,
   children,
   onBookingSuccess,
+  onBookingCapacityChanged,
 }: BuyNowProps) => {
   const [selectedChildId, setSelectedChildId] = useState<string | number | null>(null);
   const [selectedPackageType, setSelectedPackageType] = useState<PackageType | null>(null);
@@ -510,6 +512,9 @@ const BuyNow = ({
           onBookingSuccess(data.updated_credit);
         }
       } else {
+        if (data.error === "This timeslot is fully booked") {
+          onBookingCapacityChanged?.();
+        }
         toast.error(data.error || "Failed to create booking");
       }
     } catch (error) {
