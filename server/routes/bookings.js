@@ -29,6 +29,7 @@ const {
 } = require("../utils/safetyWaiver");
 const { getPromotionPrice } = require("../services/promotionPricing.service");
 const { calculatePackageUpgrade } = require("../utils/packageUpgrade");
+const { getPackageTypes } = require("../utils/packageTypes");
 const {
   applyScheduleExceptions,
 } = require("../services/classSessionManagement.service");
@@ -201,19 +202,7 @@ router.post("/", userAuthorization, async (req, res) => {
     const enrolledPackageType = package_type || "pay-as-you-go";
 
     // Validate package
-    let availablePackageTypes = scheduleGroup.package_types || [];
-
-    if (typeof availablePackageTypes === "string") {
-      availablePackageTypes = availablePackageTypes
-        .replace(/[{}]/g, "")
-        .split(",")
-        .map((type) => type.trim())
-        .filter(Boolean);
-    }
-
-    if (!Array.isArray(availablePackageTypes)) {
-      availablePackageTypes = [];
-    }
+    const availablePackageTypes = getPackageTypes(scheduleGroup.package_types);
 
     if (!availablePackageTypes.includes(enrolledPackageType)) {
       return res.status(400).json({ error: "Package type is not available" });
@@ -728,11 +717,7 @@ router.post("/:bookingId/extend", userAuthorization, async (req, res) => {
     );
     const details = detailsResult.rows[0];
 
-    if (
-      !details ||
-      !Array.isArray(details.package_types) ||
-      !details.package_types.includes("full-term")
-    ) {
+    if (!details || !getPackageTypes(details.package_types).includes("full-term")) {
       await client.query("ROLLBACK");
       return res.status(409).json({ error: "A full-term package is not available" });
     }
@@ -970,16 +955,17 @@ router.get("/user", userAuthorization, async (req, res) => {
           fullTermClasses: booking.full_term_class_count,
           shortTermClasses: booking.classes_total,
         });
+        const packageTypes = getPackageTypes(booking.package_types);
         const canExtend =
           booking.status === "confirmed" &&
           booking.enrolled_package_type === "short-term" &&
-          Array.isArray(booking.package_types) &&
-          booking.package_types.includes("full-term") &&
+          packageTypes.includes("full-term") &&
           new Date(booking.extension_deadline) > new Date() &&
           Boolean(upgrade);
 
         return {
           ...booking,
+          package_types: packageTypes,
           can_extend_to_full_term: canExtend,
           extension_credits: canExtend ? upgrade.upgradeCredits : null,
           extension_classes: canExtend ? upgrade.classesToAdd : null,
