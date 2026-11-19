@@ -29,6 +29,10 @@ const {
   revokeAuthSession,
   revokeToken,
 } = require("../utils/authSession");
+const {
+  ContentSecurityValidationError,
+  normalizeCloudinaryImageUrl,
+} = require("../utils/contentSecurity");
 
 const { OAuth2Client } = require("google-auth-library");
 const sendEmail = require("../utils/emailSender");
@@ -610,6 +614,17 @@ router.patch("/:id", authorization, async (req, res) => {
   try {
     const userId = req.user;
     const { name, phone_number, display_picture } = req.body;
+    let normalizedDisplayPicture = display_picture;
+    if (display_picture !== undefined) {
+      try {
+        normalizedDisplayPicture = normalizeCloudinaryImageUrl(display_picture);
+      } catch (error) {
+        if (error instanceof ContentSecurityValidationError) {
+          return res.status(400).json({ error: error.message });
+        }
+        throw error;
+      }
+    }
 
     await pool.query(
       `
@@ -619,7 +634,7 @@ router.patch("/:id", authorization, async (req, res) => {
        display_picture = COALESCE($3, display_picture)
       WHERE user_id = $4
       `,
-      [name, phone_number, display_picture, userId],
+      [name, phone_number, normalizedDisplayPicture, userId],
     );
 
     return res.status(200).json({ message: "Profile updated successfully" });

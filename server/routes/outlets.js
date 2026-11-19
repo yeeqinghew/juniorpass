@@ -5,6 +5,10 @@ const { AUTH_ROLES } = require("../constants/auth");
 const authorization = require("../middleware/authorization").forRole(
   AUTH_ROLES.PARTNER,
 );
+const {
+  ContentSecurityValidationError,
+  normalizeCloudinaryImageList,
+} = require("../utils/contentSecurity");
 
 // Get all outlets for a partner
 router.get("/partner/:partnerId", authorization, async (req, res) => {
@@ -83,6 +87,18 @@ router.post("/", authorization, async (req, res) => {
       error: "Missing required fields: outlet_name, address, nearest_mrt",
     });
 
+  let normalizedImages = images;
+  try {
+    if (images !== undefined) {
+      normalizedImages = normalizeCloudinaryImageList(images);
+    }
+  } catch (error) {
+    if (error instanceof ContentSecurityValidationError) {
+      return res.status(400).json({ error: error.message });
+    }
+    throw error;
+  }
+
   try {
     // Check for duplicate outlet name for the same partner
     const duplicate = await pool.query(
@@ -105,7 +121,7 @@ router.post("/", authorization, async (req, res) => {
         nearest_mrt,
         description,
         phone_number,
-        images,
+        normalizedImages,
       ],
     );
 
@@ -131,7 +147,18 @@ router.post("/", authorization, async (req, res) => {
 router.patch("/:outletId", authorization, async (req, res) => {
   const { outletId } = req.params;
   const partnerId = req.user;
-  const updates = req.body;
+  const updates = { ...req.body };
+
+  if (updates.images !== undefined) {
+    try {
+      updates.images = normalizeCloudinaryImageList(updates.images);
+    } catch (error) {
+      if (error instanceof ContentSecurityValidationError) {
+        return res.status(400).json({ error: error.message });
+      }
+      throw error;
+    }
+  }
 
   try {
     const ownerCheck = await pool.query(

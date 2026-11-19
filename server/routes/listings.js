@@ -17,6 +17,10 @@ const { withMinimumListingCredits } = require("../utils/listingPricing");
 const { getShortTermPrice } = require("../utils/packageCredits");
 const { normalizeBookingPolicy } = require("../utils/bookingPolicy");
 const {
+  ContentSecurityValidationError,
+  normalizeCloudinaryImageList,
+} = require("../utils/contentSecurity");
+const {
   dateOnly,
   hasStructuralScheduleChange,
 } = require("../utils/listingScheduleEdits");
@@ -83,6 +87,17 @@ router.post("", authorization, async (req, res) => {
     const partnerIdFromToken = req.user;
     const parsedCategoryIds = parseCategoryIds(category_ids);
     const bookingPolicy = normalizeBookingPolicy(req.body);
+    let normalizedImages = images;
+    try {
+      normalizedImages = normalizeCloudinaryImageList(images || [], {
+        allowEmpty: true,
+      });
+    } catch (error) {
+      if (error instanceof ContentSecurityValidationError) {
+        return res.status(400).json({ error: error.message });
+      }
+      throw error;
+    }
 
     if (!bookingPolicy) {
       return res.status(400).json({
@@ -217,7 +232,7 @@ router.post("", authorization, async (req, res) => {
         description,
         age_groups,
         rating,
-        images,
+        normalizedImages,
         active,
         cancellation_notice_hours,
         refund_before_deadline_percent,
@@ -798,6 +813,18 @@ router.patch("/:id", authorization, async (req, res) => {
       age_groups: req.body.age_groups ?? listing.age_groups,
       images: req.body.images ?? listing.images,
     };
+    if (req.body.images !== undefined) {
+      try {
+        updatedData.images = normalizeCloudinaryImageList(req.body.images, {
+          allowEmpty: false,
+        });
+      } catch (error) {
+        if (error instanceof ContentSecurityValidationError) {
+          return res.status(400).json({ error: error.message });
+        }
+        throw error;
+      }
+    }
     const parsedCategoryIds =
       req.body.category_ids === undefined
         ? undefined

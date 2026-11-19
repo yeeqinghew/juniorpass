@@ -28,6 +28,7 @@ import {
   EnvironmentOutlined,
 } from "@ant-design/icons";
 import { fetchWithAuth, API_ENDPOINTS } from "../../utils/api";
+import { safeExternalHttpsUrl } from "../../utils/safeUrl";
 import "./index.css";
 
 const { Title, Text, Paragraph } = Typography;
@@ -86,6 +87,7 @@ const Partner = () => {
   const [loading, setLoading] = useState(true);
   const { partnerId } = useParams();
   const navigate = useNavigate();
+  const safeWebsite = safeExternalHttpsUrl(partner.website);
 
   const getPartnerDetails = async () => {
     setLoading(true);
@@ -234,11 +236,11 @@ const Partner = () => {
                     {partner?.email || "Not provided"}
                   </Text>
                 </div>
-                {partner?.website && (
+                {safeWebsite && (
                   <div className="info-item">
                     <Text className="info-label">Website</Text>
                     <a
-                      href={partner.website}
+                      href={safeWebsite}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="website-link"
@@ -532,11 +534,11 @@ const Partner = () => {
                 </Tag>
               </div>
             </div>
-            {partner?.website && (
+            {safeWebsite && (
               <Button
                 type="primary"
                 icon={<GlobalOutlined />}
-                href={partner.website}
+                href={safeWebsite}
                 target="_blank"
                 className="visit-website-btn"
               >

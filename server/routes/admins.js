@@ -24,6 +24,7 @@ const {
   recordAuditEvent,
   requestAuditId,
 } = require("../services/auditLog.service");
+const { escapeHtml } = require("../utils/contentSecurity");
 
 const ADMIN_BOOKING_STATUSES = new Set([
   "all",
@@ -1112,7 +1113,7 @@ router.post("/createPartner", authorization, adminOnly, async (req, res) => {
             </div>
 
             <div class="content">
-              <p>Hello${partner_name ? ` <strong>${partner_name}</strong>` : ""},</p>
+              <p>Hello${partner_name ? ` <strong>${escapeHtml(partner_name)}</strong>` : ""},</p>
 
               <p>You've been invited to join Junior Pass as a partner organization! We're excited to have you on board.</p>
 
@@ -1124,11 +1125,11 @@ router.post("/createPartner", authorization, adminOnly, async (req, res) => {
                 </div>
                 <div class="credential-row">
                   <span class="credential-label">Email:</span>
-                  <span class="credential-value">${email}</span>
+                  <span class="credential-value">${escapeHtml(email)}</span>
                 </div>
                 <div class="credential-row">
                   <span class="credential-label">Temporary Password:</span>
-                  <span class="credential-value">${tempPassword}</span>
+                  <span class="credential-value">${escapeHtml(tempPassword)}</span>
                 </div>
               </div>
 

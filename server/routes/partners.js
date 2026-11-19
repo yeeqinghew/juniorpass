@@ -17,6 +17,11 @@ const { partnerLoginLimiter } = require("../middleware/authRateLimiters");
 const { parseCategoryIds } = require("../utils/categories");
 const { isStrongPassword } = require("../utils/passwordValidation");
 const { withMinimumListingCredits } = require("../utils/listingPricing");
+const {
+  ContentSecurityValidationError,
+  normalizeExternalWebsite,
+  normalizeCloudinaryImageUrl,
+} = require("../utils/contentSecurity");
 
 router.use(etagMiddleware);
 
@@ -192,6 +197,22 @@ router.patch("/:id", authorization, async (req, res) => {
       outlets,
     } = req.body;
 
+    let normalizedWebsite = website;
+    let normalizedPicture = picture;
+    try {
+      if (website !== undefined) {
+        normalizedWebsite = normalizeExternalWebsite(website);
+      }
+      if (picture !== undefined) {
+        normalizedPicture = normalizeCloudinaryImageUrl(picture);
+      }
+    } catch (error) {
+      if (error instanceof ContentSecurityValidationError) {
+        return res.status(400).json({ error: error.message });
+      }
+      throw error;
+    }
+
     const parsedCategoryIds =
       category_ids === undefined ? undefined : parseCategoryIds(category_ids);
     if (
@@ -237,7 +258,14 @@ router.patch("/:id", authorization, async (req, res) => {
                    rating, credit, picture, contact_number,
                    is_profile_complete,
                    requires_password_change, created_at, updated_at`,
-        [partner_name, description, picture, contact_number, website, id],
+        [
+          partner_name,
+          description,
+          normalizedPicture,
+          contact_number,
+          normalizedWebsite,
+          id,
+        ],
       );
 
       if (parsedCategoryIds) {
