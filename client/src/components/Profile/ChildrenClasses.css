@@ -669,6 +669,21 @@
   margin-bottom: 0;
 }
 
+.cc-extension-modal-content {
+  display: grid;
+  gap: var(--spacing-lg);
+}
+
+.cc-extension-modal-content h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-size-lg);
+}
+
+.cc-extension-modal-content .cc-modal-btns {
+  margin-top: 0;
+}
+
 .cc-booking-actions {
   display: flex;
   flex: 0 0 auto;

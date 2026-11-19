@@ -118,6 +118,8 @@ const ChildrenClasses = () => {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [bookingToCancel, setBookingToCancel] = useState(null);
   const [cancelLoading, setCancelLoading] = useState(false);
+  const [bookingToExtend, setBookingToExtend] = useState(null);
+  const [extensionLoading, setExtensionLoading] = useState(false);
   const [isDeleteChildModalOpen, setIsDeleteChildModalOpen] = useState(false);
   const [childToDelete, setChildToDelete] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -378,47 +380,36 @@ const ChildrenClasses = () => {
   };
 
   const handleExtendBooking = (booking) => {
-    const requiredCredits = Number(booking.extension_credits) || 0;
-    const classesAdded = Number(booking.extension_classes) || 0;
+    setBookingToExtend(booking);
+  };
 
-    Modal.confirm({
-      title: "Extend to the full-term package?",
-      content: (
-        <div className="cc-extension-confirmation">
-          <p>
-            Your short-term payment has already been deducted. You will only
-            pay the remaining <strong>{requiredCredits} credits</strong>.
-          </p>
-          <p>
-            This adds {classesAdded} {classesAdded === 1 ? "class" : "classes"}
-            {user?.credit !== undefined
-              ? ` and leaves ${Math.max(0, Number(user.credit) - requiredCredits)} credits in your wallet.`
-              : "."}
-          </p>
-        </div>
-      ),
-      okText: `Pay ${requiredCredits} credits`,
-      cancelText: "Not now",
-      centered: true,
-      async onOk() {
-        const response = await fetchWithAuth(
-          API_ENDPOINTS.EXTEND_BOOKING(booking.booking_id),
-          { method: "POST" },
-        );
-        const data = await response.json();
-        if (!response.ok) {
-          toast.error(data.error || "Unable to extend this package");
-          throw new Error(data.error || "Unable to extend this package");
-        }
+  const confirmExtendBooking = async () => {
+    if (!bookingToExtend || extensionLoading) return;
 
-        toast.success(
-          data.already_extended
-            ? "This package is already full-term"
-            : `Package extended — ${data.classes_added} classes added`,
-        );
-        await Promise.all([fetchChildrenAndBookings(), reauthenticate()]);
-      },
-    });
+    setExtensionLoading(true);
+    try {
+      const response = await fetchWithAuth(
+        API_ENDPOINTS.EXTEND_BOOKING(bookingToExtend.booking_id),
+        { method: "POST" },
+      );
+      const data = await response.json();
+      if (!response.ok) {
+        toast.error(data.error || "Unable to extend this package");
+        return;
+      }
+
+      toast.success(
+        data.already_extended
+          ? "This package is already full-term"
+          : `Package extended — ${data.classes_added} classes added`,
+      );
+      setBookingToExtend(null);
+      await Promise.all([fetchChildrenAndBookings(), reauthenticate()]);
+    } catch {
+      toast.error("Unable to extend this package. Please try again.");
+    } finally {
+      setExtensionLoading(false);
+    }
   };
 
   const openMakeupRequest = (occurrence) => {
@@ -1366,6 +1357,45 @@ const ChildrenClasses = () => {
             </Button>
           </div>
         </Space>
+      </Modal>
+
+      <Modal
+        open={Boolean(bookingToExtend)}
+        onCancel={() => {
+          if (!extensionLoading) setBookingToExtend(null);
+        }}
+        footer={null}
+        centered
+        width={460}
+        maskClosable={!extensionLoading}
+        closable={!extensionLoading}
+        className="cc-modal cc-extension-modal"
+        title={null}
+      >
+        <div className="cc-extension-modal-content">
+          <h3>Extend to the full-term package?</h3>
+          <div className="cc-extension-confirmation">
+            <p>
+              Your short-term payment has already been deducted. You will only
+              pay the remaining <strong>{Number(bookingToExtend?.extension_credits) || 0} credits</strong>.
+            </p>
+            <p>
+              This adds {Number(bookingToExtend?.extension_classes) || 0}{" "}
+              {Number(bookingToExtend?.extension_classes) === 1 ? "class" : "classes"}
+              {user?.credit !== undefined
+                ? ` and leaves ${Math.max(0, Number(user.credit) - (Number(bookingToExtend?.extension_credits) || 0))} credits in your wallet.`
+                : "."}
+            </p>
+          </div>
+          <div className="cc-modal-btns">
+            <Button disabled={extensionLoading} onClick={() => setBookingToExtend(null)}>
+              Not now
+            </Button>
+            <Button type="primary" loading={extensionLoading} onClick={confirmExtendBooking}>
+              Pay {Number(bookingToExtend?.extension_credits) || 0} credits
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* ══ Cancel booking ══ */}
