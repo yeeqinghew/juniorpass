@@ -1,6 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { buildOccurrenceWindows } = require("../utils/bookingConflicts");
+const {
+  buildOccurrenceWindows,
+  findChildBookingConflicts,
+} = require("../utils/bookingConflicts");
 
 test("builds every weekly package occurrence with the original duration", () => {
   const occurrences = buildOccurrenceWindows({
@@ -36,4 +39,19 @@ test("uses the configured interval for monthly packages", () => {
 
   assert.equal(occurrences[1].start_at, "2026-11-02T09:00:00");
   assert.equal(occurrences[1].end_at, "2026-11-02T10:30:00");
+});
+
+test("ignores class occurrences that have already ended", async () => {
+  const db = {
+    async query(sql) {
+      assert.match(sql, /co\.scheduled_end_date > CURRENT_TIMESTAMP/);
+      return { rows: [] };
+    },
+  };
+
+  const conflicts = await findChildBookingConflicts(db, "child-id", [
+    { start_at: "2026-12-01T10:00:00", end_at: "2026-12-01T11:00:00" },
+  ]);
+
+  assert.deepEqual(conflicts, []);
 });

@@ -77,6 +77,7 @@ const findChildBookingConflicts = async (
        JOIN listings l ON l.listing_id = b.listing_id
        WHERE b.status = 'confirmed'
          AND co.status IN ('scheduled', 'rescheduled')
+         AND co.scheduled_end_date > CURRENT_TIMESTAMP
          AND ($3::uuid IS NULL OR co.occurrence_id <> $3)
      )
      SELECT DISTINCT ON (existing.occurrence_id)
