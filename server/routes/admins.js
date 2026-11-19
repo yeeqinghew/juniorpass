@@ -25,6 +25,7 @@ const {
   requestAuditId,
 } = require("../services/auditLog.service");
 const { escapeHtml } = require("../utils/contentSecurity");
+const { parseCategoryIds } = require("../utils/categories");
 
 const ADMIN_BOOKING_STATUSES = new Set([
   "all",
@@ -32,6 +33,12 @@ const ADMIN_BOOKING_STATUSES = new Set([
   "in_progress",
   "completed",
   "cancelled",
+]);
+const LISTING_AGE_GROUPS = new Set([
+  "infant",
+  "toddler",
+  "preschooler",
+  "above-7",
 ]);
 
 const parsePositiveInteger = (value, fallback, maximum) => {
@@ -586,6 +593,134 @@ router.get("/listings", authorization, adminOnly, async (_req, res) => {
     return res.status(500).json({ error: error.message });
   }
 });
+
+/**
+ * Admin content correction for a partner-owned listing. Schedules, capacity and
+ * pricing deliberately remain in the partner schedule editor because changing
+ * them can affect existing enrolments.
+ */
+router.patch(
+  "/listings/:id",
+  authorization,
+  adminOnly,
+  async (req, res) => {
+    const listingId = req.params.id;
+    const title = typeof req.body?.listing_title === "string"
+      ? req.body.listing_title.trim()
+      : "";
+    const description = typeof req.body?.description === "string"
+      ? req.body.description.trim()
+      : "";
+    const ageGroups = Array.isArray(req.body?.age_groups)
+      ? [...new Set(req.body.age_groups.map((value) => String(value).trim()).filter(Boolean))]
+      : [];
+    const categoryIds = parseCategoryIds(req.body?.category_ids);
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+
+    if (title.length < 2 || title.length > 200) {
+      return res.status(400).json({ error: "Class title must be between 2 and 200 characters" });
+    }
+    if (description.length < 1 || description.length > 5000) {
+      return res.status(400).json({ error: "Description must be between 1 and 5,000 characters" });
+    }
+    if (
+      ageGroups.length === 0 ||
+      ageGroups.some((group) => !LISTING_AGE_GROUPS.has(group))
+    ) {
+      return res.status(400).json({ error: "Select at least one valid age group" });
+    }
+    if (!categoryIds?.length) {
+      return res.status(400).json({ error: "Select at least one valid category" });
+    }
+    if (reason.length < 3 || reason.length > 500) {
+      return res.status(400).json({ error: "Provide an edit reason between 3 and 500 characters" });
+    }
+
+    const db = await pool.connect();
+    try {
+      await db.query("BEGIN");
+      const listingResult = await db.query(
+        `SELECT l.listing_id, l.listing_title, l.description, l.age_groups
+         FROM listings l WHERE l.listing_id = $1 FOR UPDATE`,
+        [listingId],
+      );
+      if (listingResult.rowCount === 0) {
+        await db.query("ROLLBACK");
+        return res.status(404).json({ error: "Listing not found" });
+      }
+
+      const validCategories = await db.query(
+        `SELECT category_id FROM activity_categories
+         WHERE is_active = true AND category_id = ANY($1::integer[])`,
+        [categoryIds],
+      );
+      if (validCategories.rowCount !== categoryIds.length) {
+        await db.query("ROLLBACK");
+        return res.status(400).json({ error: "One or more selected categories are unavailable" });
+      }
+
+      const currentCategories = await db.query(
+        "SELECT category_id FROM listing_activity_categories WHERE listing_id = $1 ORDER BY category_id",
+        [listingId],
+      );
+      const updated = await db.query(
+        `UPDATE listings
+         SET listing_title = $1, description = $2, age_groups = $3
+         WHERE listing_id = $4
+         RETURNING listing_id, listing_title, description, age_groups, updated_at`,
+        [title, description, ageGroups, listingId],
+      );
+      await db.query("DELETE FROM listing_activity_categories WHERE listing_id = $1", [listingId]);
+      await db.query(
+        `INSERT INTO listing_activity_categories (listing_id, category_id)
+         SELECT $1, UNNEST($2::integer[])`,
+        [listingId, categoryIds],
+      );
+      await recordAuditEvent(db, {
+        actorType: AUTH_ROLES.ADMIN,
+        actorId: req.user,
+        action: "CLASS_UPDATED_BY_ADMIN",
+        entityType: "class",
+        entityId: listingId,
+        before: {
+          ...listingResult.rows[0],
+          category_ids: currentCategories.rows.map((row) => row.category_id),
+        },
+        after: {
+          ...updated.rows[0],
+          category_ids: categoryIds,
+        },
+        metadata: { reason },
+        requestId: requestAuditId(req),
+      });
+      await db.query("COMMIT");
+
+      try {
+        let cursor = "0";
+        do {
+          const [nextCursor, keys] = await redisClient.scan(
+            cursor,
+            "MATCH",
+            "*listings*",
+            "COUNT",
+            100,
+          );
+          cursor = nextCursor;
+          if (keys.length) await redisClient.del(...keys);
+        } while (cursor !== "0");
+      } catch (cacheError) {
+        console.error("Listing cache invalidation failed:", cacheError.message);
+      }
+      return res.status(200).json({ listing: updated.rows[0] });
+    } catch (error) {
+      await db.query("ROLLBACK").catch(() => {});
+      console.error("ERROR in PATCH /admins/listings/:id", error.message);
+      return res.status(500).json({ error: "Unable to update listing" });
+    } finally {
+      db.release();
+    }
+  },
+);
 
 router.patch(
   "/accounts/:accountType/:accountId/suspension",
