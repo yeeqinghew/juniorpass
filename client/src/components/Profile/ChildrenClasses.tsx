@@ -160,6 +160,27 @@ const ChildrenClasses = () => {
     );
   }, [occurrences, searchTerm]);
 
+  const nextOccurrenceByBooking = useMemo(() => {
+    const now = dayjs();
+    const nextOccurrences = new Map();
+
+    occurrences.forEach((occurrence) => {
+      if (occurrence.status === "cancelled") return;
+
+      const start = occurrence.rescheduled_to || occurrence.scheduled_date;
+      const end = occurrence.scheduled_end_date || start;
+      if (!start || !parseClassScheduleTime(end).isAfter(now)) return;
+
+      const current = nextOccurrences.get(occurrence.booking_id);
+      const currentStart = current?.rescheduled_to || current?.scheduled_date;
+      if (!currentStart || parseClassScheduleTime(start).isBefore(parseClassScheduleTime(currentStart))) {
+        nextOccurrences.set(occurrence.booking_id, occurrence);
+      }
+    });
+
+    return nextOccurrences;
+  }, [occurrences]);
+
   const fetchChildrenAndBookings = useCallback(async () => {
     setLoading(true);
     try {
@@ -557,15 +578,37 @@ const ChildrenClasses = () => {
   const getFilteredBookings = (childId) => {
     const now = dayjs();
     let list = filteredBookings.filter((b) => b.child_id === childId);
-    if (filterType === "upcoming")
-      list = list.filter(
-        (b) =>
-          b.status !== "cancelled" &&
-          parseClassScheduleTime(b.start_date).isSameOrAfter(now),
-      );
-    else if (filterType === "past")
-      list = list.filter((b) => parseClassScheduleTime(b.start_date).isBefore(now));
+    if (filterType === "upcoming") {
+      list = list.filter((booking) => {
+        if (booking.status === "cancelled") return false;
+        const hasOccurrenceData = occurrences.some(
+          (occurrence) => occurrence.booking_id === booking.booking_id,
+        );
+        return hasOccurrenceData
+          ? nextOccurrenceByBooking.has(booking.booking_id)
+          : parseClassScheduleTime(booking.start_date).isSameOrAfter(now);
+      });
+    } else if (filterType === "past") {
+      list = list.filter((booking) => {
+        const hasOccurrenceData = occurrences.some(
+          (occurrence) => occurrence.booking_id === booking.booking_id,
+        );
+        return hasOccurrenceData
+          ? !nextOccurrenceByBooking.has(booking.booking_id)
+          : parseClassScheduleTime(booking.start_date).isBefore(now);
+      });
+    }
     return list;
+  };
+
+  const isUpcomingBooking = (booking) => {
+    if (booking.status === "cancelled") return false;
+    const hasOccurrenceData = occurrences.some(
+      (occurrence) => occurrence.booking_id === booking.booking_id,
+    );
+    return hasOccurrenceData
+      ? nextOccurrenceByBooking.has(booking.booking_id)
+      : parseClassScheduleTime(booking.start_date).isSameOrAfter(dayjs());
   };
 
   const getChildImage = (child) => {
@@ -593,8 +636,15 @@ const ChildrenClasses = () => {
       imageUrl = booking.partner_picture;
     }
 
+    const nextOccurrence = nextOccurrenceByBooking.get(booking.booking_id);
+    const nextClassStart =
+      nextOccurrence?.rescheduled_to ||
+      nextOccurrence?.scheduled_date ||
+      booking.start_date;
+    const nextClassEnd =
+      nextOccurrence?.scheduled_end_date || booking.end_date;
     const now = dayjs();
-    const classStart = parseClassScheduleTime(booking.start_date);
+    const classStart = parseClassScheduleTime(nextClassStart);
     const bookingPolicy = getBookingPolicy(booking);
     const cancellationTerms = getCancellationTerms(booking);
 
@@ -710,13 +760,12 @@ const ChildrenClasses = () => {
             <div className="cc-booking-meta">
               <span className="cc-booking-meta-item">
                 <CalendarOutlined />
-                {formatDate(booking.start_date)}
+                {formatDate(nextClassStart)}
               </span>
 
               <span className="cc-booking-meta-item">
                 <ClockCircleOutlined />
-                {formatTime(booking.start_date)} –{" "}
-                {formatTime(booking.end_date)}
+                {formatTime(nextClassStart)} – {formatTime(nextClassEnd)}
               </span>
             </div>
 
@@ -839,11 +888,10 @@ const ChildrenClasses = () => {
 
   const visibleBookingCount = filteredBookings.filter((booking) => {
     const startDate = parseClassScheduleTime(booking.start_date);
-    const now = dayjs();
     if (filterType === "upcoming") {
-      return booking.status !== "cancelled" && startDate.isSameOrAfter(now);
+      return isUpcomingBooking(booking);
     }
-    if (filterType === "past") return startDate.isBefore(now);
+    if (filterType === "past") return !isUpcomingBooking(booking) && startDate.isBefore(dayjs());
     return true;
   }).length;
 
