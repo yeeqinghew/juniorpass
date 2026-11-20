@@ -100,6 +100,7 @@ apiRouter.use("/promotions", require("./routes/promotions"));
 apiRouter.use("/payouts", require("./routes/payouts"));
 apiRouter.use("/admin-payments", require("./routes/adminPayments"));
 apiRouter.use("/audit-log", require("./routes/auditLog"));
+apiRouter.use("/credit-adjustments", require("./routes/creditAdjustments"));
 
 // health check endpoint
 apiRouter.get("/health", (req, res) => {

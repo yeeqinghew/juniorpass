@@ -188,6 +188,13 @@ router.post("/admin", adminAuthorization, async (req, res) => {
       }),
       { credits: 0, amount: 0 },
     );
+    if (totals.credits <= 0 || totals.amount <= 0) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        error:
+          "Available earnings do not yet cover the partner's manual deductions",
+      });
+    }
     const periodStart = earnings.rows[0].available_at;
     const payout = await client.query(
       `INSERT INTO partner_payouts (
@@ -368,7 +375,7 @@ router.get("/:payoutId/statement.csv", statementAuthorization, async (req, res, 
       const rows = [
         ["Class", "Session date", "Package", "Credits", "Rate", "Amount (SGD)"],
         ...statement.items.map((item) => [
-          item.listing_title || "Opening balance", formatDate(item.scheduled_date), item.enrolled_package_type || "—",
+          item.listing_title || (item.source === "MANUAL_ADJUSTMENT" ? "Manual credit adjustment" : "Opening balance"), formatDate(item.scheduled_date), item.enrolled_package_type || "—",
           item.credits, item.dollars_per_credit, item.gross_amount,
         ]),
       ];
@@ -389,7 +396,7 @@ router.get("/:payoutId/statement", statementAuthorization, async (req, res, next
       const statement = await loadStatement(req.params.payoutId, req.user, req.authRole);
       if (!statement) return res.status(404).json({ error: "Payout statement not found" });
       const { payout, items } = statement;
-      const rows = items.map((item) => `<tr><td>${escapeHtml(item.listing_title || "Opening balance")}</td><td>${formatDate(item.scheduled_date)}</td><td>${escapeHtml(item.enrolled_package_type || "—")}</td><td>${escapeHtml(item.credits)}</td><td>SGD ${Number(item.gross_amount).toFixed(2)}</td></tr>`).join("");
+      const rows = items.map((item) => `<tr><td>${escapeHtml(item.listing_title || (item.source === "MANUAL_ADJUSTMENT" ? "Manual credit adjustment" : "Opening balance"))}</td><td>${formatDate(item.scheduled_date)}</td><td>${escapeHtml(item.enrolled_package_type || "—")}</td><td>${escapeHtml(item.credits)}</td><td>SGD ${Number(item.gross_amount).toFixed(2)}</td></tr>`).join("");
       res.set("Content-Type", "text/html; charset=utf-8");
       res.send(`<!doctype html><html><head><meta charset="utf-8"><title>Payout statement</title><style>${payoutStatementCss}</style></head><body><header><h1>Junior Pass payout statement</h1><div>${escapeHtml(payout.partner_name)}</div></header><dl><dt>Statement ID</dt><dd>${escapeHtml(payout.payout_id)}</dd><dt>Period</dt><dd>${formatDate(payout.period_start)} – ${formatDate(new Date(new Date(payout.period_end).getTime() - 86400000))}</dd><dt>Status</dt><dd>${escapeHtml(payout.status)}</dd><dt>Transfer reference</dt><dd>${escapeHtml(payout.transfer_reference || "Pending")}</dd></dl><table><thead><tr><th>Class</th><th>Session</th><th>Package</th><th>Credits</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table><p class="total">Total: SGD ${Number(payout.net_amount).toFixed(2)}</p><button onclick="window.print()">Print / Save PDF</button></body></html>`);
     } catch (statementError) {

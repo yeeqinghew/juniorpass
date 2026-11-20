@@ -780,6 +780,53 @@ CREATE TRIGGER audit_events_append_only
     BEFORE UPDATE OR DELETE ON audit_events
     FOR EACH ROW EXECUTE FUNCTION prevent_audit_event_mutation();
 
+-- Immutable manual corrections to parent and partner credit balances.
+CREATE TABLE credit_adjustments (
+    adjustment_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    account_type VARCHAR(20) NOT NULL CHECK (account_type IN ('parent', 'partner')),
+    parent_id UUID REFERENCES users(user_id) ON DELETE RESTRICT,
+    partner_id UUID REFERENCES partners(partner_id) ON DELETE RESTRICT,
+    credit_delta INTEGER NOT NULL CHECK (credit_delta <> 0),
+    balance_before INTEGER NOT NULL CHECK (balance_before >= 0),
+    balance_after INTEGER NOT NULL CHECK (balance_after >= 0),
+    reason VARCHAR(1000) NOT NULL CHECK (LENGTH(TRIM(reason)) >= 10),
+    reference VARCHAR(200),
+    idempotency_key VARCHAR(100) NOT NULL UNIQUE,
+    created_by UUID NOT NULL REFERENCES admins(admin_id) ON DELETE RESTRICT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CHECK (balance_after = balance_before + credit_delta),
+    CHECK (
+      (account_type = 'parent' AND parent_id IS NOT NULL AND partner_id IS NULL)
+      OR
+      (account_type = 'partner' AND partner_id IS NOT NULL AND parent_id IS NULL)
+    )
+);
+
+CREATE INDEX credit_adjustments_parent_created_idx
+    ON credit_adjustments(parent_id, created_at DESC)
+    WHERE parent_id IS NOT NULL;
+CREATE INDEX credit_adjustments_partner_created_idx
+    ON credit_adjustments(partner_id, created_at DESC)
+    WHERE partner_id IS NOT NULL;
+
+ALTER TABLE transactions
+    ADD COLUMN credit_adjustment_id UUID
+    REFERENCES credit_adjustments(adjustment_id) ON DELETE RESTRICT;
+CREATE UNIQUE INDEX transactions_credit_adjustment_uidx
+    ON transactions(credit_adjustment_id)
+    WHERE credit_adjustment_id IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION prevent_credit_adjustment_mutation()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'credit adjustments are immutable';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER credit_adjustments_immutable
+    BEFORE UPDATE OR DELETE ON credit_adjustments
+    FOR EACH ROW EXECUTE FUNCTION prevent_credit_adjustment_mutation();
+
 INSERT INTO platform_setting_history
     (setting_key, old_value, new_value, effective_from)
 VALUES ('partner_dollars_per_credit', NULL, 9.50, NOW());
@@ -1041,16 +1088,23 @@ CREATE TABLE partner_earnings (
     partner_id UUID NOT NULL REFERENCES partners(partner_id) ON DELETE RESTRICT,
     booking_id UUID REFERENCES bookings(booking_id) ON DELETE RESTRICT,
     occurrence_id UUID REFERENCES class_occurrences(occurrence_id) ON DELETE RESTRICT,
-    source TEXT NOT NULL CHECK (source IN ('BOOKING_OCCURRENCE', 'OPENING_BALANCE')),
+    source TEXT NOT NULL CHECK (source IN ('BOOKING_OCCURRENCE', 'OPENING_BALANCE', 'MANUAL_ADJUSTMENT')),
     listing_id UUID REFERENCES listings(listing_id) ON DELETE RESTRICT,
-    credits NUMERIC(12, 4) NOT NULL CHECK (credits >= 0),
+    credits NUMERIC(12, 4) NOT NULL CHECK (
+      (source = 'MANUAL_ADJUSTMENT' AND credits <> 0)
+      OR (source <> 'MANUAL_ADJUSTMENT' AND credits >= 0)
+    ),
     dollars_per_credit NUMERIC(10, 4) NOT NULL CHECK (dollars_per_credit > 0),
-    gross_amount NUMERIC(12, 2) NOT NULL CHECK (gross_amount >= 0),
+    gross_amount NUMERIC(12, 2) NOT NULL CHECK (
+      (source = 'MANUAL_ADJUSTMENT' AND gross_amount <> 0)
+      OR (source <> 'MANUAL_ADJUSTMENT' AND gross_amount >= 0)
+    ),
     status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'AVAILABLE', 'IN_PAYOUT', 'SETTLED', 'REVERSED')),
     occurrence_number INTEGER CHECK (occurrence_number IS NULL OR occurrence_number > 0),
     available_at TIMESTAMPTZ,
     settled_at TIMESTAMPTZ,
     payout_id UUID REFERENCES partner_payouts(payout_id) ON DELETE RESTRICT,
+    credit_adjustment_id UUID REFERENCES credit_adjustments(adjustment_id) ON DELETE RESTRICT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -1060,6 +1114,9 @@ CREATE UNIQUE INDEX partner_earnings_occurrence_uidx
 CREATE INDEX partner_earnings_partner_status_available_idx
     ON partner_earnings(partner_id, status, available_at);
 CREATE INDEX partner_earnings_payout_idx ON partner_earnings(payout_id);
+CREATE UNIQUE INDEX partner_earnings_credit_adjustment_uidx
+    ON partner_earnings(credit_adjustment_id)
+    WHERE credit_adjustment_id IS NOT NULL;
 
 -- Helpful indexes to fetch notifications by recipient
 CREATE INDEX idx_notifications_recipient ON notifications (recipient_type, recipient_id);
