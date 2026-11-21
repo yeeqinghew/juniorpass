@@ -69,6 +69,7 @@ test("applies a parent credit correction in one locked transaction", async () =>
               email: "parent@example.com",
               stored_credit: 50,
               credit_expires_at: new Date(Date.now() + 86_400_000),
+              user_type: "parent",
             },
           ],
         };
@@ -111,11 +112,7 @@ test("applies a parent credit correction in one locked transaction", async () =>
   assert.ok(queries.some((query) => query.sql.includes("pg_advisory_xact_lock")));
   assert.ok(queries.some((query) => query.sql.startsWith("UPDATE users")));
   assert.ok(
-    queries.some(
-      (query) =>
-        query.sql.startsWith("INSERT INTO transactions") &&
-        query.parameters[2] === "DEBIT",
-    ),
+    !queries.some((query) => query.sql.startsWith("INSERT INTO transactions")),
   );
   assert.ok(queries.some((query) => query.sql.startsWith("INSERT INTO audit_events")));
   assert.equal(queries.at(-1).sql, "COMMIT");

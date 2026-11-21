@@ -118,7 +118,7 @@ async function applyCreditAdjustment(pool, input) {
     const account = await client.query(
       `SELECT ${config.idColumn} AS account_id, ${config.nameColumn} AS account_name,
               email, COALESCE(credit, 0)::integer AS stored_credit
-              ${normalized.accountType === "parent" ? ", credit_expires_at" : ""}
+              ${normalized.accountType === "parent" ? ", credit_expires_at, user_type" : ""}
        FROM ${config.table}
        WHERE ${config.idColumn} = $1
        FOR UPDATE`,
@@ -129,6 +129,20 @@ async function applyCreditAdjustment(pool, input) {
     }
 
     const accountRow = account.rows[0];
+    if (normalized.accountType === "parent") {
+      if (accountRow.user_type !== "parent") {
+        throw new CreditAdjustmentError("Account is not a parent", 400, "INVALID_PARENT_ACCOUNT");
+      }
+
+      // Older accounts can predate the parents row. Keep the parent account
+      // and its immutable transaction record in sync before the ledger write.
+      await client.query(
+        `INSERT INTO parents (parent_id) VALUES ($1)
+         ON CONFLICT (parent_id) DO NOTHING`,
+        [normalized.accountId],
+      );
+    }
+
     const isExpired =
       normalized.accountType === "parent" &&
       accountRow.credit_expires_at &&
@@ -186,20 +200,7 @@ async function applyCreditAdjustment(pool, input) {
     );
     const adjustmentRow = adjustment.rows[0];
 
-    if (normalized.accountType === "parent") {
-      await client.query(
-        `INSERT INTO transactions
-           (parent_id, child_id, listing_id, used_credit, transaction_type,
-            credit_adjustment_id)
-         VALUES ($1, NULL, NULL, $2, $3, $4)`,
-        [
-          normalized.accountId,
-          normalized.credits,
-          normalized.creditDelta > 0 ? "CREDIT" : "DEBIT",
-          adjustmentRow.adjustment_id,
-        ],
-      );
-    } else {
+    if (normalized.accountType === "partner") {
       const dollarsPerCredit = await getDollarsPerCredit(client);
       await client.query(
         `INSERT INTO partner_earnings
