@@ -98,6 +98,7 @@ apiRouter.use("/categories", require("./routes/categories"));
 apiRouter.use("/reviews", require("./routes/reviews"));
 apiRouter.use("/promotions", require("./routes/promotions"));
 apiRouter.use("/payouts", require("./routes/payouts"));
+apiRouter.use("/refunds", require("./routes/refunds"));
 apiRouter.use("/admin-payments", require("./routes/adminPayments"));
 apiRouter.use("/audit-log", require("./routes/auditLog"));
 apiRouter.use("/credit-adjustments", require("./routes/creditAdjustments"));
