@@ -741,8 +741,8 @@ router.post("/:bookingId/extend", userAuthorization, async (req, res) => {
     }
 
     const allWindows = buildOccurrenceWindows({
-      startDate: booking.start_date,
-      endDate: booking.end_date,
+      startDate: new Date(booking.start_date).toISOString(),
+      endDate: new Date(booking.end_date).toISOString(),
       classCount: upgrade.fullTermClasses,
       frequency: details.frequency,
     });
