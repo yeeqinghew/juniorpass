@@ -40,7 +40,7 @@
 }
 
 .package-hero-title::after {
-    content: ' ✦';
+    content: ' ✦' / '';
     color: var(--accent-pink);
 }
 

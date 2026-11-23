@@ -18,9 +18,9 @@
   top: 24px;
   padding: 24px;
   border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-lg);
-  background: var(--bg-secondary);
-  box-shadow: var(--box-shadow);
+  border-radius: var(--radius-lg);
+  background: var(--bg-cream);
+  box-shadow: var(--shadow-md);
 }
 
 .profile-avatar-container {
@@ -91,14 +91,14 @@
 }
 
 .profile-menu-item:hover {
-  background: var(--bg-primary);
+  background: var(--bg-light-blue);
   color: var(--primary-color);
   transform: translateX(2px);
 }
 
 .profile-menu-item.active {
   background: var(--primary-light);
-  color: var(--primary-active);
+  color: var(--primary-dark);
   font-weight: 700;
 }
 
@@ -106,9 +106,9 @@
   min-width: 0;
   padding: 28px;
   border: 1px solid var(--border-color);
-  border-radius: var(--border-radius-lg);
-  background: var(--bg-secondary);
-  box-shadow: var(--box-shadow);
+  border-radius: var(--radius-lg);
+  background: var(--bg-cream);
+  box-shadow: var(--shadow-md);
 }
 
 .profile-tab-content {
@@ -169,15 +169,15 @@
     margin-bottom: 16px;
     padding: 20px;
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-lg);
-    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    background: var(--bg-cream);
   }
 
   .profile-tabs.mobile {
     overflow: hidden;
     border: 1px solid var(--border-color);
-    border-radius: var(--border-radius-lg);
-    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    background: var(--bg-cream);
   }
 
   .profile-tabs.mobile .ant-tabs-nav {

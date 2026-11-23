@@ -30,6 +30,7 @@ import "./index.css";
 import useWindowDimensions from "../../hooks/useWindowDimensions";
 import logo from "../../images/logopngResize.png";
 import homepageVideo from "../../videos/homepage.mp4";
+import heroPoster from "../../images/juniorPASS.png";
 
 const { Header, Content } = Layout;
 const { Text, Title } = Typography;
@@ -272,7 +273,8 @@ function HomePage() {
                 playsInline
                 preload="auto"
                 className="video-src"
-                aria-label="Kids learning and playing"
+                poster={heroPoster}
+                aria-hidden="true"
               >
                 <source src={homepageVideo} type="video/mp4" />
                 Your browser does not support the video tag.

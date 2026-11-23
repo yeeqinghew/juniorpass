@@ -139,6 +139,7 @@ const OverallLayout = () => {
             className="hamburger-menu"
             onClick={showDrawer}
             aria-label="Open navigation menu"
+            aria-expanded={drawerVisible}
           >
             <MenuOutlined />
           </button>
@@ -239,10 +240,14 @@ const OverallLayout = () => {
             </Menu.Item>
             {isAuthenticated ? (
               <>
+                <Menu.Item key="profile">
+                  <Link to="/profile">Profile</Link>
+                </Menu.Item>
                 <Menu.Item
                   key="credit"
                   onClick={() => navigate("/profile", { state: "credit" })}
                   className="credit-menu-item"
+                  title="Your credit balance"
                 >
                   <Space size={4}>
                     <IconFont type="icon-money" className="header-credit-icon" />
@@ -254,6 +259,7 @@ const OverallLayout = () => {
                   className="icon-menu-item"
                   onClick={() => navigate("/notifications")}
                   aria-label="Notifications"
+                  title="Notifications"
                 >
                   <Badge
                     count={unreadNotifications}
@@ -270,6 +276,8 @@ const OverallLayout = () => {
                   key="logout"
                   onClick={handleLogout}
                   className="icon-menu-item"
+                  aria-label="Sign out"
+                  title="Sign out"
                 >
                   <IconFont
                     type="icon-signout-1"
