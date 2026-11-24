@@ -830,12 +830,12 @@ const ChildrenClasses = () => {
                 </span>
               ) : (
                 <span>
-                  Cancellation: {cancellationTerms.refundCredits} credits back
-                  until {cancellationTerms.deadline.format("DD MMM YYYY, h:mm A")}
+                  Refund: {cancellationTerms.refundCredits} credits until{" "}
+                  {cancellationTerms.deadline.format("DD MMM YYYY, h:mm A")}
                 </span>
               )}
               <span>
-                Make-up requests: {bookingPolicy.makeup_allowed
+                Make-up: {bookingPolicy.makeup_allowed
                   ? `allowed with ${bookingPolicy.makeup_notice_hours} hours’ notice`
                   : "not available"}
               </span>
