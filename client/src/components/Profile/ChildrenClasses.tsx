@@ -1445,7 +1445,7 @@ const ChildrenClasses = () => {
             </Form.Item>
           </Form>
 
-          <div className="cc-modal-btns">
+          <div className="cc-modal-btns cc-cancellation-actions">
             <Button
               disabled={saveChildLoading}
               onClick={() => {

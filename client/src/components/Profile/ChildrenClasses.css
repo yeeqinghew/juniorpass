@@ -1061,6 +1061,17 @@
   font-weight: var(--font-weight-semibold) !important;
 }
 
+@media (max-width: 480px) {
+  .cc-cancellation-actions {
+    flex-direction: column-reverse;
+  }
+
+  .cc-cancellation-actions .ant-btn {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 .cc-review-modal {
   width: min(560px, calc(100vw - 32px)) !important;
   max-width: none;
