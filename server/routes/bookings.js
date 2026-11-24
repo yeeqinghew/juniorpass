@@ -776,11 +776,18 @@ router.post("/:bookingId/extend", userAuthorization, async (req, res) => {
       [upgrade.upgradeCredits, userId],
     );
     if (walletResult.rowCount === 0) {
+      const currentWallet = await client.query(
+        `SELECT GREATEST(COALESCE(credit, 0), 0)::integer AS available_credits
+         FROM users
+         WHERE user_id = $1`,
+        [userId],
+      );
       await client.query("ROLLBACK");
       return res.status(400).json({
         code: "INSUFFICIENT_CREDITS",
         error: `You need ${upgrade.upgradeCredits} credits to extend this package`,
         required_credits: upgrade.upgradeCredits,
+        available_credits: Number(currentWallet.rows[0]?.available_credits || 0),
       });
     }
 

@@ -50,7 +50,7 @@ import CustomerDocumentModal from "./CustomerDocumentModal";
 import boy from "../../images/profile/boys/boy0.png";
 import girl from "../../images/profile/girls/girl0.png";
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
 const { Panel } = Collapse;
 const { Option } = Select;
 
@@ -125,7 +125,7 @@ const getCancellationTerms = (booking) => {
 };
 
 const ChildrenClasses = () => {
-  const { user, reauthenticate } = useUserContext();
+  const { user, reauthenticate, setAuth } = useUserContext();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [children, setChildren] = useState([]);
@@ -143,6 +143,8 @@ const ChildrenClasses = () => {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [bookingToExtend, setBookingToExtend] = useState(null);
   const [extensionLoading, setExtensionLoading] = useState(false);
+  const [extensionBalanceLoading, setExtensionBalanceLoading] = useState(false);
+  const [extensionBalance, setExtensionBalance] = useState(null);
   const [isDeleteChildModalOpen, setIsDeleteChildModalOpen] = useState(false);
   const [childToDelete, setChildToDelete] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -428,8 +430,27 @@ const ChildrenClasses = () => {
     }
   };
 
-  const handleExtendBooking = (booking) => {
-    setBookingToExtend(booking);
+  const handleExtendBooking = async (booking) => {
+    if (extensionBalanceLoading) return;
+
+    setExtensionBalanceLoading(true);
+    try {
+      const response = await fetchWithAuth(API_ENDPOINTS.VERIFY_TOKEN, {
+        method: "GET",
+      });
+      if (!response.ok) {
+        throw new Error("Unable to refresh your credit balance");
+      }
+
+      const currentUser = await response.json();
+      setAuth(true, currentUser);
+      setExtensionBalance(Math.max(0, Number(currentUser.credit) || 0));
+      setBookingToExtend(booking);
+    } catch (error) {
+      toast.error(error.message || "Unable to refresh your credit balance");
+    } finally {
+      setExtensionBalanceLoading(false);
+    }
   };
 
   const confirmExtendBooking = async () => {
@@ -443,6 +464,9 @@ const ChildrenClasses = () => {
       );
       const data = await response.json();
       if (!response.ok) {
+        if (data.code === "INSUFFICIENT_CREDITS") {
+          setExtensionBalance(Math.max(0, Number(data.available_credits) || 0));
+        }
         toast.error(data.error || "Unable to extend this package");
         return;
       }
@@ -453,6 +477,7 @@ const ChildrenClasses = () => {
           : `Package extended — ${data.classes_added} classes added`,
       );
       setBookingToExtend(null);
+      setExtensionBalance(null);
       await Promise.all([fetchChildrenAndBookings(), reauthenticate()]);
     } catch {
       toast.error("Unable to extend this package. Please try again.");
@@ -748,6 +773,7 @@ const ChildrenClasses = () => {
                     icon={<SwapOutlined />}
                     className="cc-booking-extend"
                     onClick={() => handleExtendBooking(booking)}
+                    loading={extensionBalanceLoading}
                   >
                     Extend · {booking.extension_credits} credits
                   </Button>
@@ -922,13 +948,21 @@ const ChildrenClasses = () => {
     if (filterType === "past") return !isUpcomingBooking(booking) && startDate.isBefore(dayjs());
     return true;
   }).length;
+  const extensionCredits = Number(bookingToExtend?.extension_credits) || 0;
+  const extensionAvailableCredits =
+    extensionBalance ?? Math.max(0, Number(user?.credit) || 0);
+  const extensionShortfall = Math.max(
+    0,
+    extensionCredits - extensionAvailableCredits,
+  );
+  const hasEnoughExtensionCredits = extensionShortfall === 0;
 
   return (
     <div className="cc-page fade-in">
       <div className="cc-page-header">
-        <h2 className="cc-page-title">
+        <Title level={3} className="cc-page-title">
           <TeamOutlined /> Children &amp; Classes
-        </h2>
+        </Title>
         <Button
           type="primary"
           icon={<PlusOutlined />}
@@ -1438,7 +1472,10 @@ const ChildrenClasses = () => {
       <Modal
         open={Boolean(bookingToExtend)}
         onCancel={() => {
-          if (!extensionLoading) setBookingToExtend(null);
+          if (!extensionLoading) {
+            setBookingToExtend(null);
+            setExtensionBalance(null);
+          }
         }}
         footer={null}
         centered
@@ -1453,23 +1490,44 @@ const ChildrenClasses = () => {
           <div className="cc-extension-confirmation">
             <p>
               Your short-term payment has already been deducted. You will only
-              pay the remaining <strong>{Number(bookingToExtend?.extension_credits) || 0} credits</strong>.
+              pay the remaining <strong>{extensionCredits} credits</strong>.
             </p>
             <p>
               This adds {Number(bookingToExtend?.extension_classes) || 0}{" "}
               {Number(bookingToExtend?.extension_classes) === 1 ? "class" : "classes"}
-              {user?.credit !== undefined
-                ? ` and leaves ${Math.max(0, Number(user.credit) - (Number(bookingToExtend?.extension_credits) || 0))} credits in your wallet.`
+              {hasEnoughExtensionCredits
+                ? ` and leaves ${extensionAvailableCredits - extensionCredits} credits in your wallet.`
                 : "."}
             </p>
-          </div>
-          <div className="cc-modal-btns">
-            <Button disabled={extensionLoading} onClick={() => setBookingToExtend(null)}>
-              Not now
-            </Button>
-            <Button type="primary" loading={extensionLoading} onClick={confirmExtendBooking}>
-              Pay {Number(bookingToExtend?.extension_credits) || 0} credits
-            </Button>
+            <div className={`cc-extension-balance ${hasEnoughExtensionCredits ? "is-sufficient" : "is-insufficient"}`}>
+              <span>Available now</span>
+              <strong>{extensionAvailableCredits} credits</strong>
+              {!hasEnoughExtensionCredits && <em>Top up {extensionShortfall} more credits to continue.</em>}
+            </div>
+            <div className="cc-modal-btns">
+              <Button disabled={extensionLoading} onClick={() => setBookingToExtend(null)}>
+                Not now
+              </Button>
+              {hasEnoughExtensionCredits ? (
+                <Button type="primary" loading={extensionLoading} onClick={confirmExtendBooking}>
+                  Pay {extensionCredits} credits
+                </Button>
+              ) : (
+                <Button
+                  type="primary"
+                  disabled={extensionLoading}
+                  onClick={() => {
+                    setBookingToExtend(null);
+                    setExtensionBalance(null);
+                    navigate("/profile", {
+                      state: { activeTab: "credit", openTopUp: true },
+                    });
+                  }}
+                >
+                  Top up {extensionShortfall} credits
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </Modal>
