@@ -77,6 +77,9 @@ const getOccurrenceEnd = (occurrence) => {
 const isCancelledOccurrence = (occurrence) =>
   occurrence.status === "cancelled" || occurrence.booking_status === "cancelled";
 
+const isMaleGender = (gender) =>
+  ["m", "male", "boy"].includes(String(gender || "").trim().toLowerCase());
+
 const getBookingPolicy = (booking) => {
   let snapshot = booking?.policy_snapshot;
   if (typeof snapshot === "string") {
@@ -150,6 +153,7 @@ const ChildrenClasses = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [saveChildLoading, setSaveChildLoading] = useState(false);
   const saveChildLockRef = useRef(false);
+  const childModalScrollRef = useRef(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("list");
   const [confirmationBookingId, setConfirmationBookingId] = useState(null);
@@ -157,6 +161,14 @@ const ChildrenClasses = () => {
   const [reviewTags, setReviewTags] = useState([]);
   const [reviewBooking, setReviewBooking] = useState(null);
   const [reviewSaving, setReviewSaving] = useState(false);
+
+  useEffect(() => {
+    if (!isAddChildModalOpen) return;
+
+    requestAnimationFrame(() => {
+      childModalScrollRef.current?.scrollTo({ top: 0 });
+    });
+  }, [isAddChildModalOpen, editingChild?.child_id]);
   const [form] = Form.useForm();
   const [makeupForm] = Form.useForm();
   const [reviewForm] = Form.useForm();
@@ -667,7 +679,7 @@ const ChildrenClasses = () => {
   const getChildImage = (child) => {
     if (child.display_picture) return child.display_picture;
     try {
-      return child.gender === "M" ? boy : girl;
+      return isMaleGender(child.gender) ? boy : girl;
     } catch {
       return null;
     }
@@ -793,7 +805,9 @@ const ChildrenClasses = () => {
                 ) : null}
                 <Button
                   size="small"
+                  type="text"
                   icon={<FileTextOutlined />}
+                  className="cc-booking-confirmation"
                   onClick={() => setConfirmationBookingId(booking.booking_id)}
                 >
                   Confirmation
@@ -802,6 +816,7 @@ const ChildrenClasses = () => {
                   <Button
                     danger
                     size="small"
+                    type="text"
                     className="cc-booking-cancel"
                     onClick={() => handleCancelBooking(booking)}
                   >
@@ -863,24 +878,17 @@ const ChildrenClasses = () => {
             />
             <div className="cc-child-info">
               <div className="cc-child-name">
-                {child.name}
-                <sup>
-                  <Tag
-                    color={childBookings.length > 0 ? "blue" : "default"}
-                    style={{
-                      borderRadius: 100,
-                      fontSize: 11,
-                      fontWeight: 600,
-                      padding: "1px 7px",
-                    }}
-                  >
-                    {childBookings.length}
-                  </Tag>
-                </sup>
+                <span className="cc-child-name-text">{child.name}</span>
+                <Tag
+                  color={childBookings.length > 0 ? "blue" : "default"}
+                  className="cc-child-booking-count"
+                >
+                  {childBookings.length}
+                </Tag>
               </div>
               <span className="cc-child-meta">
                 {dayjs(child.date_of_birth).format("DD MMM YYYY")} •{" "}
-                {child.gender === "M" ? "Male" : "Female"}
+                {isMaleGender(child.gender) ? "Male" : "Female"}
               </span>
             </div>
           </div>
@@ -892,10 +900,10 @@ const ChildrenClasses = () => {
             className="cc-panel-actions"
           >
             <Button
-              type="primary"
-              ghost
+              type="text"
               icon={<EditOutlined />}
               className="cc-panel-btn"
+              aria-label={`Edit ${child.name}`}
               onClick={(e) => {
                 e.stopPropagation();
                 handleEditChild(child);
@@ -903,8 +911,10 @@ const ChildrenClasses = () => {
             />
             <Button
               danger
+              type="text"
               icon={<DeleteOutlined />}
               className="cc-panel-btn"
+              aria-label={`Delete ${child.name}`}
               onClick={(e) => {
                 e.stopPropagation();
                 handleDeleteChild(child);
@@ -1256,8 +1266,9 @@ const ChildrenClasses = () => {
         className="cc-modal cc-child-profile-modal"
         title={null}
       >
-        <Space direction="vertical" size={20} className="cc-child-modal-content">
-          <div className="cc-child-modal-heading">
+        <div className="cc-child-modal-content">
+          <div className="cc-child-modal-scroll" ref={childModalScrollRef}>
+            <div className="cc-child-modal-heading">
             <div className="cc-modal-icon success">
               <UserOutlined />
             </div>
@@ -1269,9 +1280,9 @@ const ChildrenClasses = () => {
                 ? "Update your child's information"
                 : "Add a new child to your family account"}
             </p>
-          </div>
+            </div>
 
-          <Form
+            <Form
             form={form}
             layout="vertical"
             onFinish={handleSaveChild}
@@ -1443,9 +1454,10 @@ const ChildrenClasses = () => {
                 maxLength={2000}
               />
             </Form.Item>
-          </Form>
+            </Form>
+          </div>
 
-          <div className="cc-modal-btns cc-cancellation-actions">
+          <div className="cc-modal-btns cc-child-modal-actions">
             <Button
               disabled={saveChildLoading}
               onClick={() => {
@@ -1466,7 +1478,7 @@ const ChildrenClasses = () => {
               {editingChild ? "Update Profile" : "Add Child"}
             </Button>
           </div>
-        </Space>
+        </div>
       </Modal>
 
       <Modal
@@ -1614,20 +1626,19 @@ const ChildrenClasses = () => {
           />
           <div className="cc-modal-btns">
             <Button
-              danger
-              loading={cancelLoading}
-              onClick={confirmCancelBooking}
-            >
-              Yes, Cancel Booking
-            </Button>
-            <Button
-              type="primary"
               onClick={() => {
                 setIsCancelModalOpen(false);
                 setBookingToCancel(null);
               }}
             >
               No, Go Back
+            </Button>
+            <Button
+              danger
+              loading={cancelLoading}
+              onClick={confirmCancelBooking}
+            >
+              Yes, Cancel Booking
             </Button>
           </div>
         </Space>
@@ -1700,7 +1711,7 @@ const ChildrenClasses = () => {
                   }}
                 >
                   {dayjs(childToDelete.date_of_birth).format("DD MMM YYYY")} •{" "}
-                  {childToDelete.gender === "M" ? "Male" : "Female"}
+                  {isMaleGender(childToDelete.gender) ? "Male" : "Female"}
                 </p>
               </div>
             </div>

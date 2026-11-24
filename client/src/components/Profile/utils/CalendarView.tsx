@@ -19,6 +19,9 @@ const { Text, Title } = Typography;
 
 const asLocalTime = parseClassScheduleTime;
 
+const isMaleGender = (gender?: string) =>
+  ["m", "male", "boy"].includes(String(gender || "").trim().toLowerCase());
+
 type CalendarItem = {
   booking_id?: string | number;
   occurrence_id?: string | number;
@@ -70,7 +73,7 @@ const ChildAvatar = ({
   compact?: boolean;
 }) => {
   const label = item.child_name || "Child";
-  const image = item.child_gender === "M" ? boy : girl;
+  const image = isMaleGender(item.child_gender) ? boy : girl;
   return (
     <img
       className={`jp-child-avatar ${compact ? "is-compact" : ""}`}

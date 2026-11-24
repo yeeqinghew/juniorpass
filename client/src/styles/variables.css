@@ -17,6 +17,12 @@
   --accent-gold: #d4af37;
   --accent-gold-dark: #b8941f;
 
+  /* Form focus is intentionally quieter than primary actions. */
+  --input-focus-border: #c8aeb9;
+  --input-focus-ring: rgba(200, 174, 185, 0.16);
+  --input-selection-background: #f2dfe6;
+  --input-selection-color: #4a3940;
+
   /* ===== Tier Colors ===== */
   --tier-basic: #69b1ff;
   --tier-basic-light: #91d5ff;
