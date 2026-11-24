@@ -30,6 +30,7 @@ type CalendarItem = {
   partner_name?: string;
   outlet_address?: string;
   status?: string;
+  booking_status?: string;
   rescheduled_to?: string;
   scheduled_date?: string;
   scheduled_end_date?: string;
@@ -139,7 +140,11 @@ const CalendarView = ({
     return () => mediaQuery.removeEventListener("change", updateLayout);
   }, []);
 
-  const displayData = occurrences.length > 0 ? occurrences : bookings;
+  // Calendar is a forward-looking schedule, not booking history. Cancelled
+  // occurrences remain available in the bookings list but are never calendar events.
+  const displayData = (occurrences.length > 0 ? occurrences : bookings).filter(
+    (item) => item.status !== "cancelled" && item.booking_status !== "cancelled",
+  );
   const makeupByOccurrence = useMemo(() => {
     const activeRequests = new Map<string | number, MakeupRequest>();
     makeupRequests.forEach((request) => {
@@ -421,7 +426,6 @@ const CalendarView = ({
         <div className="jp-calendar-legend" aria-label="Calendar status legend">
           <span><i className="is-upcoming" /> Upcoming</span>
           <span><i className="is-rescheduled" /> Rescheduled</span>
-          <span><i className="is-cancelled" /> Cancelled</span>
         </div>
 
         <Calendar
