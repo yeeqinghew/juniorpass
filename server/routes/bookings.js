@@ -983,6 +983,7 @@ router.get("/user/occurrences", userAuthorization, async (req, res) => {
         co.*,
         b.booking_id,
         b.listing_id,
+        b.status AS booking_status,
         b.enrolled_package_type,
         b.classes_total,
         b.policy_snapshot,

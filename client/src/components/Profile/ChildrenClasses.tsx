@@ -54,6 +54,29 @@ const { Text } = Typography;
 const { Panel } = Collapse;
 const { Option } = Select;
 
+const getOccurrenceStart = (occurrence) =>
+  occurrence.rescheduled_to || occurrence.scheduled_date;
+
+const getOccurrenceEnd = (occurrence) => {
+  const originalStart = occurrence.scheduled_date;
+  const originalEnd = occurrence.scheduled_end_date;
+
+  if (!occurrence.rescheduled_to || !originalStart || !originalEnd) {
+    return originalEnd || getOccurrenceStart(occurrence);
+  }
+
+  const duration = parseClassScheduleTime(originalEnd).diff(
+    parseClassScheduleTime(originalStart),
+    "minute",
+  );
+  return parseClassScheduleTime(occurrence.rescheduled_to)
+    .add(duration, "minute")
+    .toISOString();
+};
+
+const isCancelledOccurrence = (occurrence) =>
+  occurrence.status === "cancelled" || occurrence.booking_status === "cancelled";
+
 const getBookingPolicy = (booking) => {
   let snapshot = booking?.policy_snapshot;
   if (typeof snapshot === "string") {
@@ -160,19 +183,24 @@ const ChildrenClasses = () => {
     );
   }, [occurrences, searchTerm]);
 
+  const calendarOccurrences = useMemo(
+    () => filteredOccurrences.filter((occurrence) => !isCancelledOccurrence(occurrence)),
+    [filteredOccurrences],
+  );
+
   const nextOccurrenceByBooking = useMemo(() => {
     const now = dayjs();
     const nextOccurrences = new Map();
 
     occurrences.forEach((occurrence) => {
-      if (occurrence.status === "cancelled") return;
+      if (isCancelledOccurrence(occurrence)) return;
 
-      const start = occurrence.rescheduled_to || occurrence.scheduled_date;
-      const end = occurrence.scheduled_end_date || start;
+      const start = getOccurrenceStart(occurrence);
+      const end = getOccurrenceEnd(occurrence);
       if (!start || !parseClassScheduleTime(end).isAfter(now)) return;
 
       const current = nextOccurrences.get(occurrence.booking_id);
-      const currentStart = current?.rescheduled_to || current?.scheduled_date;
+      const currentStart = current ? getOccurrenceStart(current) : null;
       if (!currentStart || parseClassScheduleTime(start).isBefore(parseClassScheduleTime(currentStart))) {
         nextOccurrences.set(occurrence.booking_id, occurrence);
       }
@@ -637,12 +665,12 @@ const ChildrenClasses = () => {
     }
 
     const nextOccurrence = nextOccurrenceByBooking.get(booking.booking_id);
-    const nextClassStart =
-      nextOccurrence?.rescheduled_to ||
-      nextOccurrence?.scheduled_date ||
-      booking.start_date;
-    const nextClassEnd =
-      nextOccurrence?.scheduled_end_date || booking.end_date;
+    const nextClassStart = nextOccurrence
+      ? getOccurrenceStart(nextOccurrence)
+      : booking.start_date;
+    const nextClassEnd = nextOccurrence
+      ? getOccurrenceEnd(nextOccurrence)
+      : booking.end_date;
     const now = dayjs();
     const classStart = parseClassScheduleTime(nextClassStart);
     const bookingPolicy = getBookingPolicy(booking);
@@ -919,7 +947,7 @@ const ChildrenClasses = () => {
           </div>
           <span className="cc-count-pill">
             {activeTab === "calendar"
-              ? `${filteredOccurrences.length} calendar items`
+              ? `${calendarOccurrences.length} calendar items`
               : `${visibleBookingCount} bookings`}
           </span>
         </div>
@@ -938,11 +966,11 @@ const ChildrenClasses = () => {
               <span className="cc-search-count">
                 Found{" "}
                 {activeTab === "calendar"
-                  ? filteredOccurrences.length
+                  ? calendarOccurrences.length
                   : filteredBookings.length}{" "}
                 result
                 {(activeTab === "calendar"
-                  ? filteredOccurrences.length
+                  ? calendarOccurrences.length
                   : filteredBookings.length) !== 1
                   ? "s"
                   : ""}
@@ -1014,7 +1042,7 @@ const ChildrenClasses = () => {
       {activeTab === "calendar" && (
         <CalendarView
           bookings={filteredBookings}
-          occurrences={filteredOccurrences}
+          occurrences={calendarOccurrences}
           makeupRequests={makeupRequests}
           onRequestMakeup={openMakeupRequest}
         />
