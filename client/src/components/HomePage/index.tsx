@@ -29,7 +29,6 @@ import {
   ThunderboltOutlined,
   SafetyCertificateOutlined,
   GiftOutlined,
-  ArrowRightOutlined,
 } from "@ant-design/icons";
 import InfoCard from "../../utils/InfoCard";
 import "./index.css";
