@@ -1,3 +1,5 @@
+@import '../../styles/variables.css';
+
 .customer-document-modal .ant-modal-content {
   overflow: hidden;
   padding: 0;

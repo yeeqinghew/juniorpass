@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BRAND_PRIMARY } from "../theme";
 import { Form, Input, Button, Typography, Image } from "antd";
 import { fetchWithAuth, API_ENDPOINTS } from "../utils/api";
 import toast from "react-hot-toast";
@@ -70,7 +71,7 @@ const ForgotPassword = () => {
             Google should continue with Google instead, or{" "}
             <a
               href="mailto:admin@juniorpass.sg"
-              style={{ color: "#98BDD2", fontWeight: "bold" }}
+              style={{ color: BRAND_PRIMARY, fontWeight: "bold" }}
             >
               contact us
             </a>{" "}
@@ -126,7 +127,7 @@ const ForgotPassword = () => {
           </Form.Item>
           <div style={{ textAlign: "center", marginTop: "20px" }}>
             <Text>Remembered your password? </Text>
-            <Link to="/login" style={{ color: "#98BDD2", fontWeight: "bold" }}>
+            <Link to="/login" style={{ color: BRAND_PRIMARY, fontWeight: "bold" }}>
               Login
             </Link>
           </div>

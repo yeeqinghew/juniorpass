@@ -1,3 +1,5 @@
+@import '../../styles/variables.css';
+
 .notifications-page {
   width: 100%;
   max-width: 960px;

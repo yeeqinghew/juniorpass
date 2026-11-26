@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { BRAND_PRIMARY } from "../theme";
 import {
   ArrowLeftOutlined,
   SafetyCertificateOutlined,
@@ -286,7 +287,7 @@ const VerifyOTP = () => {
             </Title>
             <Text className="register-subtitle">
               We've sent a verification code to{" "}
-              <strong style={{ color: "#98BDD2" }}>{email}</strong>
+              <strong style={{ color: BRAND_PRIMARY }}>{email}</strong>
             </Text>
           </div>
 

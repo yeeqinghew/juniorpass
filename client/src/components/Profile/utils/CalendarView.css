@@ -1,3 +1,5 @@
+@import '../../../styles/variables.css';
+
 .jp-calendar-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

@@ -24,6 +24,7 @@ import { googleLogout } from "@react-oauth/google";
 import { useUserContext } from "../components/UserContext";
 import logo from "../images/logopngResize.png";
 import { fetchWithAuth, API_ENDPOINTS } from "../utils/api";
+import { BRAND_PRIMARY, BRAND_BG } from "../theme";
 
 const { Header, Content, Footer } = Layout;
 const { Text, Title } = Typography;
@@ -59,7 +60,7 @@ const LoggedInLayout = () => {
           width: "100%",
           display: "flex",
           alignItems: "center",
-          backgroundColor: "#FCFBF8",
+          backgroundColor: BRAND_BG,
           padding: "50px 150px",
         }}
       >
@@ -158,7 +159,7 @@ const LoggedInLayout = () => {
 
   function renderFooter() {
     return (
-      <Footer style={{ background: "#FCFBF8", padding: "50px 150px" }}>
+      <Footer style={{ background: BRAND_BG, padding: "50px 150px" }}>
         <Divider></Divider>
         <Flex style={{ width: "100%" }}>
           <Flex style={{ width: "25%", justifyContent: "flex-start" }}>
@@ -243,29 +244,29 @@ const LoggedInLayout = () => {
         token: {
           // Seed Token
           borderRadius: 2,
-          colorPrimary: "#98BDD2",
-          colorPrimaryActive: "#98BDD2",
+          colorPrimary: BRAND_PRIMARY,
+          colorPrimaryActive: BRAND_PRIMARY,
 
           // Alias Token
-          colorBgContainer: "#FCFBF8",
+          colorBgContainer: BRAND_BG,
           fontSize: 14,
           colorLink: "black",
           fontFamily: "Poppins, sans-serif",
         },
         components: {
           Layout: {
-            headerBg: "#FCFBF8",
-            bodyBg: "#FCFBF8",
+            headerBg: BRAND_BG,
+            bodyBg: BRAND_BG,
             headerHeight: 84,
           },
           Menu: {
-            horizontalItemSelectedColor: "#98BDD2",
+            horizontalItemSelectedColor: BRAND_PRIMARY,
           },
           Tabs: {
-            itemActiveColor: "#98BDD2",
-            itemHoverColor: "#98BDD2",
-            itemSelectedColor: "#98BDD2",
-            inkBarColor: "#98BDD2",
+            itemActiveColor: BRAND_PRIMARY,
+            itemHoverColor: BRAND_PRIMARY,
+            itemSelectedColor: BRAND_PRIMARY,
+            inkBarColor: BRAND_PRIMARY,
           },
         },
       }}
