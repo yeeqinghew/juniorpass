@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Layout,
   Menu,
@@ -24,6 +24,12 @@ import {
   BookOutlined,
   CheckCircleOutlined,
   MenuOutlined,
+  PauseCircleOutlined,
+  PlayCircleOutlined,
+  ThunderboltOutlined,
+  SafetyCertificateOutlined,
+  GiftOutlined,
+  ArrowRightOutlined,
 } from "@ant-design/icons";
 import InfoCard from "../../utils/InfoCard";
 import "./index.css";
@@ -38,11 +44,12 @@ const { Text, Title } = Typography;
 
 function HomePage() {
   const isProduction = import.meta.env.VITE_NODE_ENV === "production";
-  // Keep track of the hovered card index (-1 means none are hovered)
   const [hoveredIndex, setHoveredIndex] = useState(-1);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const { isMobile } = useWindowDimensions();
   const [scrolled, setScrolled] = useState(false);
+  const [videoPaused, setVideoPaused] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const handleMouseEnter = (index: number): void => {
     setHoveredIndex(index);
@@ -50,6 +57,18 @@ function HomePage() {
 
   const handleMouseLeave = () => {
     setHoveredIndex(-1);
+  };
+
+  const toggleVideo = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      video.play();
+      setVideoPaused(false);
+    } else {
+      video.pause();
+      setVideoPaused(true);
+    }
   };
 
   const images = import.meta.glob(
@@ -90,6 +109,25 @@ function HomePage() {
         "Secure your spot in just a few clicks! Enjoy a seamless booking process and get your child started on their learning adventure right away.",
     },
   ];
+
+  const valuePropData = [
+    {
+      icon: <ThunderboltOutlined />,
+      title: "100+ Classes",
+      subtitle: "Browse a curated library of enrichment activities across arts, sports, music, coding, and more.",
+    },
+    {
+      icon: <SafetyCertificateOutlined />,
+      title: "Trusted Partners",
+      subtitle: "Every provider is verified. We only list Singapore's best-reviewed enrichment centres.",
+    },
+    {
+      icon: <GiftOutlined />,
+      title: "Flexible Credits",
+      subtitle: "Buy a credit bundle once, then use it across any class — no subscriptions, no lock-in.",
+    },
+  ];
+
 
   useEffect(() => {
     // Initialize AOS
@@ -266,11 +304,13 @@ function HomePage() {
           </Menu>
         </Header>
         <Content className="homepage-content">
+          {/* Hero Section */}
           <div>
             <Outlet />
             <div className="headline-div">
               {/* Background Video */}
               <video
+                ref={videoRef}
                 autoPlay
                 muted
                 loop
@@ -283,14 +323,28 @@ function HomePage() {
                 <source src={homepageVideo} type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
+
+              {/* Video pause/play accessibility control */}
+              <button
+                className="video-pause-btn"
+                onClick={toggleVideo}
+                aria-label={videoPaused ? "Play background video" : "Pause background video"}
+                title={videoPaused ? "Play video" : "Pause video"}
+              >
+                {videoPaused ? <PlayCircleOutlined /> : <PauseCircleOutlined />}
+              </button>
+
               {/* Overlay Content */}
               <div className="overlay-homepage">
                 <div className="headline-content-wrapper">
                   <span className="headline-title-wrapper">
+                    <p className="hero-eyebrow">Singapore's #1 Enrichment Platform</p>
                     <Title level={1} className="title headline-title">
-                      Let us help your kids grow into the best versions of
-                      themselves.
+                      Help your kids find their spark.
                     </Title>
+                    <p className="hero-subheadline">
+                      Browse and book top enrichment classes — all in one place.
+                    </p>
                   </span>
                 </div>
               </div>
@@ -311,16 +365,33 @@ function HomePage() {
                       className="headline-button"
                       size="large"
                     >
-                      Try it now
+                      Start Your Journey
                     </Button>
                   </Link>
                 )}
                 <Link to="/about-us">
                   <Button className="headline-button" size="large">
-                    About Us
+                    Learn More
                   </Button>
                 </Link>
               </div>
+            </div>
+
+            {/* Value Props Section */}
+            <div className="value-props-div">
+              <Row gutter={[32, 32]} justify="center">
+                {valuePropData.map((item, index) => (
+                  <Col xs={24} sm={24} md={8} key={index} data-aos="fade-up" data-aos-delay={index * 120}>
+                    <div className="value-prop-item">
+                      <div className="value-prop-icon">{item.icon}</div>
+                      <div className="value-prop-text">
+                        <strong className="value-prop-title">{item.title}</strong>
+                        <span className="value-prop-subtitle">{item.subtitle}</span>
+                      </div>
+                    </div>
+                  </Col>
+                ))}
+              </Row>
             </div>
 
             {/* partners */}
@@ -470,6 +541,7 @@ function HomePage() {
                 </Row>
               </div>
             </div>
+
           </div>
         </Content>
       </Layout>

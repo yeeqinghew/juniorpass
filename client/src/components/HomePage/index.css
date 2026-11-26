@@ -406,11 +406,14 @@ html {
     margin-bottom: var(--spacing-2xl);
     position: relative;
     z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .partner-title {
     color: var(--text-primary);
-    margin-bottom: var(--spacing-md) !important;
+    margin-bottom: var(--spacing-xl) !important;
     position: relative;
     display: inline-block;
 }
@@ -512,10 +515,11 @@ html {
     transform: scale(1.05);
 }
 
-/* Full-width slider */
+/* Full-width slider — overflow visible so hover lift doesn't get clipped */
 .partner-div .splide {
     width: 100%;
     position: relative;
+    overflow: visible;
 }
 
 /* Let Splide calculate slide widths; ensure slides center their content */
@@ -570,9 +574,10 @@ html {
     height: 16px;
 }
 
-/* Remove inner padding to avoid extra whitespace; rely on Splide centering */
+/* Give cards room to lift on hover without overlapping the header above */
 .partner-div .splide__track {
-    padding: 0;
+    padding: 16px 0 8px;
+    overflow: visible;
 }
 
 /* Join Us Section */
@@ -1029,7 +1034,8 @@ html {
 
     /* Remove inner padding on mobile */
     .partner-div .splide__track {
-        padding: 0;
+        padding: 16px 0 8px;
+        overflow: visible;
     }
 
     /* Join Us Section */
@@ -1243,7 +1249,8 @@ html {
 
     /* Remove inner padding on tablet portrait */
     .partner-div .splide__track {
-        padding: 0;
+        padding: 16px 0 8px;
+        overflow: visible;
     }
 
     .partner-splide-card {
@@ -1408,7 +1415,8 @@ html {
 
     /* Remove inner padding on tablet landscape */
     .partner-div .splide__track {
-        padding: 0;
+        padding: 16px 0 8px;
+        overflow: visible;
     }
 
     .partner-splide-card {
@@ -1544,6 +1552,316 @@ html {
 
     /* Remove inner padding on desktop */
     .partner-div .splide__track {
-        padding: 0;
+        padding: 16px 0 8px;
+        overflow: visible;
+    }
+}
+
+/* ============================================================
+   Hero Improvements
+   ============================================================ */
+.hero-eyebrow {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    backdrop-filter: blur(4px);
+    border-radius: var(--radius-full);
+    padding: 6px 18px;
+    margin-bottom: var(--spacing-md);
+    display: inline-block;
+}
+
+.hero-subheadline {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-normal);
+    color: rgba(255, 255, 255, 0.88);
+    line-height: var(--line-height-relaxed);
+    margin-top: var(--spacing-md);
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+    max-width: 540px;
+    text-align: center;
+}
+
+/* Video accessibility pause button */
+.video-pause-btn {
+    position: absolute;
+    bottom: var(--spacing-lg);
+    right: var(--spacing-lg);
+    z-index: 3;
+    background: rgba(255, 255, 255, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    backdrop-filter: blur(6px);
+    color: var(--text-white);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 20px;
+    transition: background var(--transition-base), transform var(--transition-base);
+}
+
+.video-pause-btn:hover {
+    background: rgba(255, 255, 255, 0.28);
+    transform: scale(1.1);
+}
+
+.video-pause-btn:focus-visible {
+    outline: 2px solid var(--text-white);
+    outline-offset: 3px;
+}
+
+/* ============================================================
+   Value Props Section
+   ============================================================ */
+.value-props-div {
+    padding: clamp(var(--spacing-xl), 5vw, var(--spacing-3xl)) clamp(var(--spacing-lg), 8vw, 120px);
+    background: var(--bg-cream);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.value-prop-item {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-xl);
+    background: var(--bg-white);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-sm);
+    transition: all var(--transition-spring);
+    height: 100%;
+}
+
+.value-prop-item:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-primary);
+    border-color: rgba(152, 189, 210, 0.4);
+}
+
+.value-prop-icon {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    background: var(--primary-light);
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--icon-xl);
+    color: var(--primary-color);
+    transition: all var(--transition-bounce);
+}
+
+.value-prop-item:hover .value-prop-icon {
+    background: var(--primary-color);
+    color: var(--text-white);
+    transform: rotate(-8deg) scale(1.1);
+}
+
+.value-prop-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.value-prop-title {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    line-height: var(--line-height-tight);
+}
+
+.value-prop-subtitle {
+    font-size: var(--font-size-base);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+}
+
+/* ============================================================
+   Final CTA Section
+   ============================================================ */
+.final-cta-div {
+    padding: clamp(var(--spacing-3xl), 8vw, var(--spacing-4xl)) clamp(var(--spacing-lg), 8vw, 120px);
+    background: linear-gradient(to bottom, #e8f4f8 0%, #d4e9f2 100%);
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.final-cta-inner {
+    position: relative;
+    text-align: center;
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-lg);
+}
+
+.final-cta-inner::before {
+    display: none;
+}
+
+.final-cta-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(152, 189, 210, 0.18);
+    border: 1px solid rgba(152, 189, 210, 0.4);
+    border-radius: var(--radius-full);
+    padding: 5px 16px;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--primary-dark);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.final-cta-title {
+    font-size: clamp(var(--font-size-2xl), 3vw, var(--font-size-4xl)) !important;
+    font-weight: var(--font-weight-bold) !important;
+    color: var(--text-dark) !important;
+    line-height: var(--line-height-tight) !important;
+    margin: 0 auto !important;
+    text-align: center !important;
+    width: 100%;
+}
+
+.final-cta-subtitle {
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+    line-height: var(--line-height-relaxed);
+    max-width: 480px;
+    text-align: center;
+    display: block;
+    margin: 0 auto;
+}
+
+.final-cta-actions {
+    display: flex;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: var(--spacing-sm);
+}
+
+.final-cta-btn {
+    height: var(--button-height-xl) !important;
+    padding: 0 var(--spacing-2xl) !important;
+    font-size: var(--font-size-lg) !important;
+    font-weight: var(--font-weight-bold) !important;
+    border-radius: var(--radius-full) !important;
+    background: var(--primary-dark) !important;
+    color: var(--text-white) !important;
+    border: none !important;
+    box-shadow: var(--shadow-primary-hover) !important;
+    transition: all var(--transition-bounce) !important;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.final-cta-btn:hover {
+    transform: translateY(-2px) scale(1.03) !important;
+    background: var(--primary-color) !important;
+    box-shadow: 0 12px 32px rgba(152, 189, 210, 0.6) !important;
+    color: var(--text-white) !important;
+}
+
+.final-cta-btn-secondary {
+    height: var(--button-height-xl) !important;
+    padding: 0 var(--spacing-2xl) !important;
+    font-size: var(--font-size-lg) !important;
+    font-weight: var(--font-weight-semibold) !important;
+    border-radius: var(--radius-full) !important;
+    background: var(--bg-white) !important;
+    color: var(--primary-dark) !important;
+    border: 1.5px solid rgba(152, 189, 210, 0.5) !important;
+    box-shadow: var(--shadow-sm) !important;
+    transition: all var(--transition-bounce) !important;
+}
+
+.final-cta-btn-secondary:hover {
+    background: var(--bg-white) !important;
+    border-color: var(--primary-color) !important;
+    transform: translateY(-2px) scale(1.03) !important;
+    color: var(--primary-dark) !important;
+    box-shadow: var(--shadow-primary) !important;
+}
+
+/* ============================================================
+   Responsive: Value Props / Testimonials / Final CTA
+   ============================================================ */
+@media screen and (max-width: 767.9px) {
+    .hero-subheadline {
+        font-size: var(--font-size-base) !important;
+    }
+
+    .hero-eyebrow {
+        font-size: var(--font-size-xs);
+    }
+
+    .video-pause-btn {
+        bottom: var(--spacing-md);
+        right: var(--spacing-md);
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
+    }
+
+    .value-props-div {
+        padding: var(--spacing-xl) var(--spacing-md);
+    }
+
+    .value-prop-item {
+        padding: var(--spacing-lg) var(--spacing-md);
+    }
+
+    .final-cta-div {
+        padding: var(--spacing-2xl) var(--spacing-md);
+    }
+
+    .final-cta-title {
+        font-size: var(--font-size-2xl) !important;
+    }
+
+    .final-cta-btn,
+    .final-cta-btn-secondary {
+        height: 48px !important;
+        font-size: var(--font-size-base) !important;
+        padding: 0 var(--spacing-xl) !important;
+        width: 100%;
+        max-width: 320px;
+    }
+}
+
+@media screen and (min-width: 768px) and (max-width: 1023.9px) {
+    .value-props-div {
+        padding: var(--spacing-xl) 40px;
+    }
+
+    .final-cta-div {
+        padding: var(--spacing-2xl) 40px;
+    }
+}
+
+@media screen and (prefers-reduced-motion: reduce) {
+    .video-src {
+        display: none;
+    }
+
+    .headline-div {
+        background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+        min-height: 70vh;
     }
 }
