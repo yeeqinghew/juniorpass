@@ -247,7 +247,7 @@
 }
 
 .benefit-icon-success {
-    background: linear-gradient(135deg, var(--color-success), #3f8600) !important;
+    background: linear-gradient(135deg, var(--color-success), var(--color-success-dark)) !important;
 }
 
 .benefit-icon-gold {

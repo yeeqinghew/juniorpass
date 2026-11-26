@@ -42,20 +42,29 @@
   --color-success: #52c41a;
   --color-success-dark: #237804;
   --color-success-light: #f6ffed;
+  --color-success-border: #b7eb8f;
   --color-success-bg: linear-gradient(135deg, #f6ffed 0%, #b7eb8f 100%);
   --color-error: #ff4d4f;
   --color-error-dark: #a8071a;
   --color-error-light: #fff1f0;
+  --color-error-border: #ffccc7;
   --color-error-bg: linear-gradient(135deg, #fff1f0 0%, #ffccc7 100%);
   --color-warning: #fa8c16;
   --color-warning-dark: #d46b08;
   --color-warning-light: #fff7e6;
+  --color-warning-border: #ffe58f;
+  --color-warning-bg: #fffbe6;
   --color-warning-pending: #8a5a00;
   --color-warning-pending-bg: #fff8e1;
   --color-info: #1890ff;
   --color-info-light: #e6f7ff;
+  --color-info-border: #91d5ff;
   --color-info-bg: linear-gradient(135deg, #e6f7ff 0%, #91d5ff 100%);
-  --color-purple: #722ed1;
+  --color-warning-amber: #874d00;
+  --color-neutral-bg: #f1f5f9;
+  --color-neutral-muted-bg: #f5f5f5;
+  --color-neutral-slate: #94a3b8;
+  --color-cancelled-bg: #fffafa;
   --color-purple-light: #f9f0ff;
   --color-purple-bg: linear-gradient(135deg, #f9f0ff 0%, #d3adf7 100%);
 
@@ -91,6 +100,8 @@
   --shadow-multi-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.05);
   --shadow-multi-lg: 0 8px 20px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06);
   --shadow-multi-xl: 0 12px 28px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08);
+
+  --primary-ring: rgba(152, 189, 210, 0.2);
 
   --shadow-pink-multi: 0 6px 20px rgba(243, 165, 199, 0.4), 0 2px 8px rgba(243, 165, 199, 0.3);
   --shadow-pink-hover-multi: 0 12px 32px rgba(243, 165, 199, 0.6), 0 4px 12px rgba(243, 165, 199, 0.4);

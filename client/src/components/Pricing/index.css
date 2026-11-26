@@ -880,7 +880,7 @@
 }
 
 .basic-card .tier-icon {
-    color: #98BDD2;
+    color: var(--primary-color);
 }
 
 .value-card .tier-icon {
@@ -1014,7 +1014,7 @@
 }
 
 .premium-card .choose-plan-btn {
-    background: linear-gradient(135deg, var(--accent-gold), #b8941f);
+    background: linear-gradient(135deg, var(--accent-gold), var(--accent-gold-dark));
 }
 
 /* Plan Features */

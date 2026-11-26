@@ -823,9 +823,9 @@
 .cc-makeup-status { margin: 0; text-transform: capitalize; }
 .cc-makeup-status.is-pending { color: var(--color-warning-pending); background: var(--color-warning-pending-bg); }
 .cc-makeup-status.is-offered { color: var(--primary-dark); background: var(--bg-light-blue); }
-.cc-makeup-status.is-confirmed { color: #237804; background: #f6ffed; }
+.cc-makeup-status.is-confirmed { color: var(--color-success-dark); background: var(--color-success-light); }
 .cc-makeup-status.is-rejected,
-.cc-makeup-status.is-withdrawn { color: var(--text-secondary); background: #f5f5f5; }
+.cc-makeup-status.is-withdrawn { color: var(--text-secondary); background: var(--color-neutral-muted-bg); }
 
 .cc-modal-stack { gap: 20px; }
 .cc-modal-heading { align-items: center; text-align: center; }

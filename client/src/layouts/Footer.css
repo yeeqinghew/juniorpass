@@ -9,7 +9,7 @@
 }
 
 .site-footer {
-  background: #fcfbf8;
+  background: var(--bg-cream);
 }
 
 .site-footer-desktop {

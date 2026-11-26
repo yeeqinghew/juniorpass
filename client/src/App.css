@@ -243,70 +243,70 @@ h1, h2, h3, h4, h5, h6,
 
 /* Primary button styling */
 .ant-btn-primary {
-  background: linear-gradient(135deg, #98BDD2 0%, #7fa8c0 100%) !important;
+  background: var(--gradient-blue) !important;
   border: none !important;
-  color: white !important;
-  box-shadow: 0 4px 12px rgba(152, 189, 210, 0.3) !important;
+  color: var(--text-white) !important;
+  box-shadow: var(--shadow-primary) !important;
 }
 
 .ant-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #a8cde2 0%, #8fb8d0 100%) !important;
+  background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary-color) 100%) !important;
   transform: translateY(-2px) !important;
-  box-shadow: 0 6px 16px rgba(152, 189, 210, 0.4) !important;
+  box-shadow: var(--shadow-primary-hover) !important;
 }
 
 .ant-btn-primary:active:not(:disabled) {
   transform: translateY(0) !important;
-  box-shadow: 0 2px 8px rgba(152, 189, 210, 0.3) !important;
+  box-shadow: var(--shadow-sm) !important;
 }
 
 /* Default button styling */
 .ant-btn-default:not(.ant-btn-dangerous) {
-  background: white !important;
-  border: 1.5px solid #d9d9d9 !important;
-  color: #333 !important;
+  background: var(--bg-white) !important;
+  border: 1.5px solid var(--border-medium) !important;
+  color: var(--text-primary) !important;
 }
 
 .ant-btn-default:not(.ant-btn-dangerous):hover:not(:disabled) {
-  border-color: #98BDD2 !important;
-  color: #98BDD2 !important;
+  border-color: var(--primary-color) !important;
+  color: var(--primary-color) !important;
   transform: translateY(-2px) !important;
   box-shadow: 0 4px 12px rgba(152, 189, 210, 0.15) !important;
 }
 
 /* Danger button styling */
 .ant-btn-dangerous.ant-btn-primary {
-  background: linear-gradient(135deg, #ff4d4f 0%, #ff7875 100%) !important;
+  background: var(--color-error-bg) !important;
   box-shadow: 0 4px 12px rgba(255, 77, 79, 0.3) !important;
 }
 
 .ant-btn-dangerous.ant-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #ff6b6d 0%, #ff9090 100%) !important;
+  background: linear-gradient(135deg, var(--color-error) 0%, #ff7875 100%) !important;
   box-shadow: 0 6px 16px rgba(255, 77, 79, 0.4) !important;
 }
 
 /* Ghost button styling */
 .ant-btn-ghost {
   background: transparent !important;
-  border: 1.5px solid #98BDD2 !important;
-  color: #98BDD2 !important;
+  border: 1.5px solid var(--primary-color) !important;
+  color: var(--primary-color) !important;
 }
 
 .ant-btn-ghost:hover:not(:disabled) {
   background: rgba(152, 189, 210, 0.1) !important;
-  border-color: #7fa8c0 !important;
-  color: #7fa8c0 !important;
+  border-color: var(--primary-dark) !important;
+  color: var(--primary-dark) !important;
 }
 
 /* Link button styling */
 .ant-btn-link {
-  color: #98BDD2 !important;
+  color: var(--primary-color) !important;
   padding: 0 !important;
   height: auto !important;
 }
 
 .ant-btn-link:hover:not(:disabled) {
-  color: #7fa8c0 !important;
+  color: var(--primary-dark) !important;
 }
 
 /* Disabled button styling */
@@ -340,31 +340,31 @@ h1, h2, h3, h4, h5, h6,
 /* Pink accent button (for CTAs) */
 .btn-pink,
 .ant-btn.btn-pink {
-  background: linear-gradient(135deg, #f3a5c7 0%, #e88bb1 100%) !important;
+  background: var(--gradient-pink) !important;
   border: none !important;
-  color: white !important;
-  box-shadow: 0 4px 12px rgba(243, 165, 199, 0.35) !important;
+  color: var(--text-white) !important;
+  box-shadow: var(--shadow-pink) !important;
 }
 
 .btn-pink:hover:not(:disabled),
 .ant-btn.btn-pink:hover:not(:disabled) {
-  background: linear-gradient(135deg, #f5b5d3 0%, #ea9bc1 100%) !important;
+  background: linear-gradient(135deg, var(--accent-pink) 0%, var(--accent-pink-dark) 100%) !important;
   transform: translateY(-2px) !important;
-  box-shadow: 0 6px 16px rgba(243, 165, 199, 0.5) !important;
+  box-shadow: var(--shadow-pink-hover) !important;
 }
 
 /* Gold accent button (for premium) */
 .btn-gold,
 .ant-btn.btn-gold {
-  background: linear-gradient(135deg, #d4af37 0%, #b8941f 100%) !important;
+  background: linear-gradient(135deg, var(--accent-gold) 0%, var(--accent-gold-dark) 100%) !important;
   border: none !important;
-  color: white !important;
+  color: var(--text-white) !important;
   box-shadow: 0 4px 12px rgba(212, 175, 55, 0.35) !important;
 }
 
 .btn-gold:hover:not(:disabled),
 .ant-btn.btn-gold:hover:not(:disabled) {
-  background: linear-gradient(135deg, #e4bf47 0%, #c8a42f 100%) !important;
+  background: linear-gradient(135deg, var(--accent-gold) 0%, var(--accent-gold-dark) 100%) !important;
   transform: translateY(-2px) !important;
   box-shadow: 0 6px 16px rgba(212, 175, 55, 0.5) !important;
 }

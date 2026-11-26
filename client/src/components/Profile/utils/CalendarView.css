@@ -89,8 +89,8 @@
   background: var(--primary-dark);
 }
 
-.jp-calendar-legend i.is-rescheduled { background: #fa8c16; }
-.jp-calendar-legend i.is-cancelled { background: #ff4d4f; }
+.jp-calendar-legend i.is-rescheduled { background: var(--color-warning); }
+.jp-calendar-legend i.is-cancelled { background: var(--color-error); }
 
 .jp-calendar .ant-picker-calendar-header {
   padding: 8px 0 12px;
@@ -154,7 +154,7 @@
 }
 
 .jp-calendar-child.is-rescheduled .jp-child-icon {
-  box-shadow: 0 0 0 2px #fa8c16;
+  box-shadow: 0 0 0 2px var(--color-warning);
 }
 
 .jp-child-icon {
@@ -180,7 +180,7 @@
 }
 
 .jp-child-icon.is-neutral {
-  background: #f1f5f9;
+  background: var(--color-neutral-bg);
   color: var(--text-muted);
 }
 
@@ -195,7 +195,7 @@
   height: 28px;
   border: 2px solid white;
   border-radius: 50%;
-  background: #f1f5f9;
+  background: var(--color-neutral-bg);
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.18);
   object-fit: cover;
 }
@@ -237,9 +237,9 @@
 }
 
 .jp-calendar-chip.is-rescheduled {
-  border-left-color: #fa8c16;
-  background: #fff7e6;
-  color: #874d00;
+  border-left-color: var(--color-warning);
+  background: var(--color-warning-light);
+  color: var(--color-warning-amber);
 }
 
 .jp-calendar-chip.is-cancelled {
@@ -250,8 +250,8 @@
 }
 
 .jp-calendar-chip.is-past {
-  border-left-color: #94a3b8;
-  background: #f5f5f5;
+  border-left-color: var(--color-neutral-slate);
+  background: var(--color-neutral-muted-bg);
   color: var(--text-muted);
   opacity: 0.75;
 }
@@ -275,7 +275,7 @@
 
 .jp-agenda-header {
   padding-bottom: 14px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .jp-agenda-list {
@@ -299,9 +299,9 @@
   background: var(--bg-white);
 }
 
-.jp-agenda-item.is-rescheduled { border-left-color: #fa8c16; }
-.jp-agenda-item.is-cancelled { border-left-color: #ff4d4f; background: #fffafa; }
-.jp-agenda-item.is-past { border-left-color: #94a3b8; opacity: 0.72; }
+.jp-agenda-item.is-rescheduled { border-left-color: var(--color-warning); }
+.jp-agenda-item.is-cancelled { border-left-color: var(--color-error); background: var(--color-cancelled-bg); }
+.jp-agenda-item.is-past { border-left-color: var(--color-neutral-slate); opacity: 0.72; }
 
 .jp-agenda-time {
   display: flex;
@@ -345,9 +345,9 @@
 
 .jp-makeup-tag.is-pending { color: var(--color-warning-pending); background: var(--color-warning-pending-bg); }
 .jp-makeup-tag.is-offered { color: var(--primary-dark); background: var(--bg-light-blue); }
-.jp-makeup-tag.is-confirmed { color: #237804; background: #f6ffed; }
+.jp-makeup-tag.is-confirmed { color: var(--color-success-dark); background: var(--color-success-light); }
 .jp-makeup-tag.is-rejected,
-.jp-makeup-tag.is-withdrawn { color: var(--text-secondary); background: #f5f5f5; }
+.jp-makeup-tag.is-withdrawn { color: var(--text-secondary); background: var(--color-neutral-muted-bg); }
 
 @media (max-width: 1100px) {
   .jp-calendar-layout { grid-template-columns: 1fr; }

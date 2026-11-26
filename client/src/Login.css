@@ -500,11 +500,11 @@
 }
 
 .strength-weak {
-  color: #ff4d4f;
+  color: var(--color-error);
 }
 
 .strength-medium {
-  color: #faad14;
+  color: var(--color-warning);
 }
 
 .strength-strong {

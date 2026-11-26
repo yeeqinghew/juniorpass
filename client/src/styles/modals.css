@@ -167,23 +167,23 @@
 }
 
 .modal-alert.ant-alert-success {
-  border: 1px solid #b7eb8f !important;
+  border: 1px solid var(--color-success-border) !important;
   background: var(--color-success-light) !important;
 }
 
 .modal-alert.ant-alert-error {
-  border: 1px solid #ffccc7 !important;
+  border: 1px solid var(--color-error-border) !important;
   background: var(--color-error-light) !important;
 }
 
 .modal-alert.ant-alert-info {
-  border: 1px solid #91d5ff !important;
+  border: 1px solid var(--color-info-border) !important;
   background: var(--color-info-light) !important;
 }
 
 .modal-alert.ant-alert-warning {
-  border: 1px solid #ffe58f !important;
-  background: #fffbe6 !important;
+  border: 1px solid var(--color-warning-border) !important;
+  background: var(--color-warning-bg) !important;
 }
 
 .modal-alert-title {
@@ -222,7 +222,7 @@
 .modal-form .ant-input-number:focus,
 .modal-form .ant-select-focused .ant-select-selector {
   border-color: var(--primary-color) !important;
-  box-shadow: 0 0 0 2px rgba(152, 189, 210, 0.2) !important;
+  box-shadow: 0 0 0 2px var(--primary-ring) !important;
 }
 
 .modal-form .ant-input-lg,
@@ -281,7 +281,7 @@
 .modal-btn.modal-btn-danger:hover,
 .modal-btn.error:hover,
 .modal-btn.success:hover {
-  background: linear-gradient(135deg, var(--primary-dark), #6a96ad) !important;
+  background: linear-gradient(135deg, var(--primary-dark), var(--primary-color)) !important;
   box-shadow: var(--shadow-primary-hover) !important;
 }
 
