@@ -821,7 +821,7 @@
 
 .cc-makeup-title-row { flex-wrap: wrap; }
 .cc-makeup-status { margin: 0; text-transform: capitalize; }
-.cc-makeup-status.is-pending { color: #8a5a00; background: #fff8e1; }
+.cc-makeup-status.is-pending { color: var(--color-warning-pending); background: var(--color-warning-pending-bg); }
 .cc-makeup-status.is-offered { color: var(--primary-dark); background: var(--bg-light-blue); }
 .cc-makeup-status.is-confirmed { color: #237804; background: #f6ffed; }
 .cc-makeup-status.is-rejected,

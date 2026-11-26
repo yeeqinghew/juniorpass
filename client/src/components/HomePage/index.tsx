@@ -150,6 +150,9 @@ function HomePage() {
             itemSelectedColor: BRAND_PRIMARY,
             inkBarColor: BRAND_PRIMARY,
           },
+          Typography: {
+            fontFamily: "Poppins, sans-serif",
+          },
         },
       }}
     >
@@ -196,7 +199,7 @@ function HomePage() {
               {!isProduction && (
                 <Menu.Item key="classes">
                   <Link to="/classes" className="homepage-drawer__menu-item">
-                    Browse our classes
+                    Browse Classes
                   </Link>
                 </Menu.Item>
               )}
@@ -230,7 +233,7 @@ function HomePage() {
                   to="/classes"
                   className={`homepage-menu__link ${scrolled ? "homepage-menu__link--scrolled" : ""}`}
                 >
-                  Browse our classes
+                  Browse Classes
                 </Link>
               </Menu.Item>
             )}

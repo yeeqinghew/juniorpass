@@ -1,5 +1,13 @@
 @import "../styles/variables.css";
 
+.site-footer-heading {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
 .site-footer {
   background: #fcfbf8;
 }

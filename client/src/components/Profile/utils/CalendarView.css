@@ -72,7 +72,7 @@
   flex-wrap: wrap;
   gap: 14px;
   margin: 14px 0 8px;
-  color: var(--text-secondary, #64748b);
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -98,7 +98,7 @@
 
 .jp-calendar .ant-picker-content th {
   padding: 8px 0;
-  color: var(--text-secondary, #64748b);
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 600;
 }
@@ -175,13 +175,13 @@
 }
 
 .jp-child-icon.is-girl {
-  background: #fff0f6;
-  color: #eb2f96;
+  background: var(--bg-light-pink);
+  color: var(--accent-pink-dark);
 }
 
 .jp-child-icon.is-neutral {
   background: #f1f5f9;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .jp-child-icon.is-compact {
@@ -243,16 +243,16 @@
 }
 
 .jp-calendar-chip.is-cancelled {
-  border-left-color: #ff4d4f;
-  background: #fff1f0;
-  color: #a8071a;
+  border-left-color: var(--color-error);
+  background: var(--color-error-light);
+  color: var(--color-error-dark);
   text-decoration: line-through;
 }
 
 .jp-calendar-chip.is-past {
   border-left-color: #94a3b8;
   background: #f5f5f5;
-  color: #64748b;
+  color: var(--text-muted);
   opacity: 0.75;
 }
 
@@ -310,7 +310,7 @@
 }
 
 .jp-agenda-time span {
-  color: var(--text-secondary, #64748b);
+  color: var(--text-muted);
   font-size: 11px;
 }
 
@@ -343,7 +343,7 @@
   text-transform: capitalize;
 }
 
-.jp-makeup-tag.is-pending { color: #8a5a00; background: #fff8e1; }
+.jp-makeup-tag.is-pending { color: var(--color-warning-pending); background: var(--color-warning-pending-bg); }
 .jp-makeup-tag.is-offered { color: var(--primary-dark); background: var(--bg-light-blue); }
 .jp-makeup-tag.is-confirmed { color: #237804; background: #f6ffed; }
 .jp-makeup-tag.is-rejected,
@@ -439,7 +439,7 @@
     border: 1px solid transparent;
     border-radius: 20px;
     background: transparent;
-    color: var(--text-secondary, #64748b);
+    color: var(--text-muted);
     cursor: pointer;
   }
 
@@ -462,7 +462,7 @@
   }
 
   .jp-mobile-child-icons small {
-    color: var(--text-secondary, #64748b);
+    color: var(--text-muted);
     font-size: 8px;
     line-height: 14px;
   }

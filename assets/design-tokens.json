@@ -1,0 +1,129 @@
+{
+  "brand": "JuniorPASS",
+  "version": "1.0.0",
+  "primitive": {
+    "color": {
+      "primary": {
+        "50":  { "$value": "#EAF3F8", "$type": "color" },
+        "100": { "$value": "#D5E7F1", "$type": "color" },
+        "200": { "$value": "#B8D9E8", "$type": "color" },
+        "300": { "$value": "#98BDD2", "$type": "color", "$description": "Brand primary" },
+        "400": { "$value": "#7DAFC7", "$type": "color" },
+        "500": { "$value": "#6aa4c3", "$type": "color", "$description": "Primary dark / hover" },
+        "600": { "$value": "#4E8DAE", "$type": "color" },
+        "700": { "$value": "#387699", "$type": "color" },
+        "800": { "$value": "#245F84", "$type": "color" },
+        "900": { "$value": "#11486F", "$type": "color" }
+      },
+      "accent": {
+        "50":  { "$value": "#FEF6F9", "$type": "color" },
+        "100": { "$value": "#FDEDF4", "$type": "color" },
+        "200": { "$value": "#FADBE9", "$type": "color" },
+        "300": { "$value": "#F8C9DD", "$type": "color" },
+        "400": { "$value": "#F5B7D2", "$type": "color" },
+        "500": { "$value": "#f3a5c7", "$type": "color", "$description": "Blush pink accent" },
+        "600": { "$value": "#e88bb1", "$type": "color", "$description": "Blush pink dark / hover" },
+        "700": { "$value": "#CF7398", "$type": "color" },
+        "800": { "$value": "#B65A7F", "$type": "color" },
+        "900": { "$value": "#9C4267", "$type": "color" }
+      },
+      "gold": {
+        "300": { "$value": "#f0d060", "$type": "color" },
+        "500": { "$value": "#d4af37", "$type": "color", "$description": "Premium tier / accent gold" },
+        "700": { "$value": "#b8941f", "$type": "color", "$description": "Gold dark / hover" }
+      },
+      "success": {
+        "light": { "$value": "#f6ffed", "$type": "color" },
+        "base":  { "$value": "#52c41a", "$type": "color" },
+        "dark":  { "$value": "#389e0d", "$type": "color" }
+      },
+      "error": {
+        "light": { "$value": "#fff1f0", "$type": "color" },
+        "base":  { "$value": "#ff4d4f", "$type": "color" },
+        "dark":  { "$value": "#cf1322", "$type": "color" }
+      },
+      "warning": {
+        "light": { "$value": "#fff7e6", "$type": "color" },
+        "base":  { "$value": "#fa8c16", "$type": "color" },
+        "dark":  { "$value": "#d46b08", "$type": "color" }
+      },
+      "info": {
+        "light": { "$value": "#e6f7ff", "$type": "color" },
+        "base":  { "$value": "#1890ff", "$type": "color" },
+        "dark":  { "$value": "#096dd9", "$type": "color" }
+      },
+      "neutral": {
+        "cream":   { "$value": "#FCFBF8", "$type": "color", "$description": "Warm cream background" },
+        "white":   { "$value": "#FFFFFF", "$type": "color" },
+        "50":      { "$value": "#f8fcff", "$type": "color" },
+        "100":     { "$value": "#fef5f9", "$type": "color" },
+        "200":     { "$value": "#f0f0f0", "$type": "color" },
+        "300":     { "$value": "#d9d9d9", "$type": "color" },
+        "text-primary":   { "$value": "#333333", "$type": "color" },
+        "text-secondary": { "$value": "#555555", "$type": "color" },
+        "text-muted":     { "$value": "#666666", "$type": "color" },
+        "text-light":     { "$value": "#777777", "$type": "color" },
+        "text-disabled":  { "$value": "#999999", "$type": "color" },
+        "text-dark":      { "$value": "#1a1a2e", "$type": "color" }
+      }
+    }
+  },
+  "semantic": {
+    "color": {
+      "primary":          { "$value": "{primitive.color.primary.300}", "$type": "color" },
+      "primary-dark":     { "$value": "{primitive.color.primary.500}", "$type": "color" },
+      "primary-light":    { "$value": "{primitive.color.primary.200}", "$type": "color" },
+      "accent":           { "$value": "{primitive.color.accent.500}", "$type": "color" },
+      "accent-dark":      { "$value": "{primitive.color.accent.600}", "$type": "color" },
+      "gold":             { "$value": "{primitive.color.gold.500}", "$type": "color" },
+      "gold-dark":        { "$value": "{primitive.color.gold.700}", "$type": "color" },
+      "background":       { "$value": "{primitive.color.neutral.cream}", "$type": "color" },
+      "surface":          { "$value": "{primitive.color.neutral.white}", "$type": "color" },
+      "text-primary":     { "$value": "{primitive.color.neutral.text-primary}", "$type": "color" },
+      "text-secondary":   { "$value": "{primitive.color.neutral.text-secondary}", "$type": "color" },
+      "text-muted":       { "$value": "{primitive.color.neutral.text-muted}", "$type": "color" },
+      "text-on-primary":  { "$value": "{primitive.color.neutral.text-dark}", "$type": "color", "$description": "Use on primary/accent coloured backgrounds — never white" },
+      "success":          { "$value": "{primitive.color.success.base}", "$type": "color" },
+      "success-bg":       { "$value": "{primitive.color.success.light}", "$type": "color" },
+      "error":            { "$value": "{primitive.color.error.base}", "$type": "color" },
+      "error-bg":         { "$value": "{primitive.color.error.light}", "$type": "color" },
+      "warning":          { "$value": "{primitive.color.warning.base}", "$type": "color" },
+      "info":             { "$value": "{primitive.color.info.base}", "$type": "color" },
+      "info-bg":          { "$value": "{primitive.color.info.light}", "$type": "color" }
+    },
+    "font": {
+      "family": { "$value": "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", "$type": "fontFamily" },
+      "size-xs":   { "$value": "12px", "$type": "dimension" },
+      "size-sm":   { "$value": "13px", "$type": "dimension" },
+      "size-base": { "$value": "14px", "$type": "dimension" },
+      "size-md":   { "$value": "15px", "$type": "dimension" },
+      "size-lg":   { "$value": "16px", "$type": "dimension" },
+      "size-xl":   { "$value": "18px", "$type": "dimension" },
+      "size-2xl":  { "$value": "20px", "$type": "dimension" },
+      "size-3xl":  { "$value": "24px", "$type": "dimension" },
+      "size-4xl":  { "$value": "28px", "$type": "dimension" },
+      "size-5xl":  { "$value": "32px", "$type": "dimension" },
+      "size-6xl":  { "$value": "40px", "$type": "dimension" },
+      "size-7xl":  { "$value": "48px", "$type": "dimension" }
+    },
+    "spacing": {
+      "xs":   { "$value": "8px",  "$type": "dimension" },
+      "sm":   { "$value": "12px", "$type": "dimension" },
+      "md":   { "$value": "16px", "$type": "dimension" },
+      "lg":   { "$value": "24px", "$type": "dimension" },
+      "xl":   { "$value": "32px", "$type": "dimension" },
+      "2xl":  { "$value": "48px", "$type": "dimension" },
+      "3xl":  { "$value": "64px", "$type": "dimension" },
+      "4xl":  { "$value": "80px", "$type": "dimension" }
+    },
+    "radius": {
+      "xs":   { "$value": "4px",    "$type": "dimension" },
+      "sm":   { "$value": "8px",    "$type": "dimension" },
+      "md":   { "$value": "12px",   "$type": "dimension" },
+      "lg":   { "$value": "16px",   "$type": "dimension" },
+      "xl":   { "$value": "20px",   "$type": "dimension" },
+      "2xl":  { "$value": "24px",   "$type": "dimension" },
+      "full": { "$value": "9999px", "$type": "dimension" }
+    }
+  }
+}

@@ -40,11 +40,18 @@
 
   /* ===== Status Colors ===== */
   --color-success: #52c41a;
+  --color-success-dark: #237804;
   --color-success-light: #f6ffed;
   --color-success-bg: linear-gradient(135deg, #f6ffed 0%, #b7eb8f 100%);
   --color-error: #ff4d4f;
+  --color-error-dark: #a8071a;
   --color-error-light: #fff1f0;
   --color-error-bg: linear-gradient(135deg, #fff1f0 0%, #ffccc7 100%);
+  --color-warning: #fa8c16;
+  --color-warning-dark: #d46b08;
+  --color-warning-light: #fff7e6;
+  --color-warning-pending: #8a5a00;
+  --color-warning-pending-bg: #fff8e1;
   --color-info: #1890ff;
   --color-info-light: #e6f7ff;
   --color-info-bg: linear-gradient(135deg, #e6f7ff 0%, #91d5ff 100%);

@@ -156,7 +156,7 @@ html {
 
 .homepage-icon {
     font-size: var(--icon-xl);
-    color: #FF6B6B;
+    color: var(--color-error);
 }
 
 .headline-content-wrapper {

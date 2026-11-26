@@ -268,6 +268,9 @@ const LoggedInLayout = () => {
             itemSelectedColor: BRAND_PRIMARY,
             inkBarColor: BRAND_PRIMARY,
           },
+          Typography: {
+            fontFamily: "Poppins, sans-serif",
+          },
         },
       }}
     >

@@ -47,13 +47,13 @@ const Footer = () => {
             </Flex>
 
             <Flex vertical gap="large" className="site-footer-column">
-              <Title level={5}>PARTNERS</Title>
+              <p className="site-footer-heading">PARTNERS</p>
               <Link to="/partner-contact">Become a partner</Link>
               <Link to="https://partner.juniorpass.sg">Partner Login</Link>
             </Flex>
 
             <Flex vertical gap="large" className="site-footer-column">
-              <Title level={5}>FOLLOW US</Title>
+              <p className="site-footer-heading">FOLLOW US</p>
               <Space direction="horizontal">
                 <MailOutlined />
                 <Link to="mailto:admin@juniorpass.sg">admin@juniorpass.sg</Link>

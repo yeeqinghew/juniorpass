@@ -120,6 +120,9 @@ const OverallLayout = () => {
             itemSelectedColor: BRAND_PRIMARY,
             inkBarColor: BRAND_PRIMARY,
           },
+          Typography: {
+            fontFamily: "Poppins, sans-serif",
+          },
         },
       }}
     >
@@ -167,7 +170,7 @@ const OverallLayout = () => {
               {!isProduction && (
                 <Menu.Item key="classes">
                   <Link to="/classes" className="drawer-menu-link-text">
-                    Browse our classes
+                    Browse Classes
                   </Link>
                 </Menu.Item>
               )}
