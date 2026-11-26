@@ -26,6 +26,7 @@ import "./index.css";
 import ForgotPassword from "../components/ForgotPassword";
 import ResetPassword from "../components/ResetPassword";
 import Notifications from "../components/Notifications";
+import NotFound from "../components/NotFound";
 
 const { Title, Text } = Typography;
 
@@ -200,6 +201,7 @@ const Routers = () => {
             <Route path="/notifications" element={<Notifications />} />
           </Route>
         </Route>
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </div>
   );
