@@ -5,6 +5,7 @@ import {
   CustomerServiceOutlined,
   SafetyCertificateOutlined,
   WalletOutlined,
+  StarFilled,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { useUserContext } from "../UserContext";
@@ -73,6 +74,7 @@ const Pricing = () => {
   return (
     <div className="pricing-page">
       <div className="pricing-hero">
+        <div className="pricing-hero-pill">Simple &amp; Transparent Pricing</div>
         <Title className="pricing-hero-title">
           Tiered Credit Pricing
         </Title>
@@ -89,7 +91,7 @@ const Pricing = () => {
 
       <section className="tier-pricing-panel">
         <div className="tier-pricing-heading">
-          <span className="tier-heading-icon">★</span>
+          <span className="tier-heading-icon"><StarFilled /></span>
           <Text className="tier-eyebrow">Pick what works for your family</Text>
           <Text className="tier-pricing-hint">
             Choose how many credits you would like and we will apply the best
@@ -259,8 +261,8 @@ const Pricing = () => {
       </section>
 
       <div className="benefits-section">
-        <Title level={4} className="benefits-title">
-          Why Families Love Junior Pass
+        <Title level={2} className="benefits-title">
+          Why Families Love JuniorPASS
         </Title>
         <Row gutter={[16, 16]} justify="center" className="benefits-grid">
           {benefits.map((benefit) => (

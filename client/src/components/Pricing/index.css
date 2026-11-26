@@ -40,9 +40,19 @@
     line-height: var(--line-height-tight) !important;
 }
 
-.pricing-hero-title::after {
-    content: ' ✦' / '';
-    color: var(--accent-pink);
+.pricing-hero-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(152, 189, 210, 0.15);
+    border: 1.5px solid rgba(152, 189, 210, 0.35);
+    color: var(--primary-dark);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    padding: 6px var(--spacing-md);
+    border-radius: var(--radius-full);
+    margin-bottom: var(--spacing-lg);
+    letter-spacing: var(--letter-spacing-wide);
 }
 
 .pricing-hero-subtitle {
@@ -55,7 +65,7 @@
 }
 
 .highlight-text {
-    color: var(--color-success);
+    color: var(--primary-dark);
     font-weight: var(--font-weight-bold);
     display: block;
     margin-top: var(--spacing-xs);
@@ -1055,7 +1065,7 @@
 .benefits-title {
     color: var(--text-dark);
     margin-bottom: var(--spacing-3xl) !important;
-    font-size: var(--font-size-4xl);
+    font-size: var(--font-size-3xl) !important;
     font-weight: var(--font-weight-bold);
 }
 
@@ -1068,11 +1078,11 @@
     text-align: center;
     padding: var(--spacing-2xl);
     border-radius: var(--radius-2xl);
-    background: var(--bg-white);
-    transition: all var(--transition-base);
+    background: rgba(152, 189, 210, 0.08);
+    transition: transform var(--transition-base);
     height: 100%;
-    border: 2px solid var(--border-light);
-    box-shadow: var(--shadow-multi-md);
+    border: none;
+    box-shadow: none;
 }
 
 .benefits-grid .ant-col:nth-child(1) .benefit-card {
@@ -1093,7 +1103,6 @@
 
 .benefit-card:hover {
     transform: translateY(-4px);
-    box-shadow: var(--shadow-lg);
 }
 
 .benefit-icon-large {

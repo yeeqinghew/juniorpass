@@ -1,28 +1,10 @@
-import { Col, Row, Typography, Avatar, Space } from "antd";
+import { Col, Row, Typography, Avatar } from "antd";
 import { CheckCircleOutlined } from "@ant-design/icons";
 import "./index.css";
 
 const { Text, Title } = Typography;
 
 const AboutUs = () => {
-  const values = [
-    {
-      icon: "🎯",
-      title: "Parent-Centric",
-      description: "Every feature designed with parents' needs in mind",
-    },
-    {
-      icon: "⭐",
-      title: "Quality First",
-      description: "Only trusted, verified enrichment partners",
-    },
-    {
-      icon: "💚",
-      title: "Community Driven",
-      description: "Building connections between families and partners",
-    },
-  ];
-
   const team = [
     {
       name: "Xavier",
@@ -46,7 +28,7 @@ const AboutUs = () => {
       role: "Developer",
       avatarClass: "avatar-green",
       quote:
-        "Technology should simplify life, not complicate it. Building Junior Pass with care and dedication.",
+        "Technology should simplify life, not complicate it. Building JuniorPASS with care and dedication.",
     },
   ];
 
@@ -61,11 +43,12 @@ const AboutUs = () => {
     <div className="about-container">
       {/* Hero */}
       <div className="about-hero">
+        <div className="about-hero-pill">Our Story</div>
         <Title className="about-hero-title">
           We believe every child deserves the chance to discover what they love.
         </Title>
         <Text className="about-hero-subtitle">
-          Junior Pass connects Singapore families with trusted enrichment
+          JuniorPASS connects Singapore families with trusted enrichment
           classes — making it simple, joyful, and accessible for every parent.
         </Text>
       </div>
@@ -77,7 +60,7 @@ const AboutUs = () => {
             Our Story
           </Title>
           <Text className="about-lead">
-            At <strong>Junior Pass</strong>, we started with one question: why
+            At <strong>JuniorPASS</strong>, we started with one question: why
             is it so hard for parents to find and book good enrichment classes?
             So we built the solution — an all-in-one platform connecting
             families with verified partners across Singapore.
@@ -103,7 +86,7 @@ const AboutUs = () => {
       <div className="about-team">
         <div className="about-team-inner">
           <Title level={2} className="about-section-title team-title">
-            The people behind Junior Pass
+            The people behind JuniorPASS
           </Title>
           <Text className="about-team-subtitle">
             Passionate founders and developer committed to empowering families
@@ -127,26 +110,6 @@ const AboutUs = () => {
         </div>
       </div>
 
-      {/* Values */}
-      <div className="about-values">
-        <div className="about-values-inner">
-          <Row gutter={[32, 32]} justify="center">
-            {values.map((value, i) => (
-              <Col key={i} xs={24} sm={8}>
-                <div className="value-tile">
-                  <div className="value-icon">{value.icon}</div>
-                  <Text strong className="value-title">
-                    {value.title}
-                  </Text>
-                  <Text type="secondary" className="value-description">
-                    {value.description}
-                  </Text>
-                </div>
-              </Col>
-            ))}
-          </Row>
-        </div>
-      </div>
     </div>
   );
 };

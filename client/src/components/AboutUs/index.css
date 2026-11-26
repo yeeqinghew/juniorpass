@@ -24,10 +24,25 @@
 
 /* ── Hero ── */
 .about-hero {
-    background: var(--bg-gradient-blue);
-    padding: var(--spacing-3xl) var(--spacing-lg);
+    background: transparent;
+    padding: var(--spacing-3xl) var(--spacing-lg) var(--spacing-2xl);
     text-align: center;
-    animation: fadeInUp 0.8s ease-out;
+    animation: fadeInUp 0.7s ease-out both;
+}
+
+.about-hero-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(152, 189, 210, 0.15);
+    border: 1.5px solid rgba(152, 189, 210, 0.35);
+    color: var(--primary-dark);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    padding: 6px var(--spacing-md);
+    border-radius: var(--radius-full);
+    margin-bottom: var(--spacing-lg);
+    letter-spacing: var(--letter-spacing-wide);
 }
 
 .about-hero-title {
@@ -41,8 +56,7 @@
 }
 
 .about-hero-title::after {
-    content: ' ✦';
-    color: var(--accent-pink);
+    content: none;
 }
 
 .about-hero-subtitle {
@@ -56,9 +70,9 @@
 
 /* ── Story ── */
 .about-story {
-    background: var(--bg-white);
+    background: transparent;
     padding: var(--spacing-3xl) var(--spacing-lg);
-    animation: fadeInUp 0.9s ease-out;
+    animation: fadeInUp 0.9s ease-out both;
 }
 
 .about-story-inner {
@@ -109,10 +123,10 @@
 
 /* ── Team ── */
 .about-team {
-    background: var(--bg-gradient-pink);
+    background: transparent;
     padding: var(--spacing-3xl) var(--spacing-lg);
     text-align: center;
-    animation: fadeInUp 1s ease-out;
+    animation: fadeInUp 1s ease-out both;
 }
 
 .about-team-inner {
@@ -141,17 +155,16 @@
     flex-direction: column;
     align-items: center;
     padding: var(--spacing-xl);
-    background: var(--bg-white);
+    background: rgba(152, 189, 210, 0.08);
     border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-multi-sm);
-    border: 1.5px solid var(--border-light);
-    transition: transform var(--transition-base), box-shadow var(--transition-base);
+    box-shadow: none;
+    border: none;
+    transition: transform var(--transition-base);
     height: 100%;
 }
 
 .team-card:hover {
-    transform: translateY(-6px);
-    box-shadow: var(--shadow-multi-lg);
+    transform: translateY(-4px);
 }
 
 .team-avatar {
@@ -201,7 +214,7 @@
 
 /* ── Values ── */
 .about-values {
-    background: var(--bg-white);
+    background: transparent;
     padding: var(--spacing-3xl) var(--spacing-lg);
 }
 
